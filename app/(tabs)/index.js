@@ -1,101 +1,35 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, StatusBar, SafeAreaView, ImageBackground } from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar, ImageBackground } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useColorScheme } from 'react-native';
 
 export default function WelcomeScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  
-  // Theme colors
-  const theme = {
-    colors: {
-      primary: '#0066CC',
-      background: isDark ? '#121212' : '#FFFFFF',
-      card: isDark ? '#1E1E1E' : '#F5F7FA',
-      text: isDark ? '#F5F5F5' : '#333333',
-      subtext: isDark ? '#AAAAAA' : '#666666',
-    }
-  };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+    <ImageBackground 
+      source={{ uri: 'https://images.unsplash.com/photo-1559757148-5c350d0d3c56?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80' }}
+      style={styles.container}
+      resizeMode="cover"
+    >
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
-      <View style={styles.header}>
-        <View style={[styles.logoIcon, { backgroundColor: theme.colors.primary }]}>
-          <MaterialIcons name="medical-services" size={24} color="#FFFFFF" />
-        </View>
-        <Text style={[styles.logoText, { color: theme.colors.text }]}>
-          Beacon Children's Centre
-        </Text>
-      </View>
+      {/* Overlay for better text readability */}
+      <View style={styles.overlay} />
       
-      <View style={styles.main}>
-        {/* Main Image */}
-        <View style={[styles.imageContainer, { backgroundColor: theme.colors.primary + '10' }]}>
-          <MaterialIcons name="child-care" size={90} color={theme.colors.primary} />
+      <View style={styles.content}>
+        <View style={styles.textContainer}>
+          <Text style={styles.title}>Beacon Children's Centre</Text>
+          <Text style={styles.subtitle}>Your neurodevelopmental clinic</Text>
         </View>
-        
-        {/* Tagline */}
-        <Text style={[styles.tagline, { color: theme.colors.text }]}>
-          Your trusted partner in children's healthcare and development
-        </Text>
-        
-        {/* Features */}
-        <View style={styles.featuresContainer}>
-          <View style={styles.featureRow}>
-            <MaterialIcons name="video-call" size={24} color={theme.colors.primary} />
-            <Text style={[styles.featureText, { color: theme.colors.text }]}>
-              Teleconsultations with specialists
-            </Text>
-          </View>
-          
-          <View style={styles.featureRow}>
-            <MaterialIcons name="assessment" size={24} color={theme.colors.primary} />
-            <Text style={[styles.featureText, { color: theme.colors.text }]}>
-              Developmental screening tools
-            </Text>
-          </View>
-          
-          <View style={styles.featureRow}>
-            <MaterialIcons name="event-available" size={24} color={theme.colors.primary} />
-            <Text style={[styles.featureText, { color: theme.colors.text }]}>
-              Easy appointment booking
-            </Text>
-          </View>
-        </View>
-      </View>
-      
-      {/* Buttons */}
-      <View style={[styles.buttonsContainer, { borderTopColor: theme.colors.border }]}>
-        <TouchableOpacity 
-          style={[styles.button, { backgroundColor: theme.colors.primary }]}
-          onPress={() => router.push('/auth/signup')}
-        >
-          <Text style={styles.buttonText}>Create Account</Text>
-        </TouchableOpacity>
         
         <TouchableOpacity 
-          style={[styles.button, { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.colors.primary }]}
+          style={styles.getStartedButton}
           onPress={() => router.push('/auth/login')}
         >
-          <Text style={[styles.buttonText, { color: theme.colors.primary }]}>Log In</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.skipContainer}
-          onPress={() => router.push('/(tabs)/dashboard')}
-        >
-          <Text style={[styles.skipText, { color: theme.colors.subtext }]}>
-            Skip for now
-          </Text>
-          <MaterialIcons name="arrow-forward" size={16} color={theme.colors.subtext} />
+          <Text style={styles.getStartedText}>Get Started</Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </ImageBackground>
   );
 }
 
@@ -103,87 +37,64 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 45,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
-  main: {
+  content: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: 24,
-    paddingVertical: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingTop: 150,
+    paddingBottom: 100,
   },
-  logoIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    justifyContent: 'center',
+  textContainer: {
     alignItems: 'center',
-    marginRight: 12,
+    marginBottom: 60,
   },
-  logoText: {
-    fontSize: 20,
+  title: {
+    fontSize: 32,
     fontWeight: 'bold',
-    flexShrink: 1,
-  },
-  imageContainer: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  tagline: {
-    fontSize: 18,
+    color: '#FFFFFF',
     textAlign: 'center',
-    marginBottom: 40,
-    lineHeight: 24,
+    marginBottom: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
-  featuresContainer: {
-    alignSelf: 'stretch',
-    marginBottom: 20,
+  subtitle: {
+    fontSize: 18,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    opacity: 0.9,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
-  featureRow: {
-    flexDirection: 'row',
+  getStartedButton: {
+    backgroundColor: '#2E5BFF',
+    paddingHorizontal: 40,
+    paddingVertical: 16,
+    borderRadius: 25,
+    minWidth: 200,
     alignItems: 'center',
-    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
   },
-  featureText: {
-    fontSize: 16,
-    marginLeft: 12,
-  },
-  buttonsContainer: {
-    paddingHorizontal: 24,
-    paddingBottom: 10,
-  },
-  button: {
-    height: 54,
-    borderRadius: 27,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  skipContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 8,
-    paddingVertical: 8,
-  },
-  skipText: {
-    fontSize: 14,
-    marginRight: 4,
+  getStartedText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
   },
 });

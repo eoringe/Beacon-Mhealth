@@ -10,13 +10,14 @@ import {
   Platform,
   TouchableWithoutFeedback,
   Keyboard,
+  ScrollView,
   Image
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { MaterialIcons, Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function AuthScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState('login');
 
   // Login state
@@ -51,7 +52,6 @@ export default function AuthScreen() {
           keyboardType="email-address"
           autoCapitalize="none"
           placeholder="Enter your email"
-          placeholderTextColor="#999"
         />
       </View>
 
@@ -65,12 +65,11 @@ export default function AuthScreen() {
             onChangeText={setPassword}
             secureTextEntry={!showPassword}
             placeholder="Enter your password"
-            placeholderTextColor="#999"
           />
           <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
             <Feather
               name={showPassword ? "eye" : "eye-off"}
-              size={18}
+              size={20}
               color="#999"
             />
           </TouchableOpacity>
@@ -84,13 +83,13 @@ export default function AuthScreen() {
           onPress={() => setRememberMe(!rememberMe)}
         >
           <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
-            {rememberMe && <MaterialIcons name="check" size={14} color="#FFFFFF" />}
+            {rememberMe && <MaterialIcons name="check" size={16} color="#FFFFFF" />}
           </View>
           <Text style={styles.rememberMeText}>Remember me</Text>
         </TouchableOpacity>
 
         <TouchableOpacity>
-          <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+          <Text style={styles.forgotPasswordText}>Forgot Password ?</Text>
         </TouchableOpacity>
       </View>
 
@@ -101,25 +100,6 @@ export default function AuthScreen() {
       >
         <Text style={styles.primaryButtonText}>Log In</Text>
       </TouchableOpacity>
-
-      {/* Or login with */}
-      <Text style={styles.orText}>Or login with</Text>
-
-      {/* Social Login Buttons */}
-      <View style={styles.socialButtonsContainer}>
-        <TouchableOpacity style={styles.socialButton}>
-          <MaterialIcons name="g-translate" size={20} color="#DB4437" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.socialButton}>
-          <MaterialIcons name="facebook" size={20} color="#4267B2" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.socialButton}>
-          <MaterialIcons name="apple" size={20} color="#000000" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.socialButton}>
-          <MaterialIcons name="phone" size={20} color="#333333" />
-        </TouchableOpacity>
-      </View>
     </View>
   );
 
@@ -133,7 +113,6 @@ export default function AuthScreen() {
           value={fullName}
           onChangeText={setFullName}
           placeholder="Enter your full name"
-          placeholderTextColor="#999"
         />
       </View>
 
@@ -147,7 +126,6 @@ export default function AuthScreen() {
           keyboardType="email-address"
           autoCapitalize="none"
           placeholder="Enter your email"
-          placeholderTextColor="#999"
         />
       </View>
 
@@ -161,12 +139,11 @@ export default function AuthScreen() {
             onChangeText={setSignupPassword}
             secureTextEntry={!showSignupPassword}
             placeholder="Enter your password"
-            placeholderTextColor="#999"
           />
           <TouchableOpacity onPress={() => setShowSignupPassword(!showSignupPassword)}>
             <Feather
               name={showSignupPassword ? "eye" : "eye-off"}
-              size={18}
+              size={20}
               color="#999"
             />
           </TouchableOpacity>
@@ -180,31 +157,12 @@ export default function AuthScreen() {
       >
         <Text style={styles.primaryButtonText}>Sign Up</Text>
       </TouchableOpacity>
-
-      {/* Or login with */}
-      <Text style={styles.orText}>Or sign up with</Text>
-
-      {/* Social Login Buttons */}
-      <View style={styles.socialButtonsContainer}>
-        <TouchableOpacity style={styles.socialButton}>
-          <MaterialIcons name="g-translate" size={20} color="#DB4437" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.socialButton}>
-          <MaterialIcons name="facebook" size={20} color="#4267B2" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.socialButton}>
-          <MaterialIcons name="apple" size={20} color="#000000" />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.socialButton}>
-          <MaterialIcons name="phone" size={20} color="#333333" />
-        </TouchableOpacity>
-      </View>
     </View>
   );
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom + 20 }]}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardAvoidingView}
@@ -218,7 +176,7 @@ export default function AuthScreen() {
                 resizeMode="contain"
               />
               <Text style={styles.title}>Get Started now</Text>
-              <Text style={styles.subtitle}>Create an account or log in to explore</Text>
+              <Text style={styles.subtitle}>Create an account or log in to explore about our app</Text>
             </View>
 
             {/* Tab Switcher */}
@@ -260,13 +218,13 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 5,
-    paddingBottom: 15,
+    paddingBottom: 20,
   },
   header: {
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingTop: 20,
+    paddingBottom: 10,
+    paddingHorizontal: 20,
   },
   logo: {
     width: 100,
@@ -274,62 +232,38 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   title: {
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#333333',
-    marginBottom: 2,
+    marginBottom: 3,
   },
   subtitle: {
-    fontSize: 13,
+    fontSize: 11,
     color: '#666666',
     textAlign: 'center',
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#F8F9FA',
-    borderRadius: 8,
-    padding: 3,
-    marginTop: 8,
-    marginBottom: 2,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderRadius: 6,
-  },
-  activeTab: {
-    backgroundColor: '#2E5BFF',
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#666666',
-  },
-  activeTabText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+    lineHeight: 14,
   },
   form: {
     flex: 1,
-    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 5,
   },
   inputGroup: {
-    marginBottom: 10,
+    marginBottom: 8,
   },
   inputLabel: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '500',
     color: '#333333',
-    marginBottom: 6,
+    marginBottom: 3,
   },
   input: {
     borderWidth: 1,
     borderColor: '#E5E5E5',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    fontSize: 14,
+    borderRadius: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    fontSize: 12,
     color: '#333333',
     backgroundColor: '#FFFFFF',
   },
@@ -338,14 +272,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E5E5E5',
-    borderRadius: 8,
-    paddingHorizontal: 14,
+    borderRadius: 4,
+    paddingHorizontal: 8,
     backgroundColor: '#FFFFFF',
   },
   passwordInput: {
     flex: 1,
-    paddingVertical: 11,
-    fontSize: 14,
+    paddingVertical: 8,
+    fontSize: 12,
     color: '#333333',
   },
   optionsRow: {
@@ -359,12 +293,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   checkbox: {
-    width: 18,
-    height: 18,
-    borderWidth: 2,
+    width: 12,
+    height: 12,
+    borderWidth: 1,
     borderColor: '#E5E5E5',
-    borderRadius: 4,
-    marginRight: 6,
+    borderRadius: 2,
+    marginRight: 3,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -373,45 +307,51 @@ const styles = StyleSheet.create({
     borderColor: '#2E5BFF',
   },
   rememberMeText: {
-    fontSize: 13,
+    fontSize: 10,
     color: '#333333',
   },
   forgotPasswordText: {
-    fontSize: 13,
+    fontSize: 10,
     color: '#2E5BFF',
     fontWeight: '500',
   },
   primaryButton: {
     backgroundColor: '#2E5BFF',
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 8,
+    borderRadius: 4,
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
+    marginTop: 6,
   },
   primaryButtonText: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: '600',
   },
-  orText: {
-    textAlign: 'center',
-    fontSize: 12,
-    color: '#666666',
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#F8F9FA',
+    marginHorizontal: 16,
+    borderRadius: 4,
+    padding: 2,
     marginBottom: 10,
   },
-  socialButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  socialButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F8F9FA',
-    justifyContent: 'center',
+  tab: {
+    flex: 1,
+    paddingVertical: 4,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderRadius: 2,
+  },
+  activeTab: {
+    backgroundColor: '#2E5BFF',
+  },
+  tabText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#666666',
+  },
+  activeTabText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
 });

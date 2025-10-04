@@ -10,199 +10,127 @@ import {
   Platform, 
   TouchableWithoutFeedback,
   Keyboard,
-  ScrollView
+  Image
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons, Feather } from '@expo/vector-icons';
-import { useColorScheme } from 'react-native';
 
 export default function SignupScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === 'dark';
-  
-  // Theme colors
-  const theme = {
-    colors: {
-      primary: '#0066CC',
-      secondary: isDark ? '#70A1FF' : '#4D96FF',
-      background: isDark ? '#121212' : '#FFFFFF',
-      card: isDark ? '#1E1E1E' : '#F5F7FA',
-      text: isDark ? '#F5F5F5' : '#333333',
-      border: isDark ? '#2A2A2A' : '#E1E5EA',
-      disabled: isDark ? '#747D8C' : '#A4B0BE',
-    }
-  };
-  
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
-  const [focusedInput, setFocusedInput] = useState(null);
 
   const handleSignup = () => {
-    // Handle signup logic here
     router.push('/(tabs)/dashboard');
   };
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <SafeAreaView style={styles.container}>
         <KeyboardAvoidingView 
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardAvoidingView}
         >
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContainer}>
+          <View style={styles.content}>
+            {/* Header with Logo */}
             <View style={styles.header}>
-              <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                <MaterialIcons name="arrow-back" size={24} color={theme.colors.text} />
-              </TouchableOpacity>
-              <Text style={[styles.title, { color: theme.colors.primary }]}>
-                BEACON CHILDREN CENTER
-              </Text>
-              <Text style={[styles.subtitle, { color: theme.colors.text }]}>
-                Create your account
-              </Text>
+              <Image 
+                source={require('../../assets/images/beacon.jpg')}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+              <Text style={styles.title}>Get Started now</Text>
+              <Text style={styles.subtitle}>Create an account to explore</Text>
             </View>
 
+            {/* Form */}
             <View style={styles.form}>
-              <View style={[
-                styles.inputContainer, 
-                { 
-                  borderColor: focusedInput === 'fullName' ? theme.colors.primary : theme.colors.border,
-                  backgroundColor: theme.colors.card
-                }
-              ]}>
-                <MaterialIcons name="person" size={20} color={theme.colors.primary} style={styles.inputIcon} />
+              {/* Full Name Input */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Full Name</Text>
                 <TextInput
-                  style={[styles.input, { color: theme.colors.text }]}
-                  placeholder="Full Name"
-                  placeholderTextColor={theme.colors.disabled}
+                  style={styles.input}
                   value={fullName}
                   onChangeText={setFullName}
-                  onFocus={() => setFocusedInput('fullName')}
-                  onBlur={() => setFocusedInput(null)}
+                  placeholder="Enter your full name"
+                  placeholderTextColor="#999"
                 />
               </View>
 
-              <View style={[
-                styles.inputContainer, 
-                { 
-                  borderColor: focusedInput === 'email' ? theme.colors.primary : theme.colors.border,
-                  backgroundColor: theme.colors.card
-                }
-              ]}>
-                <MaterialIcons name="email" size={20} color={theme.colors.primary} style={styles.inputIcon} />
+              {/* Email Input */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Email</Text>
                 <TextInput
-                  style={[styles.input, { color: theme.colors.text }]}
-                  placeholder="Email Address"
-                  placeholderTextColor={theme.colors.disabled}
+                  style={styles.input}
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
                   autoCapitalize="none"
-                  onFocus={() => setFocusedInput('email')}
-                  onBlur={() => setFocusedInput(null)}
-                />
-              </View>
-              
-              <View style={[
-                styles.inputContainer, 
-                { 
-                  borderColor: focusedInput === 'phone' ? theme.colors.primary : theme.colors.border,
-                  backgroundColor: theme.colors.card
-                }
-              ]}>
-                <MaterialIcons name="phone" size={20} color={theme.colors.primary} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, { color: theme.colors.text }]}
-                  placeholder="Phone Number"
-                  placeholderTextColor={theme.colors.disabled}
-                  value={phoneNumber}
-                  onChangeText={setPhoneNumber}
-                  keyboardType="phone-pad"
-                  onFocus={() => setFocusedInput('phone')}
-                  onBlur={() => setFocusedInput(null)}
+                  placeholder="Enter your email"
+                  placeholderTextColor="#999"
                 />
               </View>
 
-              <View style={[
-                styles.inputContainer, 
-                { 
-                  borderColor: focusedInput === 'password' ? theme.colors.primary : theme.colors.border,
-                  backgroundColor: theme.colors.card
-                }
-              ]}>
-                <MaterialIcons name="lock" size={20} color={theme.colors.primary} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, { color: theme.colors.text }]}
-                  placeholder="Password"
-                  placeholderTextColor={theme.colors.disabled}
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry={!showPassword}
-                  onFocus={() => setFocusedInput('password')}
-                  onBlur={() => setFocusedInput(null)}
-                />
-                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                  <Feather 
-                    name={showPassword ? "eye" : "eye-off"} 
-                    size={20} 
-                    color={theme.colors.disabled} 
+              {/* Password Input */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Password</Text>
+                <View style={styles.passwordContainer}>
+                  <TextInput
+                    style={styles.passwordInput}
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                    placeholder="Enter your password"
+                    placeholderTextColor="#999"
                   />
-                </TouchableOpacity>
-              </View>
-              
-              <View style={[
-                styles.inputContainer, 
-                { 
-                  borderColor: focusedInput === 'confirmPassword' ? theme.colors.primary : theme.colors.border,
-                  backgroundColor: theme.colors.card
-                }
-              ]}>
-                <MaterialIcons name="lock" size={20} color={theme.colors.primary} style={styles.inputIcon} />
-                <TextInput
-                  style={[styles.input, { color: theme.colors.text }]}
-                  placeholder="Confirm Password"
-                  placeholderTextColor={theme.colors.disabled}
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  secureTextEntry={!showConfirmPassword}
-                  onFocus={() => setFocusedInput('confirmPassword')}
-                  onBlur={() => setFocusedInput(null)}
-                />
-                <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
-                  <Feather 
-                    name={showConfirmPassword ? "eye" : "eye-off"} 
-                    size={20} 
-                    color={theme.colors.disabled} 
-                  />
-                </TouchableOpacity>
+                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                    <Feather 
+                      name={showPassword ? "eye" : "eye-off"} 
+                      size={18} 
+                      color="#999" 
+                    />
+                  </TouchableOpacity>
+                </View>
               </View>
 
+              {/* Sign Up Button */}
               <TouchableOpacity 
-                style={[styles.signupButton, { backgroundColor: theme.colors.primary }]}
+                style={styles.signupButton}
                 onPress={handleSignup}
               >
                 <Text style={styles.signupButtonText}>Sign Up</Text>
               </TouchableOpacity>
 
+              {/* Or login with */}
+              <Text style={styles.orText}>Or sign up with</Text>
+
+              {/* Social Login Buttons */}
+              <View style={styles.socialButtonsContainer}>
+                <TouchableOpacity style={styles.socialButton}>
+                  <MaterialIcons name="g-translate" size={20} color="#DB4437" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.socialButton}>
+                  <MaterialIcons name="facebook" size={20} color="#4267B2" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.socialButton}>
+                  <MaterialIcons name="apple" size={20} color="#000000" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.socialButton}>
+                  <MaterialIcons name="phone" size={20} color="#333333" />
+                </TouchableOpacity>
+              </View>
+
+              {/* Login Link */}
               <View style={styles.loginContainer}>
-                <Text style={[styles.loginText, { color: theme.colors.text }]}>
-                  Already have an account?
-                </Text>
+                <Text style={styles.loginText}>Already have an account? </Text>
                 <TouchableOpacity onPress={() => router.push('/auth/login')}>
-                  <Text style={[styles.loginLink, { color: theme.colors.primary }]}>
-                    Log In
-                  </Text>
+                  <Text style={styles.loginLink}>Log In</Text>
                 </TouchableOpacity>
               </View>
             </View>
-          </ScrollView>
+          </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
     </TouchableWithoutFeedback>
@@ -212,77 +140,122 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
   },
   keyboardAvoidingView: {
     flex: 1,
   },
-  scrollContainer: {
-    flexGrow: 1,
-    paddingBottom: 20,
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 5,
+    paddingBottom: 15,
   },
   header: {
     alignItems: 'center',
-    marginTop: 60,
-    marginBottom: 30,
-    paddingHorizontal: 20,
+    paddingVertical: 8,
   },
-  backButton: {
-    position: 'absolute',
-    left: 20,
-    top: 10,
+  logo: {
+    width: 100,
+    height: 75,
+    marginBottom: 6,
   },
   title: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
-    marginBottom: 12,
+    color: '#333333',
+    marginBottom: 2,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 13,
+    color: '#666666',
+    textAlign: 'center',
   },
   form: {
-    paddingHorizontal: 24,
+    flex: 1,
+    paddingTop: 12,
   },
-  inputContainer: {
+  inputGroup: {
+    marginBottom: 10,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333333',
+    marginBottom: 6,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    fontSize: 14,
+    color: '#333333',
+    backgroundColor: '#FFFFFF',
+  },
+  passwordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 56,
-    marginBottom: 16,
+    borderColor: '#E5E5E5',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    backgroundColor: '#FFFFFF',
   },
-  inputIcon: {
-    marginRight: 12,
-  },
-  input: {
+  passwordInput: {
     flex: 1,
-    fontSize: 16,
+    paddingVertical: 11,
+    fontSize: 14,
+    color: '#333333',
   },
   signupButton: {
-    height: 56,
-    justifyContent: 'center',
+    backgroundColor: '#2E5BFF',
+    paddingVertical: 12,
+    borderRadius: 8,
     alignItems: 'center',
-    borderRadius: 12,
-    marginBottom: 24,
-    marginTop: 8,
+    marginBottom: 10,
+    marginTop: 4,
   },
   signupButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  orText: {
+    textAlign: 'center',
+    fontSize: 12,
+    color: '#666666',
+    marginBottom: 10,
+  },
+  socialButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 10,
+  },
+  socialButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F8F9FA',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E5E5',
   },
   loginContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 8,
-    marginBottom: 20,
+    alignItems: 'center',
   },
   loginText: {
-    fontSize: 15,
-    marginRight: 5,
+    fontSize: 13,
+    color: '#666666',
   },
   loginLink: {
-    fontSize: 15,
-    fontWeight: 'bold',
+    fontSize: 13,
+    color: '#2E5BFF',
+    fontWeight: '500',
   },
 });
