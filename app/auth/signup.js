@@ -156,8 +156,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   logo: {
-    width: 100,
-    height: 75,
+    width: 120,
+    height: 90,
     marginBottom: 6,
   },
   title: {
