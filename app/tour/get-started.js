@@ -13,7 +13,7 @@ export default function GetStartedTourScreen() {
   const router = useRouter();
 
   const handleFinish = () => {
-    router.push('/(tabs)/dashboard');
+    router.push('/add_child');
   };
 
   return (
