@@ -7,7 +7,7 @@ export default function WelcomeScreen() {
 
   return (
     <ImageBackground 
-      source={require('../../assets/images/LandingPage3.jpg')}
+      source={require('../../assets/images/LandingPage.jpg')}
       style={styles.container}
       resizeMode="cover"
     >

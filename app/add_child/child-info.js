@@ -1,50 +1,67 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   SafeAreaView,
-  ScrollView
+  ScrollView,
+  Dimensions
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, Stack } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import { MILESTONE_AGES, MILESTONE_DATA } from '../../constants/milestones';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function ChildInfoScreen() {
   const router = useRouter();
   
-  // Static child data - 11 months old
+  // Static child data
   const childData = {
     name: 'Noella',
-    ageMonths: 11,
+    ageMonths: 12, // Default to 12 months
     gender: 'Girl'
   };
 
-  const [selectedAge, setSelectedAge] = useState(11);
+  const [selectedAge, setSelectedAge] = useState(12);
+  const scrollViewRef = useRef(null);
+  const [scrollPosition, setScrollPosition] = useState(0);
+  const [contentWidth, setContentWidth] = useState(0);
+  const containerWidth = SCREEN_WIDTH - 48; // Account for padding
 
-  // Age options for slider
-  const ageOptions = [
-    { label: '5 mo', value: 5 },
-    { label: '1 year', value: 12 },
-    { label: '15 mo', value: 15 }
-  ];
+  // Age options for slider - using predefined ages from constants
+  const allAges = [2, 3, 5, 6, 10, 12, 15];
+  const scrollViewPadding = 16;
+
+  const scrollToAge = (direction) => {
+    if (!scrollViewRef.current) return;
+    
+    const scrollAmount = containerWidth * 0.6;
+    const newPosition = direction === 'next' 
+      ? Math.min(scrollPosition + scrollAmount, contentWidth - containerWidth + scrollViewPadding)
+      : Math.max(scrollPosition - scrollAmount, 0);
+    
+    scrollViewRef.current.scrollTo({ x: newPosition, animated: true });
+    setScrollPosition(newPosition);
+  };
+
+  const getMilestoneCount = (age) => {
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView 
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.content}>
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity 
-              style={styles.homeButton}
-              onPress={() => router.push('/(tabs)/dashboard')}
-            >
-              <MaterialIcons name="home" size={24} color="#333333" />
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity 
+            style={styles.homeButton}
+            onPress={() => router.push('/(tabs)/dashboard')}
+          >
+            <MaterialIcons name="home" size={24} color="#333333" />
+          </TouchableOpacity>
 
           {/* Child Avatar and Name */}
           <View style={styles.childSection}>
@@ -58,42 +75,73 @@ export default function ChildInfoScreen() {
           {/* Age Slider */}
           <View style={styles.ageSliderSection}>
             <TouchableOpacity 
-              style={styles.arrowButton}
-              onPress={() => selectedAge > 5 && setSelectedAge(selectedAge - 1)}
+              style={[styles.arrowButton, !scrollPosition && styles.arrowButtonDisabled]}
+              onPress={() => scrollToAge('prev')}
+              disabled={!scrollPosition}
             >
-              <MaterialIcons name="chevron-left" size={24} color="#333333" />
+              <MaterialIcons name="chevron-left" size={24} color={!scrollPosition ? '#CCCCCC' : '#2E5BFF'} />
             </TouchableOpacity>
 
-            <View style={styles.ageOptionsContainer}>
-              {ageOptions.map((option) => (
-                <TouchableOpacity
-                  key={option.value}
-                  style={[
-                    styles.ageOption,
-                    selectedAge === option.value && styles.ageOptionActive
-                  ]}
-                  onPress={() => setSelectedAge(option.value)}
-                >
-                  <Text style={[
-                    styles.ageOptionText,
-                    selectedAge === option.value && styles.ageOptionTextActive
-                  ]}>
-                    {option.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            <View style={styles.ageScrollContainer}>
+              <ScrollView
+                ref={scrollViewRef}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.ageScrollContent}
+                onContentSizeChange={(w) => setContentWidth(w)}
+                onScroll={(e) => setScrollPosition(e.nativeEvent.contentOffset.x)}
+                scrollEventThrottle={16}
+                decelerationRate="fast"
+                snapToInterval={containerWidth * 0.3}
+                snapToAlignment="center"
+              >
+                {allAges.map((age) => (
+                  <TouchableOpacity
+                    key={age}
+                    style={[
+                      styles.agePill,
+                      selectedAge === age && styles.agePillActive,
+                    ]}
+                    onPress={() => setSelectedAge(age)}
+                  >
+                    <Text style={[
+                      styles.agePillText,
+                      selectedAge === age && styles.agePillTextActive,
+                    ]}>
+                      {age === 12 ? '1 year' : `${age} ${age === 1 ? 'month' : 'months'}`}
+                    </Text>
+                    <Text style={[
+                      styles.milestoneCount,
+                      selectedAge === age && styles.milestoneCountActive
+                    ]}>
+                      {getMilestoneCount(age)} milestones
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             </View>
 
             <TouchableOpacity 
-              style={styles.arrowButton}
-              onPress={() => selectedAge < 15 && setSelectedAge(selectedAge + 1)}
+              style={[
+                styles.arrowButton, 
+                scrollPosition >= contentWidth - containerWidth - 10 && styles.arrowButtonDisabled
+              ]}
+              onPress={() => scrollToAge('next')}
+              disabled={scrollPosition >= contentWidth - containerWidth - 10}
             >
-              <MaterialIcons name="chevron-right" size={24} color="#333333" />
+              <MaterialIcons 
+                name="chevron-right" 
+                size={24} 
+                color={scrollPosition >= contentWidth - containerWidth - 10 ? '#CCCCCC' : '#2E5BFF'} 
+              />
             </TouchableOpacity>
           </View>
 
           {/* Milestone Checklist */}
-          <TouchableOpacity style={styles.milestoneCard}>
+          <TouchableOpacity 
+            style={styles.milestoneCard}
+            onPress={() => router.push(`/milestone-checklist?age=${selectedAge}`)}
+          >
             <View style={styles.milestoneHeader}>
               <Text style={styles.milestoneTitle}>Milestone Checklist</Text>
               <MaterialIcons name="chevron-right" size={24} color="#333333" />
@@ -102,7 +150,7 @@ export default function ChildInfoScreen() {
               <View style={styles.progressBar}>
                 <View style={[styles.progressFill, { width: '0%' }]} />
               </View>
-              <Text style={styles.progressText}>10/10 Milestones prepared</Text>
+              <Text style={styles.progressText}>0/10 Milestones completed</Text>
             </View>
           </TouchableOpacity>
 
@@ -190,40 +238,56 @@ const styles = StyleSheet.create({
   ageSliderSection: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 20,
+    width: '100%',
+  },
+  ageScrollContainer: {
+    flex: 1,
+    marginHorizontal: 8,
+    overflow: 'hidden',
+  },
+  ageScrollContent: {
+    paddingHorizontal: 8,
+    alignItems: 'center',
+  },
+  agePill: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
+    marginHorizontal: 4,
+    backgroundColor: '#F5F5F5',
+    minWidth: 100,
+    alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 30,
-    paddingHorizontal: 10,
+    height: 80,
+  },
+  agePillActive: {
+    backgroundColor: '#2E5BFF',
+  },
+  agePillText: {
+    fontSize: 16,
+    color: '#666666',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  agePillTextActive: {
+    color: '#FFFFFF',
+  },
+  milestoneCount: {
+    fontSize: 12,
+    color: '#999999',
+    textAlign: 'center',
+  },
+  milestoneCountActive: {
+    color: 'rgba(255, 255, 255, 0.8)',
   },
   arrowButton: {
     padding: 8,
-  },
-  ageOptionsContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginHorizontal: 16,
-  },
-  ageOption: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    backgroundColor: '#FFFFFF',
-    minWidth: 60,
-    alignItems: 'center',
+    backgroundColor: '#F0F5FF',
   },
-  ageOptionActive: {
-    backgroundColor: '#E3F2FD',
-    borderColor: '#2E5BFF',
-  },
-  ageOptionText: {
-    fontSize: 14,
-    color: '#666666',
-    fontWeight: '500',
-  },
-  ageOptionTextActive: {
-    color: '#2E5BFF',
-    fontWeight: '600',
+  arrowButtonDisabled: {
+    opacity: 0.5,
   },
   milestoneCard: {
     backgroundColor: '#FFFFFF',
