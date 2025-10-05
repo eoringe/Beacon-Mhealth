@@ -4,7 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MILESTONE_CATEGORIES } from '../../constants/milestones';
 
-export default function MilestoneChecklist() {
+export default function MilestoneOverview() {
   const router = useRouter();
   const { age } = useLocalSearchParams();
   const selectedAge = age ? parseInt(age) : 12; // Default to 12 months if no age provided
@@ -20,7 +20,7 @@ export default function MilestoneChecklist() {
           <TouchableOpacity
             key={category.id}
             style={styles.categoryCard}
-            onPress={() => router.push(`/milestone-checklist/${category.id}?age=${selectedAge}`)}
+            onPress={() => router.push(`/milestone-overview/${category.id}?age=${selectedAge}`)}
           >
             <View style={styles.categoryIcon}>
               <MaterialIcons name={category.icon} size={28} color="#2E5BFF" />
@@ -28,7 +28,7 @@ export default function MilestoneChecklist() {
             <View style={styles.categoryInfo}>
               <Text style={styles.categoryTitle}>{category.title}</Text>
               <Text style={styles.milestoneCount}>
-                {category.milestoneCount || 5} milestones
+                View developmental milestones
               </Text>
             </View>
             <MaterialIcons name="chevron-right" size={24} color="#999" />
@@ -44,42 +44,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F8F9FB',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-  },
-  backButton: {
-    padding: 8,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333333',
-  },
   content: {
     flex: 1,
     padding: 16,
   },
   ageSelector: {
     marginBottom: 20,
-    padding: 16,
+    padding: 12,
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 3,
   },
   ageLabel: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#2E5BFF',
+    fontWeight: '500',
+    color: '#2C3E50',
   },
   categoryCard: {
     flexDirection: 'row',
@@ -89,16 +72,16 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 12,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
     elevation: 2,
   },
   categoryIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#F0F5FF',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#EBF0FF',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
@@ -109,11 +92,11 @@ const styles = StyleSheet.create({
   categoryTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333333',
+    color: '#1C1C1E',
     marginBottom: 4,
   },
   milestoneCount: {
     fontSize: 14,
-    color: '#666666',
+    color: '#8E8E93',
   },
 });

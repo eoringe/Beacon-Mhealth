@@ -17,11 +17,21 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 export default function ChildInfoScreen() {
   const router = useRouter();
   
-  // Static child data
+  // Define child data
   const childData = {
-    name: 'Noella',
-    ageMonths: 12, // Default to 12 months
-    gender: 'Girl'
+    name: 'Your Child',
+    ageMonths: 12
+  };
+  
+  const handleSaveChild = () => {
+    // In a real app, you would save the child data to your database/state here
+    console.log('Child data:', childData);
+    
+    // Navigate to the milestone overview with the child's age
+    router.push({
+      pathname: '/milestone-overview',
+      params: { age: selectedAge }
+    });
   };
 
   const [selectedAge, setSelectedAge] = useState(12);
@@ -47,6 +57,8 @@ export default function ChildInfoScreen() {
   };
 
   const getMilestoneCount = (age) => {
+    // Return a default count or implement your logic here
+    return 0;
   };
 
   return (
@@ -158,7 +170,10 @@ export default function ChildInfoScreen() {
           <View style={styles.actionButtons}>
             <TouchableOpacity 
               style={styles.actionCard}
-              onPress={() => router.push('/milestones/overview')}
+              onPress={() => router.push({
+                pathname: '/milestone-overview',
+                params: { age: selectedAge }
+              })}
             >
               <View style={styles.actionIconContainer}>
                 <MaterialIcons name="format-list-bulleted" size={28} color="#2E5BFF" />
