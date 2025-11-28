@@ -104,7 +104,7 @@ export default function MilestoneOverviewCategory() {
                   <View style={styles.milestoneIcon}>
                     <MaterialIcons name="check-circle" size={20} color="#4CAF50" />
                   </View>
-                  <Text style={styles.milestoneText}>{milestone.text}</Text>
+                  <Text style={styles.milestoneText}>{milestone}</Text>
                 </View>
               ))}
             </View>
