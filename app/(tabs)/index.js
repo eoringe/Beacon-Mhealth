@@ -1,28 +1,35 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, StatusBar, ImageBackground } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ImageBackground } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { Colors, Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 
 export default function WelcomeScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   return (
-    <ImageBackground 
+    <ImageBackground
       source={require('../../assets/images/LandingPage.jpg')}
       style={styles.container}
       resizeMode="cover"
     >
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      
       {/* Overlay for better text readability */}
       <View style={styles.overlay} />
-      
-      <View style={styles.content}>
+
+      <View style={[
+        styles.content,
+        {
+          paddingTop: insets.top + Spacing.huge,
+          paddingBottom: insets.bottom + Spacing.huge,
+        }
+      ]}>
         <View style={styles.textContainer}>
           <Text style={styles.title}>Beacon Children's Centre</Text>
           <Text style={styles.subtitle}>Your neurodevelopmental clinic</Text>
         </View>
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={styles.getStartedButton}
           onPress={() => router.push('/auth/login')}
         >
@@ -43,33 +50,31 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: Colors.overlay,
   },
   content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 150,
-    paddingBottom: 100,
+    paddingHorizontal: Spacing.xxl,
   },
   textContainer: {
     alignItems: 'center',
-    marginBottom: 60,
+    marginBottom: Spacing.huge * 1.5,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+    fontSize: Typography.fontSize.xxxl,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.white,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
     textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
   subtitle: {
-    fontSize: 18,
-    color: '#FFFFFF',
+    fontSize: Typography.fontSize.lg,
+    color: Colors.white,
     textAlign: 'center',
     opacity: 0.9,
     textShadowColor: 'rgba(0, 0, 0, 0.75)',
@@ -77,24 +82,17 @@ const styles = StyleSheet.create({
     textShadowRadius: 3,
   },
   getStartedButton: {
-    backgroundColor: '#2E5BFF',
-    paddingHorizontal: 40,
-    paddingVertical: 16,
-    borderRadius: 25,
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.huge,
+    paddingVertical: Spacing.lg,
+    borderRadius: BorderRadius.xxl,
     minWidth: 200,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4.65,
-    elevation: 8,
+    ...Shadow.xl,
   },
   getStartedText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '600',
+    color: Colors.white,
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.semibold,
   },
 });

@@ -1,17 +1,28 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MILESTONE_CATEGORIES } from '../../constants/milestones';
+import { SafeHeader } from '@/components/SafeHeader';
+import { Colors, Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 
 export default function MilestoneOverview() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { age } = useLocalSearchParams();
   const selectedAge = age ? parseInt(age) : 12; // Default to 12 months if no age provided
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.content}>
+      <SafeHeader
+        title="Milestone Overview"
+        showBack={true}
+      />
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.lg }}
+      >
         <View style={styles.ageSelector}>
           <Text style={styles.ageLabel}>Age: {selectedAge} months</Text>
         </View>
@@ -23,7 +34,7 @@ export default function MilestoneOverview() {
             onPress={() => router.push(`/milestone-overview/${category.id}?age=${selectedAge}`)}
           >
             <View style={styles.categoryIcon}>
-              <MaterialIcons name={category.icon} size={28} color="#2E5BFF" />
+              <MaterialIcons name={category.icon} size={28} color={Colors.primary} />
             </View>
             <View style={styles.categoryInfo}>
               <Text style={styles.categoryTitle}>{category.title}</Text>
@@ -31,7 +42,7 @@ export default function MilestoneOverview() {
                 View developmental milestones
               </Text>
             </View>
-            <MaterialIcons name="chevron-right" size={24} color="#999" />
+            <MaterialIcons name="chevron-right" size={24} color={Colors.textTertiary} />
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -42,61 +53,53 @@ export default function MilestoneOverview() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FB',
+    backgroundColor: Colors.background,
   },
   content: {
     flex: 1,
-    padding: 16,
+    padding: Spacing.lg,
   },
   ageSelector: {
-    marginBottom: 20,
-    padding: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    marginBottom: Spacing.xl,
+    padding: Spacing.md,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    ...Shadow.md,
   },
   ageLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#2C3E50',
+    fontSize: Typography.fontSize.md,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.textPrimary,
   },
   categoryCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    ...Shadow.md,
   },
   categoryIcon: {
     width: 48,
     height: 48,
-    borderRadius: 24,
-    backgroundColor: '#EBF0FF',
+    borderRadius: BorderRadius.xxl,
+    backgroundColor: Colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: Spacing.lg,
   },
   categoryInfo: {
     flex: 1,
   },
   categoryTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1C1C1E',
-    marginBottom: 4,
+    fontSize: Typography.fontSize.md,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xs,
   },
   milestoneCount: {
-    fontSize: 14,
-    color: '#8E8E93',
+    fontSize: Typography.fontSize.base,
+    color: Colors.textSecondary,
   },
 });

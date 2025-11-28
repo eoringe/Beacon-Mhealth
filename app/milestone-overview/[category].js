@@ -1,19 +1,22 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Animated, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Animated } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MILESTONE_CATEGORIES, MILESTONE_DATA } from '../../constants/milestones';
-import CustomHeader from '../../components/CustomHeader';
+import { SafeHeader } from '@/components/SafeHeader';
+import { Colors, Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 
 const { width } = Dimensions.get('window');
 
 export default function MilestoneOverviewCategory() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { category, age } = useLocalSearchParams();
   const [selectedAge, setSelectedAge] = useState(age ? parseInt(age) : 12);
   const scrollViewRef = useRef(null);
   const scrollX = useRef(new Animated.Value(0)).current;
-  
+
   const allAges = [2, 3, 5, 6, 10, 12, 15];
   const categoryInfo = MILESTONE_CATEGORIES.find(cat => cat.id === category);
   const milestones = MILESTONE_DATA[selectedAge]?.[category] || [];
@@ -42,8 +45,8 @@ export default function MilestoneOverviewCategory() {
   const categoryTitle = categoryInfo?.title || 'Milestone Overview';
 
   return (
-    <SafeAreaView style={styles.container}>
-      <CustomHeader 
+    <View style={styles.container}>
+      <SafeHeader
         title={categoryTitle}
         showBack={true}
       />
@@ -84,13 +87,16 @@ export default function MilestoneOverviewCategory() {
         </Animated.ScrollView>
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.lg }}
+      >
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Developmental Milestones</Text>
           <Text style={styles.sectionSubtitle}>
             These are the typical skills children develop around {selectedAge} months of age
           </Text>
-          
+
           {milestones.length > 0 ? (
             <View style={styles.milestonesList}>
               {milestones.map((milestone, index) => (
@@ -113,13 +119,13 @@ export default function MilestoneOverviewCategory() {
         </View>
 
         <View style={styles.infoBox}>
-          <MaterialIcons name="info" size={20} color="#2E5BFF" style={styles.infoIcon} />
+          <MaterialIcons name="info" size={20} color={Colors.primary} style={styles.infoIcon} />
           <Text style={styles.infoText}>
             Remember that every child develops at their own pace. If you have concerns about your child's development, please consult with a healthcare professional.
           </Text>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

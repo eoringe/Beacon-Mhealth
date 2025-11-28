@@ -5,14 +5,15 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
   ScrollView
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 
 export default function AddChildScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [childName, setChildName] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
@@ -28,15 +29,15 @@ export default function AddChildScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView 
-        contentContainerStyle={styles.scrollContent}
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <ScrollView
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 30 }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.content}>
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.homeButton}
               onPress={() => router.push('/(tabs)/dashboard')}
             >
@@ -145,7 +146,7 @@ export default function AddChildScreen() {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

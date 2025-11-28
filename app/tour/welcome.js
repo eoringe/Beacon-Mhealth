@@ -4,21 +4,32 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   Image
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { MaterialIcons } from '@expo/vector-icons';
+import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme';
 
 export default function WelcomeTourScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const handleNext = () => {
     router.push('/tour/features');
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <View style={styles.content}>
+        {/* Back Button at Top */}
+        <TouchableOpacity
+          style={styles.topBackButton}
+          onPress={() => router.back()}
+        >
+          <MaterialIcons name="arrow-back" size={24} color={Colors.textPrimary} />
+        </TouchableOpacity>
+
         {/* Illustration */}
         <View style={styles.illustrationContainer}>
           <Image
@@ -44,14 +55,14 @@ export default function WelcomeTourScreen() {
         </View>
 
         {/* Bottom Buttons */}
-        <View style={styles.bottomSection}>
+        <View style={styles.buttonContainer}>
           <TouchableOpacity
             style={styles.nextButton}
             onPress={handleNext}
           >
             <Text style={styles.nextButtonText}>Next</Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={styles.skipButton}
             onPress={() => router.push('/(tabs)/dashboard')}
@@ -60,26 +71,32 @@ export default function WelcomeTourScreen() {
           </TouchableOpacity>
         </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.white,
   },
   content: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 40,
-    paddingBottom: 30,
+    paddingHorizontal: Spacing.xxl,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing.xxxl,
+  },
+  topBackButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    marginBottom: Spacing.sm,
   },
   illustrationContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: Spacing.xl,
   },
   illustration: {
     width: '80%',
@@ -90,59 +107,61 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginVertical: 30,
-    gap: 8,
+    marginVertical: Spacing.xxxl,
+    gap: Spacing.sm,
   },
   dot: {
     width: 8,
     height: 8,
-    borderRadius: 4,
-    backgroundColor: '#E0E0E0',
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.border,
   },
   activeDot: {
     width: 24,
     height: 8,
-    borderRadius: 4,
-    backgroundColor: '#2E5BFF',
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.primary,
   },
   textContent: {
     alignItems: 'center',
-    paddingHorizontal: 10,
-    marginBottom: 40,
+    paddingHorizontal: Spacing.sm + 2,
+    marginBottom: Spacing.huge,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#2E5BFF',
-    marginBottom: 16,
+    fontSize: Typography.fontSize.xxl,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.primary,
+    marginBottom: Spacing.lg,
     textAlign: 'center',
   },
   description: {
-    fontSize: 14,
-    color: '#666666',
+    fontSize: Typography.fontSize.base,
+    color: Colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
   },
-  bottomSection: {
+  buttonContainer: {
     alignItems: 'center',
+    gap: Spacing.md,
   },
   nextButton: {
-    backgroundColor: '#2E5BFF',
-    paddingVertical: 14,
-    paddingHorizontal: 80,
-    borderRadius: 8,
-    marginBottom: 12,
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.md + 2,
+    paddingHorizontal: Spacing.huge * 2,
+    borderRadius: BorderRadius.md,
+    width: '100%',
+    alignItems: 'center',
   },
   nextButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+    color: Colors.white,
+    fontSize: Typography.fontSize.md,
+    fontWeight: Typography.fontWeight.semibold,
   },
   skipButton: {
-    paddingVertical: 8,
+    paddingVertical: Spacing.sm,
   },
   skipButtonText: {
-    color: '#999999',
-    fontSize: 14,
+    color: Colors.textTertiary,
+    fontSize: Typography.fontSize.base,
   },
 });

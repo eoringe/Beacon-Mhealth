@@ -4,29 +4,30 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  SafeAreaView,
   ScrollView,
   Dimensions
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MILESTONE_AGES, MILESTONE_DATA } from '../../constants/milestones';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 export default function ChildInfoScreen() {
   const router = useRouter();
-  
+  const insets = useSafeAreaInsets();
+
   // Define child data
   const childData = {
     name: 'Your Child',
     ageMonths: 12
   };
-  
+
   const handleSaveChild = () => {
     // In a real app, you would save the child data to your database/state here
     console.log('Child data:', childData);
-    
+
     // Navigate to the milestone overview with the child's age
     router.push({
       pathname: '/milestone-overview',
@@ -46,12 +47,12 @@ export default function ChildInfoScreen() {
 
   const scrollToAge = (direction) => {
     if (!scrollViewRef.current) return;
-    
+
     const scrollAmount = containerWidth * 0.6;
-    const newPosition = direction === 'next' 
+    const newPosition = direction === 'next'
       ? Math.min(scrollPosition + scrollAmount, contentWidth - containerWidth + scrollViewPadding)
       : Math.max(scrollPosition - scrollAmount, 0);
-    
+
     scrollViewRef.current.scrollTo({ x: newPosition, animated: true });
     setScrollPosition(newPosition);
   };
@@ -62,13 +63,13 @@ export default function ChildInfoScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView 
-        contentContainerStyle={styles.scrollContainer}
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <ScrollView
+        contentContainerStyle={[styles.scrollContainer, { paddingBottom: insets.bottom + 30 }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.content}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.homeButton}
             onPress={() => router.push('/(tabs)/dashboard')}
           >
@@ -86,7 +87,7 @@ export default function ChildInfoScreen() {
 
           {/* Age Slider */}
           <View style={styles.ageSliderSection}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.arrowButton, !scrollPosition && styles.arrowButtonDisabled]}
               onPress={() => scrollToAge('prev')}
               disabled={!scrollPosition}
@@ -133,24 +134,24 @@ export default function ChildInfoScreen() {
               </ScrollView>
             </View>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[
-                styles.arrowButton, 
+                styles.arrowButton,
                 scrollPosition >= contentWidth - containerWidth - 10 && styles.arrowButtonDisabled
               ]}
               onPress={() => scrollToAge('next')}
               disabled={scrollPosition >= contentWidth - containerWidth - 10}
             >
-              <MaterialIcons 
-                name="chevron-right" 
-                size={24} 
-                color={scrollPosition >= contentWidth - containerWidth - 10 ? '#CCCCCC' : '#2E5BFF'} 
+              <MaterialIcons
+                name="chevron-right"
+                size={24}
+                color={scrollPosition >= contentWidth - containerWidth - 10 ? '#CCCCCC' : '#2E5BFF'}
               />
             </TouchableOpacity>
           </View>
 
           {/* Milestone Checklist */}
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.milestoneCard}
             onPress={() => router.push(`/milestone-checklist?age=${selectedAge}`)}
           >
@@ -168,7 +169,7 @@ export default function ChildInfoScreen() {
 
           {/* Action Buttons */}
           <View style={styles.actionButtons}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionCard}
               onPress={() => router.push({
                 pathname: '/milestone-overview',
@@ -181,7 +182,7 @@ export default function ChildInfoScreen() {
               <Text style={styles.actionText}>Milestone{'\n'}Overview</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionCard}
               onPress={() => router.push('/appointments/book')}
             >
@@ -191,7 +192,7 @@ export default function ChildInfoScreen() {
               <Text style={styles.actionText}>Book{'\n'}Appointment</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.actionCard}
               onPress={() => router.push('/early-action')}
             >
@@ -203,7 +204,7 @@ export default function ChildInfoScreen() {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

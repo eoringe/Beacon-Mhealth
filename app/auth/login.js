@@ -5,18 +5,21 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
+  ScrollView,
   KeyboardAvoidingView,
   Platform,
   TouchableWithoutFeedback,
   Keyboard,
   Image
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons, Feather } from '@expo/vector-icons';
+import { Colors, Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 
 export default function AuthScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState('login');
 
   // Login state
@@ -204,12 +207,16 @@ export default function AuthScreen() {
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <SafeAreaView style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardAvoidingView}
         >
-          <View style={styles.content}>
+          <ScrollView
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + Spacing.lg }]}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
             {/* Header with Logo */}
             <View style={styles.header}>
               <Image
@@ -243,9 +250,9 @@ export default function AuthScreen() {
 
             {/* Form Content */}
             {activeTab === 'login' ? <LoginForm /> : <SignupForm />}
-          </View>
+          </ScrollView>
         </KeyboardAvoidingView>
-      </SafeAreaView>
+      </View>
     </TouchableWithoutFeedback>
   );
 }
@@ -253,106 +260,103 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.white,
   },
   keyboardAvoidingView: {
     flex: 1,
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 5,
-    paddingBottom: 15,
+  scrollContent: {
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.md,
   },
   header: {
     alignItems: 'center',
-    paddingVertical: 8,
+    paddingVertical: Spacing.md,
   },
   logo: {
     width: 120,
     height: 90,
-    marginBottom: 6,
+    marginBottom: Spacing.sm,
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333333',
-    marginBottom: 2,
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xs,
   },
   subtitle: {
-    fontSize: 13,
-    color: '#666666',
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
     textAlign: 'center',
   },
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#F8F9FA',
-    borderRadius: 8,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.md,
     padding: 3,
-    marginTop: 8,
-    marginBottom: 2,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   tab: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: Spacing.sm + 2,
     alignItems: 'center',
-    borderRadius: 6,
+    borderRadius: BorderRadius.sm + 2,
   },
   activeTab: {
-    backgroundColor: '#2E5BFF',
+    backgroundColor: Colors.primary,
   },
   tabText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#666666',
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.textSecondary,
   },
   activeTabText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+    color: Colors.white,
+    fontWeight: Typography.fontWeight.semibold,
   },
   form: {
-    flex: 1,
-    paddingTop: 12,
+    paddingTop: Spacing.md,
   },
   inputGroup: {
-    marginBottom: 10,
+    marginBottom: Spacing.sm + 2,
   },
   inputLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#333333',
-    marginBottom: 6,
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.sm - 2,
   },
   input: {
     borderWidth: 1,
-    borderColor: '#E5E5E5',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    fontSize: 14,
-    color: '#333333',
-    backgroundColor: '#FFFFFF',
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md + 2,
+    paddingVertical: Spacing.sm + 3,
+    fontSize: Typography.fontSize.base,
+    color: Colors.textPrimary,
+    backgroundColor: Colors.white,
   },
   passwordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E5E5E5',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    backgroundColor: '#FFFFFF',
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md + 2,
+    backgroundColor: Colors.white,
   },
   passwordInput: {
     flex: 1,
-    paddingVertical: 11,
-    fontSize: 14,
-    color: '#333333',
+    paddingVertical: Spacing.sm + 3,
+    fontSize: Typography.fontSize.base,
+    color: Colors.textPrimary,
   },
   optionsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: Spacing.md,
   },
   rememberMeContainer: {
     flexDirection: 'row',
@@ -362,56 +366,57 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderWidth: 2,
-    borderColor: '#E5E5E5',
-    borderRadius: 4,
-    marginRight: 6,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    marginRight: Spacing.sm - 2,
     justifyContent: 'center',
     alignItems: 'center',
   },
   checkboxChecked: {
-    backgroundColor: '#2E5BFF',
-    borderColor: '#2E5BFF',
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   rememberMeText: {
-    fontSize: 13,
-    color: '#333333',
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textPrimary,
   },
   forgotPasswordText: {
-    fontSize: 13,
-    color: '#2E5BFF',
-    fontWeight: '500',
+    fontSize: Typography.fontSize.sm,
+    color: Colors.primary,
+    fontWeight: Typography.fontWeight.medium,
   },
   primaryButton: {
-    backgroundColor: '#2E5BFF',
-    paddingVertical: 12,
-    borderRadius: 8,
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: Spacing.sm + 2,
   },
   primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600',
+    color: Colors.white,
+    fontSize: Typography.fontSize.md - 1,
+    fontWeight: Typography.fontWeight.semibold,
   },
   orText: {
     textAlign: 'center',
-    fontSize: 12,
-    color: '#666666',
-    marginBottom: 10,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm + 2,
   },
   socialButtonsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 12,
+    gap: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   socialButton: {
     width: 44,
     height: 44,
-    borderRadius: 22,
-    backgroundColor: '#F8F9FA',
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.background,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E5E5E5',
+    borderColor: Colors.border,
   },
 });

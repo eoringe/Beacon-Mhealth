@@ -1,17 +1,28 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MILESTONE_CATEGORIES } from '../../constants/milestones';
+import { SafeHeader } from '@/components/SafeHeader';
+import { Colors, Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 
 export default function MilestoneChecklist() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { age } = useLocalSearchParams();
   const selectedAge = age ? parseInt(age) : 12; // Default to 12 months if no age provided
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.content}>
+      <SafeHeader
+        title="Milestone Checklist"
+        showBack={true}
+      />
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.lg }}
+      >
         <View style={styles.ageSelector}>
           <Text style={styles.ageLabel}>Age: {selectedAge} months</Text>
         </View>
@@ -23,7 +34,7 @@ export default function MilestoneChecklist() {
             onPress={() => router.push(`/milestone-checklist/${category.id}?age=${selectedAge}`)}
           >
             <View style={styles.categoryIcon}>
-              <MaterialIcons name={category.icon} size={28} color="#2E5BFF" />
+              <MaterialIcons name={category.icon} size={28} color={Colors.primary} />
             </View>
             <View style={styles.categoryInfo}>
               <Text style={styles.categoryTitle}>{category.title}</Text>
@@ -31,7 +42,7 @@ export default function MilestoneChecklist() {
                 {category.milestoneCount || 5} milestones
               </Text>
             </View>
-            <MaterialIcons name="chevron-right" size={24} color="#999" />
+            <MaterialIcons name="chevron-right" size={24} color={Colors.textTertiary} />
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -42,78 +53,53 @@ export default function MilestoneChecklist() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FB',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-  },
-  backButton: {
-    padding: 8,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333333',
+    backgroundColor: Colors.background,
   },
   content: {
     flex: 1,
-    padding: 16,
+    padding: Spacing.lg,
   },
   ageSelector: {
-    marginBottom: 20,
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    marginBottom: Spacing.xl,
+    padding: Spacing.lg,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    ...Shadow.md,
   },
   ageLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2E5BFF',
+    fontSize: Typography.fontSize.md,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.primary,
   },
   categoryCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    ...Shadow.md,
   },
   categoryIcon: {
     width: 50,
     height: 50,
-    borderRadius: 25,
-    backgroundColor: '#F0F5FF',
+    borderRadius: BorderRadius.xxl,
+    backgroundColor: Colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: Spacing.lg,
   },
   categoryInfo: {
     flex: 1,
   },
   categoryTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333333',
-    marginBottom: 4,
+    fontSize: Typography.fontSize.md,
+    fontWeight: Typography.fontWeight.semibold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xs,
   },
   milestoneCount: {
-    fontSize: 14,
-    color: '#666666',
+    fontSize: Typography.fontSize.base,
+    color: Colors.textSecondary,
   },
 });

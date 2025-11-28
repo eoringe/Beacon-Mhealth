@@ -1,22 +1,24 @@
 import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TextInput, 
-  TouchableOpacity, 
-  SafeAreaView, 
-  KeyboardAvoidingView, 
-  Platform, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
   TouchableWithoutFeedback,
   Keyboard,
   Image
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons, Feather } from '@expo/vector-icons';
 
 export default function SignupScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -28,15 +30,19 @@ export default function SignupScreen() {
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <SafeAreaView style={styles.container}>
-        <KeyboardAvoidingView 
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardAvoidingView}
         >
-          <View style={styles.content}>
+          <ScrollView
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }]}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
             {/* Header with Logo */}
             <View style={styles.header}>
-              <Image 
+              <Image
                 source={require('../../assets/images/beacon.jpg')}
                 style={styles.logo}
                 resizeMode="contain"
@@ -86,17 +92,17 @@ export default function SignupScreen() {
                     placeholderTextColor="#999"
                   />
                   <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                    <Feather 
-                      name={showPassword ? "eye" : "eye-off"} 
-                      size={18} 
-                      color="#999" 
+                    <Feather
+                      name={showPassword ? "eye" : "eye-off"}
+                      size={18}
+                      color="#999"
                     />
                   </TouchableOpacity>
                 </View>
               </View>
 
               {/* Sign Up Button */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.signupButton}
                 onPress={handleSignup}
               >
@@ -130,9 +136,9 @@ export default function SignupScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          </View>
+          </ScrollView>
         </KeyboardAvoidingView>
-      </SafeAreaView>
+      </View>
     </TouchableWithoutFeedback>
   );
 }
@@ -145,11 +151,9 @@ const styles = StyleSheet.create({
   keyboardAvoidingView: {
     flex: 1,
   },
-  content: {
-    flex: 1,
+  scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 5,
-    paddingBottom: 15,
   },
   header: {
     alignItems: 'center',

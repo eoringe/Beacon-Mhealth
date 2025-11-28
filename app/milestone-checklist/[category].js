@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MILESTONE_CATEGORIES, MILESTONE_DATA } from '../../constants/milestones';
-import CustomHeader from '../../components/CustomHeader';
+import { SafeHeader } from '@/components/SafeHeader';
+import { Colors, Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 
 export default function MilestoneCategory() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { category, age } = useLocalSearchParams();
   const [selectedAge, setSelectedAge] = useState(age ? parseInt(age) : 12);
   const [milestoneResponses, setMilestoneResponses] = useState({});
@@ -19,19 +22,19 @@ export default function MilestoneCategory() {
 
   const categoryInfo = MILESTONE_CATEGORIES.find(cat => cat.id === category);
   const milestones = MILESTONE_DATA[selectedAge]?.[category] || [];
-  
+
   // Update the URL when selectedAge changes
   React.useEffect(() => {
     router.setParams({ age: selectedAge.toString() });
   }, [selectedAge, router]);
-  
+
   const handleResponse = (milestoneIndex, response) => {
     setMilestoneResponses(prev => ({
       ...prev,
       [milestoneIndex]: response
     }));
   };
-  
+
   const getResponseCounts = () => {
     const responses = Object.values(milestoneResponses);
     return {
@@ -41,21 +44,21 @@ export default function MilestoneCategory() {
       total: milestones.length
     };
   };
-  
+
   const { yes, no, unsure, total } = getResponseCounts();
 
   const scrollToAge = (direction) => {
     if (!scrollViewRef) return;
-    
+
     const scrollAmount = containerWidth * 0.6;
-    const newPosition = direction === 'next' 
+    const newPosition = direction === 'next'
       ? Math.min(scrollPosition + scrollAmount, contentWidth - containerWidth + scrollViewPadding)
       : Math.max(scrollPosition - scrollAmount, 0);
-    
+
     scrollViewRef.scrollTo({ x: newPosition, animated: true });
     setScrollPosition(newPosition);
   };
-  
+
   // Update the selected age when URL params change
   React.useEffect(() => {
     if (age && parseInt(age) !== selectedAge) {
@@ -71,23 +74,26 @@ export default function MilestoneCategory() {
   const categoryTitle = categoryInfo?.title || 'Milestones';
 
   return (
-    <SafeAreaView style={styles.container}>
-      <CustomHeader 
+    <View style={styles.container}>
+      <SafeHeader
         title={categoryTitle}
         showBack={true}
       />
-      <ScrollView style={styles.content}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.lg }}
+      >
         <View style={styles.infoCard}>
           <View style={styles.ageSelectorContainer}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.arrowButton, !scrollPosition && styles.arrowButtonDisabled]}
               onPress={() => scrollToAge('prev')}
               disabled={!scrollPosition}
             >
               <MaterialIcons name="chevron-left" size={24} color={!scrollPosition ? '#CCCCCC' : '#2E5BFF'} />
             </TouchableOpacity>
-            
-            <View 
+
+            <View
               style={styles.ageScrollContainer}
               onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
             >
@@ -125,22 +131,22 @@ export default function MilestoneCategory() {
               </ScrollView>
             </View>
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[
-                styles.arrowButton, 
+                styles.arrowButton,
                 scrollPosition >= contentWidth - containerWidth - 10 && styles.arrowButtonDisabled
               ]}
               onPress={() => scrollToAge('next')}
               disabled={scrollPosition >= contentWidth - containerWidth - 10}
             >
-              <MaterialIcons 
-                name="chevron-right" 
-                size={24} 
-                color={scrollPosition >= contentWidth - containerWidth - 10 ? '#CCCCCC' : '#2E5BFF'} 
+              <MaterialIcons
+                name="chevron-right"
+                size={24}
+                color={scrollPosition >= contentWidth - containerWidth - 10 ? '#CCCCCC' : '#2E5BFF'}
               />
             </TouchableOpacity>
           </View>
-          
+
           <View style={styles.milestoneCountContainer}>
             <Text style={styles.infoText}>
               {total} milestones for {selectedAge} {selectedAge === 1 ? 'month' : 'months'} old
@@ -148,14 +154,14 @@ export default function MilestoneCategory() {
           </View>
           <View style={styles.progressContainer}>
             <View style={styles.progressBarBackground}>
-              <View 
+              <View
                 style={[
-                  styles.progressBarFill, 
-                  { 
+                  styles.progressBarFill,
+                  {
                     width: `${progressPercentage}%`,
                     backgroundColor: progressPercentage === 100 ? '#4CAF50' : '#2E5BFF'
                   }
-                ]} 
+                ]}
               />
             </View>
             <View style={styles.responseCounts}>
@@ -182,7 +188,7 @@ export default function MilestoneCategory() {
               <View style={styles.responseButtons}>
                 <TouchableOpacity
                   style={[
-                    styles.responseButton, 
+                    styles.responseButton,
                     styles.yesButton,
                     currentResponse === 'yes' && styles.responseButtonActive
                   ]}
@@ -197,7 +203,7 @@ export default function MilestoneCategory() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[
-                    styles.responseButton, 
+                    styles.responseButton,
                     styles.noButton,
                     currentResponse === 'no' && styles.responseButtonActive
                   ]}
@@ -212,7 +218,7 @@ export default function MilestoneCategory() {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[
-                    styles.responseButton, 
+                    styles.responseButton,
                     styles.unsureButton,
                     currentResponse === 'unsure' && styles.responseButtonActive
                   ]}
@@ -230,7 +236,7 @@ export default function MilestoneCategory() {
           );
         })}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
