@@ -22,14 +22,6 @@ export default function GetStartedTourScreen() {
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <View style={styles.content}>
-        {/* Back Button at Top */}
-        <TouchableOpacity
-          style={styles.topBackButton}
-          onPress={() => router.back()}
-        >
-          <MaterialIcons name="arrow-back" size={24} color={Colors.textPrimary} />
-        </TouchableOpacity>
-
         {/* Illustration */}
         <View style={styles.illustrationContainer}>
           <Image

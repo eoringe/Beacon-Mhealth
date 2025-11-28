@@ -7,10 +7,8 @@ export default function TourLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          animation: 'slide_from_right',
-          animationDuration: 300,
-          presentation: 'card',
-          gestureDirection: 'horizontal',
+          animation: 'fade_from_bottom',
+          animationDuration: 350,
           contentStyle: {
             backgroundColor: 'white',
           },

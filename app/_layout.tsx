@@ -60,7 +60,11 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider key={key}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack screenOptions={{ headerShown: false }}>
+        <Stack screenOptions={{
+          headerShown: false,
+          animation: 'fade_from_bottom',
+          animationDuration: 350,
+        }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="+not-found" />
         </Stack>
