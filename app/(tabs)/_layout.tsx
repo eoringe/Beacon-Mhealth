@@ -55,6 +55,9 @@ export default function TabLayout() {
           fontSize: 12,
           fontWeight: '500',
         },
+        sceneStyle: {
+          backgroundColor: colorScheme.background,
+        },
       }}
     >
       <Tabs.Screen

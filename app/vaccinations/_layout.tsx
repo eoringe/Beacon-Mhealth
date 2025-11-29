@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 
-export default function MilestoneOverviewLayout() {
+export default function VaccinationsLayout() {
     const { colorScheme } = useTheme();
 
     return (

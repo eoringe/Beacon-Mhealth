@@ -54,7 +54,7 @@ export default function MilestoneOverviewCategory() {
         showBack={true}
       />
 
-      <View style={styles.ageScrollContainer}>
+      <View style={[styles.ageScrollContainer, { backgroundColor: colorScheme.background, borderBottomColor: colorScheme.border }]}>
         <Animated.ScrollView
           ref={scrollViewRef}
           horizontal
@@ -70,7 +70,8 @@ export default function MilestoneOverviewCategory() {
               key={age}
               style={[
                 styles.ageButton,
-                selectedAge === age && styles.ageButtonSelected,
+                { backgroundColor: colorScheme.surface },
+                selectedAge === age && { backgroundColor: colorScheme.primary },
               ]}
               onPress={() => {
                 setSelectedAge(age);
@@ -80,7 +81,8 @@ export default function MilestoneOverviewCategory() {
               <Text
                 style={[
                   styles.ageButtonText,
-                  selectedAge === age && styles.ageButtonTextSelected,
+                  { color: colorScheme.textSecondary },
+                  selectedAge === age && { color: '#FFFFFF' },
                 ]}
               >
                 {age} months
@@ -94,9 +96,9 @@ export default function MilestoneOverviewCategory() {
         style={styles.content}
         contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.lg }}
       >
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Developmental Milestones</Text>
-          <Text style={styles.sectionSubtitle}>
+        <View style={[styles.card, { backgroundColor: colorScheme.surface }]}>
+          <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>Developmental Milestones</Text>
+          <Text style={[styles.sectionSubtitle, { color: colorScheme.textSecondary }]}>
             These are the typical skills children develop around {selectedAge} months of age
           </Text>
 
@@ -107,23 +109,23 @@ export default function MilestoneOverviewCategory() {
                   <View style={styles.milestoneIcon}>
                     <MaterialIcons name="check-circle" size={20} color="#4CAF50" />
                   </View>
-                  <Text style={styles.milestoneText}>{milestone}</Text>
+                  <Text style={[styles.milestoneText, { color: colorScheme.textPrimary }]}>{milestone}</Text>
                 </View>
               ))}
             </View>
           ) : (
             <View style={styles.emptyState}>
               <MaterialIcons name="info-outline" size={48} color="#A0A0A0" />
-              <Text style={styles.emptyStateText}>
+              <Text style={[styles.emptyStateText, { color: colorScheme.textSecondary }]}>
                 No milestone data available for {selectedAge} months
               </Text>
             </View>
           )}
         </View>
 
-        <View style={styles.infoBox}>
-          <MaterialIcons name="info" size={20} color={Colors.primary} style={styles.infoIcon} />
-          <Text style={styles.infoText}>
+        <View style={[styles.infoBox, { backgroundColor: colorScheme.primaryLight }]}>
+          <MaterialIcons name="info" size={20} color={colorScheme.primary} style={styles.infoIcon} />
+          <Text style={[styles.infoText, { color: colorScheme.textSecondary }]}>
             Remember that every child develops at their own pace. If you have concerns about your child's development, please consult with a healthcare professional.
           </Text>
         </View>

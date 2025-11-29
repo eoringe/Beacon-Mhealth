@@ -33,6 +33,21 @@ export const Colors = {
   // Overlay
   overlay: 'rgba(0, 0, 0, 0.4)',
   overlayLight: 'rgba(0, 0, 0, 0.2)',
+
+  // Chart Colors
+  chartHeight: '#4CAF50',
+  chartWeight: '#2196F3',
+  chartHeadCirc: '#FF9800',
+
+  // Vaccination Status
+  vaccineCompleted: '#4CAF50',
+  vaccineUpcoming: '#FF9800',
+  vaccineOverdue: '#F44336',
+
+  // Appointment Status
+  appointmentScheduled: '#2196F3',
+  appointmentCompleted: '#4CAF50',
+  appointmentCancelled: '#9E9E9E',
 };
 
 export const DarkColors = {
@@ -66,6 +81,21 @@ export const DarkColors = {
   // Overlay
   overlay: 'rgba(0, 0, 0, 0.6)',
   overlayLight: 'rgba(0, 0, 0, 0.4)',
+
+  // Chart Colors
+  chartHeight: '#66BB6A',
+  chartWeight: '#42A5F5',
+  chartHeadCirc: '#FFA726',
+
+  // Vaccination Status
+  vaccineCompleted: '#66BB6A',
+  vaccineUpcoming: '#FFA726',
+  vaccineOverdue: '#EF5350',
+
+  // Appointment Status
+  appointmentScheduled: '#42A5F5',
+  appointmentCompleted: '#66BB6A',
+  appointmentCancelled: '#BDBDBD',
 };
 
 export const Spacing = {

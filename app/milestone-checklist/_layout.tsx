@@ -1,13 +1,15 @@
 import { Stack } from 'expo-router';
-import { View } from 'react-native';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function MilestoneChecklistLayout() {
+    const { colorScheme } = useTheme();
+
     return (
-        <View style={{ flex: 1, backgroundColor: 'white' }}>
-            <Stack screenOptions={{
-                headerShown: false,
-                animation: 'default',
-            }} />
-        </View>
+        <Stack screenOptions={{
+            headerShown: false,
+            animation: 'default',
+            presentation: 'card',
+            contentStyle: { backgroundColor: colorScheme.background },
+        }} />
     );
 }

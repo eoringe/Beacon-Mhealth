@@ -1,13 +1,15 @@
 import { Stack } from 'expo-router';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function AddChildLayout() {
+  const { colorScheme } = useTheme();
+
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        animation: 'fade_from_bottom',
-        animationDuration: 350,
-      }}
-    />
+    <Stack screenOptions={{
+      headerShown: false,
+      animation: 'default',
+      presentation: 'card',
+      contentStyle: { backgroundColor: colorScheme.background },
+    }} />
   );
 }

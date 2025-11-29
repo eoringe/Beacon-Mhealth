@@ -85,7 +85,7 @@ export default function MilestoneCategory() {
         style={styles.content}
         contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.lg }}
       >
-        <View style={styles.infoCard}>
+        <View style={[styles.infoCard, { backgroundColor: colorScheme.surface }]}>
           <View style={styles.ageSelectorContainer}>
             <TouchableOpacity
               style={[styles.arrowButton, !scrollPosition && styles.arrowButtonDisabled]}
@@ -122,10 +122,7 @@ export default function MilestoneCategory() {
                       setSelectedAge(age);
                     }}
                   >
-                    <Text style={[
-                      styles.agePillText,
-                      selectedAge === age && styles.agePillTextActive,
-                    ]}>
+                    <Text style={[styles.agePillText, selectedAge === age && { color: '#FFFFFF' }, selectedAge !== age && { color: colorScheme.textPrimary }]}>
                       {age === 12 ? '1 year' : `${age} ${age === 1 ? 'month' : 'months'}`}
                     </Text>
                   </TouchableOpacity>
@@ -149,9 +146,9 @@ export default function MilestoneCategory() {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.milestoneCountContainer}>
-            <Text style={styles.infoText}>
-              {total} milestones for {selectedAge} {selectedAge === 1 ? 'month' : 'months'} old
+          <View style={styles.milestonesHeader}>
+            <Text style={[styles.milestonesTitle, { color: colorScheme.textPrimary }]}>
+              {milestones.length} milestones for {selectedAge} month{selectedAge > 1 ? 's' : ''} old
             </Text>
           </View>
           <View style={styles.progressContainer}>
@@ -183,9 +180,9 @@ export default function MilestoneCategory() {
         {milestones.map((milestone, index) => {
           const currentResponse = milestoneResponses[index];
           return (
-            <View key={index} style={styles.milestoneItem}>
-              <Text style={styles.milestoneQuestion}>
-                Does your child: <Text style={styles.milestoneText}>{milestone}?</Text>
+            <View key={index} style={[styles.milestoneItem, { backgroundColor: colorScheme.surface }]}>
+              <Text style={[styles.milestoneQuestion, { color: colorScheme.textSecondary }]}>
+                Does your child: <Text style={[styles.milestoneText, { color: colorScheme.primary }]}>{milestone}?</Text>
               </Text>
               <View style={styles.responseButtons}>
                 <TouchableOpacity

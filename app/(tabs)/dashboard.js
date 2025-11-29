@@ -23,11 +23,25 @@ export default function DashboardScreen() {
 
     const quickActions = [
         {
-            id: 'add_child',
-            title: 'Add Child',
-            icon: 'person-add',
+            id: 'child_profile',
+            title: 'Child Profile',
+            icon: 'account-circle',
             color: colorScheme.primary,
-            route: '/add_child',
+            route: '/child-profile',
+        },
+        {
+            id: 'growth_chart',
+            title: 'Growth Chart',
+            icon: 'show-chart',
+            color: colorScheme.chartHeight,
+            route: '/growth-chart',
+        },
+        {
+            id: 'vaccinations',
+            title: 'Vaccinations',
+            icon: 'vaccines',
+            color: colorScheme.vaccineCompleted,
+            route: '/vaccinations',
         },
         {
             id: 'milestones',
@@ -42,6 +56,13 @@ export default function DashboardScreen() {
             icon: 'analytics',
             color: colorScheme.warning,
             route: '/milestone-overview',
+        },
+        {
+            id: 'add_child',
+            title: 'Add Child',
+            icon: 'person-add',
+            color: colorScheme.textTertiary,
+            route: '/add_child',
         },
     ];
 
@@ -86,7 +107,12 @@ export default function DashboardScreen() {
                                 <View style={[styles.actionIconContainer, { backgroundColor: `${action.color}15` }]}>
                                     <MaterialIcons name={action.icon} size={28} color={action.color} />
                                 </View>
-                                <Text style={[styles.actionTitle, { color: colorScheme.textPrimary }]}>{action.title}</Text>
+                                <Text
+                                    style={[styles.actionTitle, { color: colorScheme.textPrimary }]}
+                                    numberOfLines={2}
+                                >
+                                    {action.title}
+                                </Text>
                             </TouchableOpacity>
                         ))}
                     </View>
@@ -107,7 +133,7 @@ export default function DashboardScreen() {
                 </View>
 
                 {/* Upcoming Appointments */}
-                <View style={styles.section}>
+                < View style={styles.section} >
                     <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>Upcoming Appointments</Text>
                     <View style={[styles.card, { backgroundColor: colorScheme.surface }]}>
                         <View style={styles.emptyState}>
@@ -189,9 +215,10 @@ const styles = StyleSheet.create({
         marginBottom: Spacing.sm,
     },
     actionTitle: {
-        fontSize: Typography.fontSize.sm,
+        fontSize: Typography.fontSize.xs,
         fontWeight: Typography.fontWeight.medium,
         textAlign: 'center',
+        numberOfLines: 1,
     },
     card: {
         borderRadius: BorderRadius.lg,
