@@ -5,15 +5,18 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MILESTONE_CATEGORIES, MILESTONE_DATA } from '../../constants/milestones';
 import { SafeHeader } from '@/components/SafeHeader';
-import { Colors, Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
+import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 
 const { width } = Dimensions.get('window');
 
 export default function MilestoneOverviewCategory() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { colorScheme } = useTheme();
   const { category, age } = useLocalSearchParams();
   const [selectedAge, setSelectedAge] = useState(age ? parseInt(age) : 12);
+  const [activeTab, setActiveTab] = useState(0);
   const scrollViewRef = useRef(null);
   const scrollX = useRef(new Animated.Value(0)).current;
 
@@ -45,7 +48,7 @@ export default function MilestoneOverviewCategory() {
   const categoryTitle = categoryInfo?.title || 'Milestone Overview';
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
       <SafeHeader
         title={categoryTitle}
         showBack={true}

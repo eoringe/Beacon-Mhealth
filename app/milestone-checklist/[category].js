@@ -5,11 +5,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MILESTONE_CATEGORIES, MILESTONE_DATA } from '../../constants/milestones';
 import { SafeHeader } from '@/components/SafeHeader';
-import { Colors, Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
+import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 
 export default function MilestoneCategory() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { colorScheme } = useTheme();
   const { category, age } = useLocalSearchParams();
   const [selectedAge, setSelectedAge] = useState(age ? parseInt(age) : 12);
   const [milestoneResponses, setMilestoneResponses] = useState({});
@@ -74,7 +76,7 @@ export default function MilestoneCategory() {
   const categoryTitle = categoryInfo?.title || 'Milestones';
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
       <SafeHeader
         title={categoryTitle}
         showBack={true}

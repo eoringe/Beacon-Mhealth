@@ -10,15 +10,14 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Colors, Spacing, Typography, Layout } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
+import { Spacing, Typography, Layout } from '@/constants/theme';
 
 interface SafeHeaderProps {
     title?: string;
     showBack?: boolean;
     onBackPress?: () => void;
     rightComponent?: React.ReactNode;
-    backgroundColor?: string;
-    textColor?: string;
 }
 
 export function SafeHeader({
@@ -26,11 +25,10 @@ export function SafeHeader({
     showBack = false,
     onBackPress,
     rightComponent,
-    backgroundColor = Colors.white,
-    textColor = Colors.textPrimary,
 }: SafeHeaderProps) {
     const insets = useSafeAreaInsets();
     const router = useRouter();
+    const { colorScheme } = useTheme();
 
     const handleBackPress = () => {
         if (onBackPress) {
@@ -46,7 +44,8 @@ export function SafeHeader({
                 styles.container,
                 {
                     paddingTop: insets.top,
-                    backgroundColor,
+                    backgroundColor: colorScheme.surface,
+                    borderBottomColor: colorScheme.border,
                 },
             ]}
         >
@@ -62,7 +61,7 @@ export function SafeHeader({
                             <MaterialIcons
                                 name="arrow-back"
                                 size={24}
-                                color={textColor}
+                                color={colorScheme.textPrimary}
                             />
                         </TouchableOpacity>
                     )}
@@ -72,7 +71,7 @@ export function SafeHeader({
                 <View style={styles.centerContainer}>
                     {title && (
                         <Text
-                            style={[styles.title, { color: textColor }]}
+                            style={[styles.title, { color: colorScheme.textPrimary }]}
                             numberOfLines={1}
                         >
                             {title}
@@ -92,7 +91,6 @@ export function SafeHeader({
 const styles = StyleSheet.create({
     container: {
         borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
     },
     content: {
         height: Layout.headerHeight,

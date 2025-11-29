@@ -9,18 +9,24 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
+import { Spacing, Typography, BorderRadius } from '@/constants/theme';
 
 export default function WelcomeTourScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { colorScheme } = useTheme();
 
   const handleNext = () => {
     router.push('/tour/features');
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View style={[styles.container, {
+      paddingTop: insets.top,
+      paddingBottom: insets.bottom,
+      backgroundColor: colorScheme.background
+    }]}>
       <View style={styles.content}>
         {/* Illustration */}
         <View style={styles.illustrationContainer}>
@@ -40,8 +46,8 @@ export default function WelcomeTourScreen() {
 
         {/* Text Content */}
         <View style={styles.textContent}>
-          <Text style={styles.title}>Discover Top Doctors</Text>
-          <Text style={styles.description}>
+          <Text style={[styles.title, { color: colorScheme.primary }]}>Welcome to Beacon</Text>
+          <Text style={[styles.description, { color: colorScheme.textSecondary }]}>
             Lorem ipsum dolor sit amet, consectetur adipiscing elit. Phasellus lacinia libero ut metus convallis tempor. Vestibulum consequat, tortor mattis consequat
           </Text>
         </View>
@@ -49,7 +55,7 @@ export default function WelcomeTourScreen() {
         {/* Bottom Buttons */}
         <View style={styles.buttonContainer}>
           <TouchableOpacity
-            style={styles.nextButton}
+            style={[styles.nextButton, { backgroundColor: colorScheme.primary }]}
             onPress={handleNext}
           >
             <Text style={styles.nextButtonText}>Next</Text>
@@ -59,7 +65,8 @@ export default function WelcomeTourScreen() {
             style={styles.skipButton}
             onPress={() => router.push('/(tabs)/dashboard')}
           >
-            <Text style={styles.skipButtonText}>Skip Tour</Text>
+            <Text style={[styles.skipButtonText, { color: colorScheme.textTertiary }]}>Skip Tour</Text>
+
           </TouchableOpacity>
         </View>
       </View>
@@ -70,7 +77,6 @@ export default function WelcomeTourScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
   },
   content: {
     flex: 1,
@@ -106,13 +112,13 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.border,
+    backgroundColor: '#E0E0E0',
   },
   activeDot: {
     width: 24,
     height: 8,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#2E5BFF',
   },
   textContent: {
     alignItems: 'center',
@@ -122,13 +128,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: Typography.fontSize.xxl,
     fontWeight: Typography.fontWeight.bold,
-    color: Colors.primary,
     marginBottom: Spacing.lg,
     textAlign: 'center',
   },
   description: {
     fontSize: Typography.fontSize.base,
-    color: Colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -137,7 +141,6 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   nextButton: {
-    backgroundColor: Colors.primary,
     paddingVertical: Spacing.md + 2,
     paddingHorizontal: Spacing.huge * 2,
     borderRadius: BorderRadius.md,
@@ -145,7 +148,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   nextButtonText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: Typography.fontSize.md,
     fontWeight: Typography.fontWeight.semibold,
   },
@@ -153,7 +156,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
   },
   skipButtonText: {
-    color: Colors.textTertiary,
     fontSize: Typography.fontSize.base,
   },
 });

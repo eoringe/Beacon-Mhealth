@@ -10,49 +10,59 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Colors, Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 
 const { width } = Dimensions.get('window');
 
 export default function DashboardScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
+    const { colorScheme } = useTheme();
 
     const quickActions = [
         {
             id: 'add_child',
             title: 'Add Child',
             icon: 'person-add',
-            color: Colors.primary,
+            color: colorScheme.primary,
             route: '/add_child',
         },
         {
             id: 'milestones',
             title: 'Milestones',
             icon: 'child-care',
-            color: '#10B981',
+            color: colorScheme.success,
             route: '/milestone-checklist',
         },
         {
             id: 'overview',
             title: 'Overview',
             icon: 'analytics',
-            color: '#F59E0B',
+            color: colorScheme.warning,
             route: '/milestone-overview',
         },
     ];
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
             {/* Header with Safe Area */}
-            <View style={[styles.header, { paddingTop: insets.top + Spacing.lg }]}>
+            <View style={[styles.header, {
+                paddingTop: insets.top + Spacing.lg,
+                backgroundColor: colorScheme.surface,
+                borderBottomColor: colorScheme.border,
+            }]}>
                 <View>
-                    <Text style={styles.greeting}>Welcome back!</Text>
-                    <Text style={styles.userName}>Beacon Children's Centre</Text>
+                    <Text style={[styles.greeting, { color: colorScheme.textSecondary }]}>Welcome back!</Text>
+                    <Text style={[styles.userName, { color: colorScheme.textPrimary }]}>Beacon Children's Centre</Text>
                 </View>
-                <TouchableOpacity style={styles.notificationButton}>
-                    <MaterialIcons name="notifications-none" size={24} color={Colors.textPrimary} />
-                </TouchableOpacity>
+                <View style={styles.headerButtons}>
+                    <ThemeToggle />
+                    <TouchableOpacity style={styles.notificationButton}>
+                        <MaterialIcons name="notifications-none" size={24} color={colorScheme.textPrimary} />
+                    </TouchableOpacity>
+                </View>
             </View>
 
             <ScrollView
@@ -65,18 +75,18 @@ export default function DashboardScreen() {
             >
                 {/* Quick Actions */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Quick Actions</Text>
+                    <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>Quick Actions</Text>
                     <View style={styles.quickActionsGrid}>
                         {quickActions.map((action) => (
                             <TouchableOpacity
                                 key={action.id}
-                                style={styles.actionCard}
+                                style={[styles.actionCard, { backgroundColor: colorScheme.surface }]}
                                 onPress={() => router.push(action.route)}
                             >
                                 <View style={[styles.actionIconContainer, { backgroundColor: `${action.color}15` }]}>
                                     <MaterialIcons name={action.icon} size={28} color={action.color} />
                                 </View>
-                                <Text style={styles.actionTitle}>{action.title}</Text>
+                                <Text style={[styles.actionTitle, { color: colorScheme.textPrimary }]}>{action.title}</Text>
                             </TouchableOpacity>
                         ))}
                     </View>
@@ -84,12 +94,12 @@ export default function DashboardScreen() {
 
                 {/* Recent Activity */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Recent Activity</Text>
-                    <View style={styles.card}>
+                    <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>Recent Activity</Text>
+                    <View style={[styles.card, { backgroundColor: colorScheme.surface }]}>
                         <View style={styles.emptyState}>
-                            <MaterialIcons name="inbox" size={48} color={Colors.textTertiary} />
-                            <Text style={styles.emptyStateText}>No recent activity</Text>
-                            <Text style={styles.emptyStateSubtext}>
+                            <MaterialIcons name="inbox" size={48} color={colorScheme.textTertiary} />
+                            <Text style={[styles.emptyStateText, { color: colorScheme.textPrimary }]}>No recent activity</Text>
+                            <Text style={[styles.emptyStateSubtext, { color: colorScheme.textSecondary }]}>
                                 Your child's milestones and appointments will appear here
                             </Text>
                         </View>
@@ -98,12 +108,12 @@ export default function DashboardScreen() {
 
                 {/* Upcoming Appointments */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Upcoming Appointments</Text>
-                    <View style={styles.card}>
+                    <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>Upcoming Appointments</Text>
+                    <View style={[styles.card, { backgroundColor: colorScheme.surface }]}>
                         <View style={styles.emptyState}>
-                            <MaterialIcons name="event" size={48} color={Colors.textTertiary} />
-                            <Text style={styles.emptyStateText}>No upcoming appointments</Text>
-                            <Text style={styles.emptyStateSubtext}>
+                            <MaterialIcons name="event" size={48} color={colorScheme.textTertiary} />
+                            <Text style={[styles.emptyStateText, { color: colorScheme.textPrimary }]}>No upcoming appointments</Text>
+                            <Text style={[styles.emptyStateSubtext, { color: colorScheme.textSecondary }]}>
                                 Schedule a visit to get started
                             </Text>
                         </View>
@@ -117,27 +127,27 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.background,
     },
     header: {
-        backgroundColor: Colors.white,
         paddingHorizontal: Spacing.lg,
         paddingBottom: Spacing.lg,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
         borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
+    },
+    headerButtons: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.xs,
     },
     greeting: {
         fontSize: Typography.fontSize.sm,
-        color: Colors.textSecondary,
         marginBottom: 4,
     },
     userName: {
         fontSize: Typography.fontSize.xl,
         fontWeight: Typography.fontWeight.bold,
-        color: Colors.textPrimary,
     },
     notificationButton: {
         padding: Spacing.sm,
@@ -154,7 +164,6 @@ const styles = StyleSheet.create({
     sectionTitle: {
         fontSize: Typography.fontSize.lg,
         fontWeight: Typography.fontWeight.semibold,
-        color: Colors.textPrimary,
         marginBottom: Spacing.md,
     },
     quickActionsGrid: {
@@ -164,7 +173,6 @@ const styles = StyleSheet.create({
     },
     actionCard: {
         width: (width - Spacing.lg * 2 - Spacing.sm * 4) / 3,
-        backgroundColor: Colors.white,
         borderRadius: BorderRadius.lg,
         padding: Spacing.lg,
         marginHorizontal: Spacing.sm,
@@ -183,11 +191,9 @@ const styles = StyleSheet.create({
     actionTitle: {
         fontSize: Typography.fontSize.sm,
         fontWeight: Typography.fontWeight.medium,
-        color: Colors.textPrimary,
         textAlign: 'center',
     },
     card: {
-        backgroundColor: Colors.white,
         borderRadius: BorderRadius.lg,
         padding: Spacing.xl,
         ...Shadow.md,
@@ -199,13 +205,11 @@ const styles = StyleSheet.create({
     emptyStateText: {
         fontSize: Typography.fontSize.md,
         fontWeight: Typography.fontWeight.semibold,
-        color: Colors.textPrimary,
         marginTop: Spacing.md,
         marginBottom: Spacing.xs,
     },
     emptyStateSubtext: {
         fontSize: Typography.fontSize.sm,
-        color: Colors.textSecondary,
         textAlign: 'center',
         maxWidth: 250,
     },

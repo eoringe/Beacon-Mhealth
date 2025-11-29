@@ -9,18 +9,24 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
+import { Spacing, Typography, BorderRadius } from '@/constants/theme';
 
 export default function GetStartedTourScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { colorScheme } = useTheme();
 
-  const handleNext = () => {
+  const handleFinish = () => {
     router.push('/add_child');
   };
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View style={[styles.container, {
+      paddingTop: insets.top,
+      paddingBottom: insets.bottom,
+      backgroundColor: colorScheme.background
+    }]}>
       <View style={styles.content}>
         {/* Illustration */}
         <View style={styles.illustrationContainer}>
@@ -40,19 +46,19 @@ export default function GetStartedTourScreen() {
 
         {/* Text Content */}
         <View style={styles.textContent}>
-          <Text style={styles.title}>Get Expert Advice</Text>
-          <Text style={styles.description}>
+          <Text style={[styles.title, { color: colorScheme.primary }]}>Get Expert Advice</Text>
+          <Text style={[styles.description, { color: colorScheme.textSecondary }]}>
             Lorem ipsum dolor sit amet, consectetur adipiscing elit. Phasellus lacinia libero ut metus convallis tempor. Vestibulum consequat, tortor mattis consequat
           </Text>
         </View>
 
-        {/* Bottom Buttons */}
+        {/* Bottom Button */}
         <View style={styles.buttonContainer}>
           <TouchableOpacity
-            style={styles.nextButton}
-            onPress={handleNext}
+            style={[styles.finishButton, { backgroundColor: colorScheme.primary }]}
+            onPress={handleFinish}
           >
-            <Text style={styles.nextButtonText}>Get Started</Text>
+            <Text style={styles.finishButtonText}>Get Started</Text>
           </TouchableOpacity>
 
           {/* Empty spacer to match other screens */}
@@ -68,19 +74,12 @@ export default function GetStartedTourScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
   },
   content: {
     flex: 1,
     paddingHorizontal: Spacing.xxl,
     paddingTop: Spacing.md,
     paddingBottom: Spacing.xxxl,
-  },
-  topBackButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    marginBottom: Spacing.sm,
   },
   illustrationContainer: {
     flex: 1,
@@ -104,13 +103,13 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.border,
+    backgroundColor: '#E0E0E0',
   },
   activeDot: {
     width: 24,
     height: 8,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.primary,
+    backgroundColor: '#2E5BFF',
   },
   textContent: {
     alignItems: 'center',
@@ -120,13 +119,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: Typography.fontSize.xxl,
     fontWeight: Typography.fontWeight.bold,
-    color: Colors.primary,
     marginBottom: Spacing.lg,
     textAlign: 'center',
   },
   description: {
     fontSize: Typography.fontSize.base,
-    color: Colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -134,16 +131,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
   },
-  nextButton: {
-    backgroundColor: Colors.primary,
+  finishButton: {
     paddingVertical: Spacing.md + 2,
     paddingHorizontal: Spacing.huge * 2,
     borderRadius: BorderRadius.md,
     width: '100%',
     alignItems: 'center',
   },
-  nextButtonText: {
-    color: Colors.white,
+  finishButtonText: {
+    color: '#FFFFFF',
     fontSize: Typography.fontSize.md,
     fontWeight: Typography.fontWeight.semibold,
   },
@@ -151,7 +147,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
   },
   skipButtonText: {
-    color: Colors.textTertiary,
     fontSize: Typography.fontSize.base,
   },
 });

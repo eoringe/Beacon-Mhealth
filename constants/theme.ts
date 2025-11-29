@@ -7,32 +7,65 @@ export const Colors = {
   primary: '#2E5BFF',
   primaryLight: '#F0F5FF',
   primaryDark: '#1E3A8A',
-  
+
   // Neutral
   white: '#FFFFFF',
   black: '#000000',
   background: '#F8F9FB',
   surface: '#FFFFFF',
-  
+
   // Text
   textPrimary: '#333333',
   textSecondary: '#666666',
   textTertiary: '#999999',
   textDisabled: '#CCCCCC',
-  
+
   // Border & Divider
   border: '#E5E5E5',
   divider: '#E0E0E0',
-  
+
   // Status
   success: '#10B981',
   warning: '#F59E0B',
   error: '#EF4444',
   info: '#3B82F6',
-  
+
   // Overlay
   overlay: 'rgba(0, 0, 0, 0.4)',
   overlayLight: 'rgba(0, 0, 0, 0.2)',
+};
+
+export const DarkColors = {
+  // Primary
+  primary: '#5B85FF',
+  primaryLight: '#1A2744',
+  primaryDark: '#3D6BFF',
+
+  // Neutral
+  white: '#FFFFFF',
+  black: '#000000',
+  background: '#0F1419',
+  surface: '#1A1F29',
+
+  // Text
+  textPrimary: '#E8EAED',
+  textSecondary: '#9AA0A6',
+  textTertiary: '#6E7681',
+  textDisabled: '#484F58',
+
+  // Border & Divider
+  border: '#2D333B',
+  divider: '#21262D',
+
+  // Status
+  success: '#3FB950',
+  warning: '#D29922',
+  error: '#F85149',
+  info: '#58A6FF',
+
+  // Overlay
+  overlay: 'rgba(0, 0, 0, 0.6)',
+  overlayLight: 'rgba(0, 0, 0, 0.4)',
 };
 
 export const Spacing = {
@@ -58,7 +91,7 @@ export const Typography = {
     xxl: 24,
     xxxl: 32,
   },
-  
+
   // Font Weights
   fontWeight: {
     normal: '400' as const,
@@ -66,7 +99,7 @@ export const Typography = {
     semibold: '600' as const,
     bold: '700' as const,
   },
-  
+
   // Line Heights
   lineHeight: {
     tight: 1.2,
@@ -118,16 +151,16 @@ export const Shadow = {
 export const Layout = {
   // Screen horizontal padding
   screenPadding: Spacing.lg,
-  
+
   // Header height
   headerHeight: 56,
-  
+
   // Tab bar height (for safe area calculations)
   tabBarHeight: 60,
-  
+
   // Input height
   inputHeight: 48,
-  
+
   // Button height
   buttonHeight: 48,
   buttonHeightSmall: 36,

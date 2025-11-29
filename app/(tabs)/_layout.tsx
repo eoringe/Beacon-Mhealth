@@ -2,11 +2,12 @@ import { Tabs } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Platform, AppState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useEffect, useState, useRef } from 'react';
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
+  const { colorScheme } = useTheme();
   const [key, setKey] = useState(0);
   const appState = useRef(AppState.currentState);
 
@@ -40,12 +41,12 @@ export default function TabLayout() {
       key={key}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textTertiary,
+        tabBarActiveTintColor: colorScheme.primary,
+        tabBarInactiveTintColor: colorScheme.textTertiary,
         tabBarStyle: {
-          backgroundColor: Colors.white,
+          backgroundColor: colorScheme.surface,
           borderTopWidth: 1,
-          borderTopColor: Colors.border,
+          borderTopColor: colorScheme.border,
           paddingBottom: bottomPadding,
           paddingTop: 8,
           height: tabBarHeight,
