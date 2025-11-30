@@ -1,16 +1,30 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ImageBackground } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ImageBackground, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, Redirect } from 'expo-router';
 import { Colors, Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function WelcomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
+
+  if (user) {
+    return <Redirect href="/(tabs)/dashboard" />;
+  }
 
   return (
     <ImageBackground
-      source={require('../../assets/images/LandingPage.jpg')}
+      source={require('../assets/images/LandingPage.jpg')}
       style={styles.container}
       resizeMode="cover"
     >
@@ -82,13 +96,14 @@ const styles = StyleSheet.create({
     textShadowRadius: 3,
   },
   getStartedButton: {
-    backgroundColor: Colors.primary,
+    backgroundColor: 'transparent',
     paddingHorizontal: Spacing.huge,
     paddingVertical: Spacing.lg,
-    borderRadius: BorderRadius.xxl,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 2,
+    borderColor: Colors.white,
     minWidth: 200,
     alignItems: 'center',
-    ...Shadow.xl,
   },
   getStartedText: {
     color: Colors.white,

@@ -6,11 +6,13 @@ import {
     ScrollView,
     TouchableOpacity,
     Dimensions,
+    Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 
@@ -20,6 +22,33 @@ export default function DashboardScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { colorScheme } = useTheme();
+    const { logout } = useAuth();
+
+    const handleLogout = () => {
+        Alert.alert(
+            "Logout",
+            "Are you sure you want to logout?",
+            [
+                {
+                    text: "Cancel",
+                    style: "cancel"
+                },
+                {
+                    text: "Logout",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            await logout();
+                            // Router will auto-redirect due to auth state change in app/index.js
+                        } catch (error) {
+                            console.error("Logout failed:", error);
+                            Alert.alert("Error", "Failed to logout. Please try again.");
+                        }
+                    }
+                }
+            ]
+        );
+    };
 
     const quickActions = [
         {
@@ -80,8 +109,9 @@ export default function DashboardScreen() {
                 </View>
                 <View style={styles.headerButtons}>
                     <ThemeToggle />
-                    <TouchableOpacity style={styles.notificationButton}>
-                        <MaterialIcons name="notifications-none" size={24} color={colorScheme.textPrimary} />
+
+                    <TouchableOpacity style={styles.notificationButton} onPress={handleLogout}>
+                        <MaterialIcons name="logout" size={24} color={colorScheme.error || '#FF5252'} />
                     </TouchableOpacity>
                 </View>
             </View>

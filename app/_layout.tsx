@@ -1,6 +1,6 @@
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, useSegments, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState, useRef } from 'react';
@@ -10,7 +10,7 @@ import * as SystemUI from 'expo-system-ui';
 import 'react-native-reanimated';
 
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
-import { AuthProvider } from '@/contexts/AuthContext';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -64,6 +64,24 @@ export default function RootLayout() {
 
 function NavigationWrapper() {
   const { isDark, colorScheme } = useTheme();
+  const { user, loading } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (loading) return;
+
+    const inAuthGroup = segments[0] === 'auth';
+    const inWelcomeScreen = segments.length === 0;
+
+    if (!user && !inAuthGroup && !inWelcomeScreen) {
+      // Redirect to the welcome page if not logged in and not in a public area
+      router.replace('/');
+    } else if (user && (inAuthGroup || inWelcomeScreen)) {
+      // Redirect to dashboard if logged in and in a public area
+      router.replace('/(tabs)/dashboard');
+    }
+  }, [user, loading, segments]);
 
   // Create custom navigation theme based on current theme
   const navigationTheme = {
@@ -87,6 +105,7 @@ function NavigationWrapper() {
           presentation: 'card',
           contentStyle: { backgroundColor: colorScheme.background },
         }}>
+          <Stack.Screen name="index" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
           <Stack.Screen name="(tabs)" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
           <Stack.Screen name="growth-chart" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
           <Stack.Screen name="vaccinations" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
