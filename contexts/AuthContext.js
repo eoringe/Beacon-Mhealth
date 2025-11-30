@@ -24,13 +24,21 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
-                // Register/update user in backend
                 try {
-                    await authService.registerUser(firebaseUser);
+                    // 1. Get and store token immediately so API calls work
+                    const token = await firebaseUser.getIdToken();
+                    await authService.storeToken(token);
+
+                    // 2. Set user to unblock UI immediately
                     setUser(firebaseUser);
+
+                    // 3. Sync with backend in background (fire-and-forget)
+                    authService.registerUser(firebaseUser).catch(error => {
+                        console.error('Background sync error:', error);
+                    });
                 } catch (error) {
-                    console.error('Error syncing with backend:', error);
-                    setUser(firebaseUser); // Still set user even if backend fails
+                    console.error('Error in auth state change:', error);
+                    setUser(null);
                 }
             } else {
                 setUser(null);
@@ -105,8 +113,13 @@ export const AuthProvider = ({ children }) => {
             console.log('AuthContext: Getting token and registering in backend...');
             const token = await userCredential.user.getIdToken();
             await authService.storeToken(token);
-            await authService.registerUser(userCredential.user);
-            console.log('AuthContext: Backend registration complete');
+
+            // Background registration (fire-and-forget)
+            authService.registerUser(userCredential.user).catch(err =>
+                console.error('Background registration failed:', err)
+            );
+
+            console.log('AuthContext: Login successful, proceeding...');
 
             return {
                 success: true,
