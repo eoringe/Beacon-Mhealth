@@ -1,0 +1,422 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Image
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { MaterialIcons, Feather } from '@expo/vector-icons';
+import { Colors, Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
+
+export default function AuthScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const [activeTab, setActiveTab] = useState('login');
+
+  // Login state
+  const [email, setEmail] = useState('Loisbecket@gmail.com');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+
+  // Signup state
+  const [fullName, setFullName] = useState('');
+  const [signupEmail, setSignupEmail] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+
+  const handleLogin = () => {
+    router.push('/(tabs)/dashboard');
+  };
+
+  const handleSignup = () => {
+    router.push('/tour/welcome');
+  };
+
+  const LoginForm = () => (
+    <View style={styles.form}>
+      {/* Email Input */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Email</Text>
+        <TextInput
+          style={styles.input}
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          placeholder="Enter your email"
+          placeholderTextColor="#999"
+        />
+      </View>
+
+      {/* Password Input */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Password</Text>
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={styles.passwordInput}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+            placeholder="Enter your password"
+            placeholderTextColor="#999"
+          />
+          <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+            <Feather
+              name={showPassword ? "eye" : "eye-off"}
+              size={18}
+              color="#999"
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Remember Me and Forgot Password */}
+      <View style={styles.optionsRow}>
+        <TouchableOpacity
+          style={styles.rememberMeContainer}
+          onPress={() => setRememberMe(!rememberMe)}
+        >
+          <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+            {rememberMe && <MaterialIcons name="check" size={14} color="#FFFFFF" />}
+          </View>
+          <Text style={styles.rememberMeText}>Remember me</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity>
+          <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Login Button */}
+      <TouchableOpacity
+        style={styles.primaryButton}
+        onPress={handleLogin}
+      >
+        <Text style={styles.primaryButtonText}>Log In</Text>
+      </TouchableOpacity>
+
+      {/* Or login with */}
+      <Text style={styles.orText}>Or login with</Text>
+
+      {/* Social Login Buttons */}
+      <View style={styles.socialButtonsContainer}>
+        <TouchableOpacity style={styles.socialButton}>
+          <MaterialIcons name="g-translate" size={20} color="#DB4437" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.socialButton}>
+          <MaterialIcons name="facebook" size={20} color="#4267B2" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.socialButton}>
+          <MaterialIcons name="apple" size={20} color="#000000" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.socialButton}>
+          <MaterialIcons name="phone" size={20} color="#333333" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const SignupForm = () => (
+    <View style={styles.form}>
+      {/* Full Name Input */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Full Name</Text>
+        <TextInput
+          style={styles.input}
+          value={fullName}
+          onChangeText={setFullName}
+          placeholder="Enter your full name"
+          placeholderTextColor="#999"
+        />
+      </View>
+
+      {/* Email Input */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Email</Text>
+        <TextInput
+          style={styles.input}
+          value={signupEmail}
+          onChangeText={setSignupEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          placeholder="Enter your email"
+          placeholderTextColor="#999"
+        />
+      </View>
+
+      {/* Password Input */}
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>Password</Text>
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={styles.passwordInput}
+            value={signupPassword}
+            onChangeText={setSignupPassword}
+            secureTextEntry={!showSignupPassword}
+            placeholder="Enter your password"
+            placeholderTextColor="#999"
+          />
+          <TouchableOpacity onPress={() => setShowSignupPassword(!showSignupPassword)}>
+            <Feather
+              name={showSignupPassword ? "eye" : "eye-off"}
+              size={18}
+              color="#999"
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Sign Up Button */}
+      <TouchableOpacity
+        style={styles.primaryButton}
+        onPress={handleSignup}
+      >
+        <Text style={styles.primaryButtonText}>Sign Up</Text>
+      </TouchableOpacity>
+
+      {/* Or login with */}
+      <Text style={styles.orText}>Or sign up with</Text>
+
+      {/* Social Login Buttons */}
+      <View style={styles.socialButtonsContainer}>
+        <TouchableOpacity style={styles.socialButton}>
+          <MaterialIcons name="g-translate" size={20} color="#DB4437" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.socialButton}>
+          <MaterialIcons name="facebook" size={20} color="#4267B2" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.socialButton}>
+          <MaterialIcons name="apple" size={20} color="#000000" />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.socialButton}>
+          <MaterialIcons name="phone" size={20} color="#333333" />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  return (
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoidingView}
+        >
+          <ScrollView
+            contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + Spacing.lg }]}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Header with Logo */}
+            <View style={styles.header}>
+              <Image
+                source={require('../../assets/images/beacon.jpg')}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+              <Text style={styles.title}>Get Started now</Text>
+              <Text style={styles.subtitle}>Create an account or log in to explore</Text>
+            </View>
+
+            {/* Tab Switcher */}
+            <View style={styles.tabContainer}>
+              <TouchableOpacity
+                style={[styles.tab, activeTab === 'login' && styles.activeTab]}
+                onPress={() => setActiveTab('login')}
+              >
+                <Text style={[styles.tabText, activeTab === 'login' && styles.activeTabText]}>
+                  Log In
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.tab, activeTab === 'signup' && styles.activeTab]}
+                onPress={() => setActiveTab('signup')}
+              >
+                <Text style={[styles.tabText, activeTab === 'signup' && styles.activeTabText]}>
+                  Sign Up
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Form Content */}
+            {activeTab === 'login' ? <LoginForm /> : <SignupForm />}
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </View>
+    </TouchableWithoutFeedback>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.white,
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.md,
+  },
+  header: {
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+  },
+  logo: {
+    width: 120,
+    height: 90,
+    marginBottom: Spacing.sm,
+  },
+  title: {
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xs,
+  },
+  subtitle: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.md,
+    padding: 3,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: Spacing.sm + 2,
+    alignItems: 'center',
+    borderRadius: BorderRadius.sm + 2,
+  },
+  activeTab: {
+    backgroundColor: Colors.primary,
+  },
+  tabText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.textSecondary,
+  },
+  activeTabText: {
+    color: Colors.white,
+    fontWeight: Typography.fontWeight.semibold,
+  },
+  form: {
+    paddingTop: Spacing.md,
+  },
+  inputGroup: {
+    marginBottom: Spacing.sm + 2,
+  },
+  inputLabel: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.medium,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.sm - 2,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md + 2,
+    paddingVertical: Spacing.sm + 3,
+    fontSize: Typography.fontSize.base,
+    color: Colors.textPrimary,
+    backgroundColor: Colors.white,
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md + 2,
+    backgroundColor: Colors.white,
+  },
+  passwordInput: {
+    flex: 1,
+    paddingVertical: Spacing.sm + 3,
+    fontSize: Typography.fontSize.base,
+    color: Colors.textPrimary,
+  },
+  optionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  rememberMeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkbox: {
+    width: 18,
+    height: 18,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.sm,
+    marginRight: Spacing.sm - 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  rememberMeText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textPrimary,
+  },
+  forgotPasswordText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.primary,
+    fontWeight: Typography.fontWeight.medium,
+  },
+  primaryButton: {
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    marginBottom: Spacing.sm + 2,
+  },
+  primaryButtonText: {
+    color: Colors.white,
+    fontSize: Typography.fontSize.md - 1,
+    fontWeight: Typography.fontWeight.semibold,
+  },
+  orText: {
+    textAlign: 'center',
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm + 2,
+  },
+  socialButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  socialButton: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+});

@@ -10,6 +10,7 @@ import * as SystemUI from 'expo-system-ui';
 import 'react-native-reanimated';
 
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import { AuthProvider } from '@/contexts/AuthContext';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -53,7 +54,9 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider key={key}>
       <ThemeProvider>
-        <NavigationWrapper />
+        <AuthProvider>
+          <NavigationWrapper />
+        </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );
