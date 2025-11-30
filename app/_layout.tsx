@@ -91,6 +91,9 @@ function NavigationWrapper() {
           <Stack.Screen name="milestone-checklist" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
           <Stack.Screen name="milestone-overview" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
           <Stack.Screen name="add_child" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
+          <Stack.Screen name="appointments" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
+          <Stack.Screen name="teleconsultation" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
+          <Stack.Screen name="notifications" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
           <Stack.Screen name="+not-found" />
         </Stack>
       </View>
