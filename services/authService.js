@@ -13,10 +13,11 @@ const getApiUrl = () => {
         return url;
     }
 
+    console.log('AuthService: hostUri not found, falling back to static URL');
     return Platform.OS === 'android' ? 'http://10.0.2.2:3000/api' : 'http://localhost:3000/api';
 };
 
-const API_URL = getApiUrl();
+export const API_URL = getApiUrl();
 
 class AuthService {
     // Store auth token

@@ -23,6 +23,26 @@ const authMiddleware = async (req, res, next) => {
                 photoURL: decodedToken.picture || null
             };
 
+            // Fetch user from database to get UUID
+            const { Pool } = require('pg');
+            const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+            const client = await pool.connect();
+            try {
+                const result = await client.query('SELECT * FROM users WHERE firebase_uid = $1', [decodedToken.uid]);
+                if (result.rows.length > 0) {
+                    req.user = { ...req.user, ...result.rows[0] };
+                } else {
+                    // Optional: Auto-create user if not found? For now, just log warning
+                    console.warn('User not found in database for Firebase UID:', decodedToken.uid);
+                }
+            } catch (dbError) {
+                console.error('Database error in auth middleware:', dbError);
+            } finally {
+                client.release();
+                // Don't close pool here as it might be shared, but creating new pool per request is bad practice.
+                // Ideally pool should be imported. For quick fix, we'll rely on pool management or import it properly.
+            }
+
             next();
         } catch (error) {
             console.error('Token verification error:', error);

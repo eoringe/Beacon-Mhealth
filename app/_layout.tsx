@@ -4,13 +4,14 @@ import { Stack, useSegments, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState, useRef } from 'react';
-import { Platform, AppState, View } from 'react-native';
+import { Platform, AppState, View, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import * as SystemUI from 'expo-system-ui';
 import 'react-native-reanimated';
 
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { ChildProvider } from '@/contexts/ChildContext';
+import { Colors } from '@/constants/theme';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -55,7 +56,9 @@ export default function RootLayout() {
     <SafeAreaProvider key={key}>
       <ThemeProvider>
         <AuthProvider>
-          <NavigationWrapper />
+          <ChildProvider>
+            <NavigationWrapper />
+          </ChildProvider>
         </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>
@@ -72,7 +75,7 @@ function NavigationWrapper() {
     if (loading) return;
 
     const inAuthGroup = segments[0] === 'auth';
-    const inWelcomeScreen = segments.length === 0;
+    const inWelcomeScreen = segments.length === 0 || segments[0] === 'index';
 
     if (!user && !inAuthGroup && !inWelcomeScreen) {
       // Redirect to the welcome page if not logged in and not in a public area
@@ -95,6 +98,14 @@ function NavigationWrapper() {
     },
   };
 
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colorScheme.background }}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
+
   return (
     <NavigationThemeProvider value={navigationTheme}>
       <View style={{ flex: 1, backgroundColor: colorScheme.background }}>
@@ -107,15 +118,9 @@ function NavigationWrapper() {
         }}>
           <Stack.Screen name="index" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
           <Stack.Screen name="(tabs)" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
-          <Stack.Screen name="growth-chart" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
-          <Stack.Screen name="vaccinations" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
-          <Stack.Screen name="child-profile" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
-          <Stack.Screen name="milestone-checklist" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
-          <Stack.Screen name="milestone-overview" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
-          <Stack.Screen name="add_child" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
-          <Stack.Screen name="appointments" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
-          <Stack.Screen name="teleconsultation" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
-          <Stack.Screen name="notifications" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
+          <Stack.Screen name="auth" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
+          <Stack.Screen name="children/add" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
+          <Stack.Screen name="children/index" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
           <Stack.Screen name="+not-found" />
         </Stack>
       </View>
