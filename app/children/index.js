@@ -189,13 +189,10 @@ const styles = StyleSheet.create({
         borderRadius: BorderRadius.md,
         marginBottom: Spacing.md,
         borderWidth: 1,
-        borderColor: Colors.border,
-        // Removed shadow properties to fix grey corners
-        // elevation: 2,
-        // overflow: 'hidden',
+        borderColor: 'transparent', // Invisible border by default to prevent layout shift
     },
     selectedCard: {
-        borderColor: Colors.primary,
+        borderColor: Colors.primary, // Only change color when selected
         backgroundColor: Colors.white,
     },
     childContent: {
@@ -220,15 +217,6 @@ const styles = StyleSheet.create({
         fontSize: Typography.fontSize.md,
         fontWeight: Typography.fontWeight.bold,
         color: Colors.textPrimary,
-    },
-    childDetails: {
-        fontSize: Typography.fontSize.sm,
-        color: Colors.textSecondary,
-        marginTop: 2,
-    },
-    selectedText: {
-        color: Colors.primary,
-        fontWeight: 'bold',
     },
     actionButtons: {
         flexDirection: 'row',

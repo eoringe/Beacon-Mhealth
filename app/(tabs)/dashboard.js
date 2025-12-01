@@ -15,7 +15,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChild } from '@/contexts/ChildContext';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
+import { Spacing, Typography, BorderRadius, Shadow, Colors } from '@/constants/theme';
 
 const { width } = Dimensions.get('window');
 
@@ -297,10 +297,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: Spacing.lg,
         borderRadius: BorderRadius.lg,
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.1)', // Subtle border instead of shadow
-        // ...Shadow.sm, // Removed to fix grey corners
-        // overflow: 'hidden', // Removed to fix text visibility
+        // borderWidth: 1, // Removed per user request
+        // borderColor: Colors.border,
+        // borderStyle: 'solid',
     },
     addChildCard: {
         flexDirection: 'row',
@@ -309,7 +308,8 @@ const styles = StyleSheet.create({
         padding: Spacing.lg,
         borderRadius: BorderRadius.lg,
         borderWidth: 1,
-        borderStyle: 'dashed',
+        borderColor: Colors.border,
+        borderStyle: 'solid', // Changed from dashed to solid per user request
         gap: Spacing.md,
     },
     addChildText: {
