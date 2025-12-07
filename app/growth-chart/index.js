@@ -5,6 +5,7 @@ import {
     StyleSheet,
     ScrollView,
     TouchableOpacity,
+    Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -12,11 +13,14 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { SafeHeader } from '@/components/SafeHeader';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
+import { GrowthLineChart } from '@/components/GrowthLineChart';
+
+
 
 export default function GrowthChartScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
-    const { colorScheme } = useTheme();
+    const { colorScheme, isDark } = useTheme();
 
     const [selectedTab, setSelectedTab] = useState('height');
 
@@ -143,20 +147,22 @@ export default function GrowthChartScreen() {
                     </Text>
                 </View>
 
-                {/* Chart Placeholder */}
+                {/* Chart */}
                 <View style={[styles.chartCard, { backgroundColor: colorScheme.surface }]}>
                     <Text style={[styles.chartTitle, { color: colorScheme.textPrimary }]}>
                         {getCurrentLabel()} Over Time
                     </Text>
 
-                    <View style={[styles.chartPlaceholder, { borderColor: colorScheme.border }]}>
-                        <MaterialIcons name="show-chart" size={64} color={colorScheme.textTertiary} />
-                        <Text style={[styles.placeholderText, { color: colorScheme.textSecondary }]}>
-                            Chart visualization coming soon
-                        </Text>
-                        <Text style={[styles.placeholderSubtext, { color: colorScheme.textTertiary }]}>
-                            Track your child's growth over time
-                        </Text>
+                    <View style={styles.chartContainer}>
+                        <GrowthLineChart
+                            data={getCurrentData()}
+                            width={Dimensions.get('window').width - (Spacing.lg * 2)}
+                            height={300}
+                            color={getCurrentColor()}
+                            label={getCurrentLabel()}
+                            unit={selectedTab === 'weight' ? 'kg' : 'cm'}
+                            isDark={isDark}
+                        />
                     </View>
                 </View>
 
@@ -262,21 +268,9 @@ const styles = StyleSheet.create({
         fontWeight: Typography.fontWeight.semibold,
         marginBottom: Spacing.md,
     },
-    chartPlaceholder: {
-        height: 300,
-        borderWidth: 2,
-        borderRadius: BorderRadius.md,
-        borderStyle: 'dashed',
+    chartContainer: {
         alignItems: 'center',
         justifyContent: 'center',
-        gap: Spacing.sm,
-    },
-    placeholderText: {
-        fontSize: Typography.fontSize.base,
-        fontWeight: Typography.fontWeight.medium,
-    },
-    placeholderSubtext: {
-        fontSize: Typography.fontSize.sm,
     },
     historySection: {
         paddingHorizontal: Spacing.lg,

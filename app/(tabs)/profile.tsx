@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { ComponentProps } from 'react';
 import {
     View,
     Text,
@@ -14,115 +14,127 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import { SafeHeader } from '@/components/SafeHeader';
 
+type IconName = ComponentProps<typeof MaterialIcons>['name'];
+
 export default function ProfileScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { colorScheme, isDark } = useTheme();
 
-    const profileSections = [
-        {
-            title: 'Quick Actions',
-            items: [
-                {
-                    icon: 'edit',
-                    label: 'Edit Profile',
-                    color: colorScheme.primary,
-                    onPress: () => {
-                        // Navigate to edit profile
-                        console.log('Edit profile');
+    const profileSections: Array<{
+        title: string;
+        items: Array<{
+            icon: IconName;
+            label: string;
+            color: string;
+            subtitle?: string;
+            hasArrow?: boolean;
+            onPress: () => void;
+        }>;
+    }> = [
+            {
+                title: 'Quick Actions',
+                items: [
+                    {
+                        icon: 'edit' as IconName,
+                        label: 'Edit Profile',
+                        color: colorScheme.primary,
+                        onPress: () => {
+                            // Navigate to edit profile
+                            console.log('Edit profile');
+                        },
                     },
-                },
-                {
-                    icon: 'settings',
-                    label: 'Settings',
-                    color: colorScheme.info,
-                    onPress: () => {
-                        console.log('Settings');
+                    {
+                        icon: 'settings' as IconName,
+                        label: 'Settings',
+                        color: colorScheme.info,
+                        onPress: () => {
+                            console.log('Settings');
+                        },
                     },
-                },
-                {
-                    icon: 'help',
-                    label: 'Help & Support',
-                    color: colorScheme.success,
-                    onPress: () => {
-                        console.log('Help');
+                    {
+                        icon: 'help' as IconName,
+                        label: 'Help & Support',
+                        color: colorScheme.success,
+                        onPress: () => {
+                            console.log('Help');
+                        },
                     },
-                },
-            ],
-        },
-        {
-            title: 'Preferences',
-            items: [
-                {
-                    icon: 'notifications',
-                    label: 'Notifications',
-                    color: colorScheme.warning,
-                    hasArrow: true,
-                    onPress: () => {
-                        router.push('/notifications');
+                ],
+            },
+            {
+                title: 'Preferences',
+                items: [
+                    {
+                        icon: 'notifications' as IconName,
+                        label: 'Notifications',
+                        color: colorScheme.warning,
+                        hasArrow: true,
+                        onPress: () => {
+                            router.push('/notifications');
+                        },
                     },
-                },
-                {
-                    icon: isDark ? 'light-mode' : 'dark-mode',
-                    label: 'Theme',
-                    color: colorScheme.textSecondary,
-                    hasArrow: true,
-                    onPress: () => {
-                        console.log('Theme settings');
+                    {
+                        icon: (isDark ? 'light-mode' : 'dark-mode') as IconName,
+                        label: 'Theme',
+                        color: colorScheme.textSecondary,
+                        hasArrow: true,
+                        onPress: () => {
+                            console.log('Theme settings');
+                        },
                     },
-                },
-                {
-                    icon: 'language',
-                    label: 'Language',
-                    color: colorScheme.primary,
-                    subtitle: 'English',
-                    hasArrow: true,
-                    onPress: () => {
-                        console.log('Language');
+                    {
+                        icon: 'language' as IconName,
+                        label: 'Language',
+                        color: colorScheme.primary,
+                        subtitle: 'English',
+                        hasArrow: true,
+                        onPress: () => {
+                            console.log('Language');
+                        },
                     },
-                },
-            ],
-        },
-        {
-            title: 'About',
-            items: [
-                {
-                    icon: 'info',
-                    label: 'About Beacon',
-                    color: colorScheme.info,
-                    hasArrow: true,
-                    onPress: () => {
-                        console.log('About');
+                ],
+            },
+            {
+                title: 'About',
+                items: [
+                    {
+                        icon: 'info' as IconName,
+                        label: 'About Beacon',
+                        color: colorScheme.info,
+                        hasArrow: true,
+                        onPress: () => {
+                            console.log('About');
+                        },
                     },
-                },
-                {
-                    icon: 'description',
-                    label: 'Terms of Service',
-                    color: colorScheme.textSecondary,
-                    hasArrow: true,
-                    onPress: () => {
-                        console.log('Terms');
+                    {
+                        icon: 'description' as IconName,
+                        label: 'Terms of Service',
+                        color: colorScheme.textSecondary,
+                        hasArrow: true,
+                        onPress: () => {
+                            console.log('Terms');
+                        },
                     },
-                },
-                {
-                    icon: 'privacy-tip',
-                    label: 'Privacy Policy',
-                    color: colorScheme.textSecondary,
-                    hasArrow: true,
-                    onPress: () => {
-                        console.log('Privacy');
+                    {
+                        icon: 'privacy-tip' as IconName,
+                        label: 'Privacy Policy',
+                        color: colorScheme.textSecondary,
+                        hasArrow: true,
+                        onPress: () => {
+                            console.log('Privacy');
+                        },
                     },
-                },
-                {
-                    icon: 'info-outline',
-                    label: 'App Version',
-                    color: colorScheme.textTertiary,
-                    subtitle: '1.0.0',
-                    onPress: () => { },
-                },
-            ],
-        },
-    ];
+                    {
+                        icon: 'info-outline' as IconName,
+                        label: 'App Version',
+                        color: colorScheme.textTertiary,
+                        subtitle: '1.0.0',
+                        onPress: () => { },
+                    },
+                ],
+            },
+        ];
 
     return (
         <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
