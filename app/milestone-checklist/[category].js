@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -37,6 +37,7 @@ export default function MilestoneCategory() {
   const [milestoneResponses, setMilestoneResponses] = useState({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showAlertModal, setShowAlertModal] = useState(false);
   const [scrollViewRef, setScrollViewRef] = useState(null);
   const [scrollPosition, setScrollPosition] = useState(0);
   const [contentWidth, setContentWidth] = useState(0);
@@ -131,26 +132,9 @@ export default function MilestoneCategory() {
         totalQuestions += Object.keys(responses).length;
       });
 
-      // Alert if less than 3 'yes' responses across all categories
+      // Show modal if less than 3 'yes' responses across all categories
       if (totalQuestions >= 5 && totalYes < 3) {
-        Alert.alert(
-          '⚠️ Developmental Concern',
-          `Your child has fewer than 3 "Yes" responses for ${selectedAge}-month milestones.\n\nWe recommend booking an appointment with your healthcare provider to discuss your child's development.`,
-          [
-            {
-              text: 'Remind Me Later',
-              style: 'cancel'
-            },
-            {
-              text: 'Book Appointment',
-              onPress: () => {
-                // Navigate to appointments
-                router.push('/appointments/book');
-              }
-            }
-          ],
-          { cancelable: false }
-        );
+        setShowAlertModal(true);
       }
     } catch (error) {
       console.error('Error checking milestone progress:', error);
@@ -385,6 +369,64 @@ export default function MilestoneCategory() {
           );
         })}
       </ScrollView>
+
+      {/* Custom Alert Modal */}
+      <Modal
+        visible={showAlertModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowAlertModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { backgroundColor: colorScheme.surface }]}>
+            {/* Warning Icon */}
+            <View style={[styles.modalIconContainer, { backgroundColor: `${colorScheme.warning}15` }]}>
+              <MaterialIcons name="warning" size={48} color={colorScheme.warning} />
+            </View>
+
+            {/* Title */}
+            <Text style={[styles.modalTitle, { color: colorScheme.textPrimary }]}>
+              Developmental Concern
+            </Text>
+
+            {/* Message */}
+            <Text style={[styles.modalMessage, { color: colorScheme.textSecondary }]}>
+              Your child has fewer than 3 "Yes" responses for {selectedAge}-month milestones.
+              {'\n\n'}
+              We recommend booking an appointment with your healthcare provider to discuss your child's development.
+            </Text>
+
+            {/* Buttons */}
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSecondary, {
+                  backgroundColor: colorScheme.background,
+                  borderColor: colorScheme.border
+                }]}
+                onPress={() => setShowAlertModal(false)}
+              >
+                <Text style={[styles.modalButtonText, { color: colorScheme.textSecondary }]}>
+                  Remind Me Later
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonPrimary, {
+                  backgroundColor: colorScheme.primary
+                }]}
+                onPress={() => {
+                  setShowAlertModal(false);
+                  router.push('/appointments/book');
+                }}
+              >
+                <Text style={[styles.modalButtonText, { color: '#FFFFFF' }]}>
+                  Book Appointment
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -513,5 +555,62 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: Typography.fontSize.sm,
     fontWeight: Typography.fontWeight.medium,
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.xl,
+  },
+  modalContainer: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.xl,
+    ...Shadow.lg,
+  },
+  modalIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: BorderRadius.xxl,
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginBottom: Spacing.lg,
+  },
+  modalTitle: {
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold,
+    textAlign: 'center',
+    marginBottom: Spacing.md,
+  },
+  modalMessage: {
+    fontSize: Typography.fontSize.base,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: Spacing.xl,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalButtonSecondary: {
+    borderWidth: 1.5,
+  },
+  modalButtonPrimary: {
+    ...Shadow.md,
+  },
+  modalButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold,
   },
 });
