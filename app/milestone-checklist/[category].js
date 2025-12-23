@@ -1,20 +1,42 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MILESTONE_CATEGORIES, MILESTONE_DATA } from '../../constants/milestones';
 import { SafeHeader } from '@/components/SafeHeader';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useChild } from '@/contexts/ChildContext';
+import { milestoneService } from '@/services/milestoneService';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
+
+// Helper function to calculate age in months
+const calculateAgeInMonths = (dateOfBirth) => {
+  if (!dateOfBirth) return 12; // Default to 12 months
+  const birthDate = new Date(dateOfBirth);
+  const today = new Date();
+  const months = (today.getFullYear() - birthDate.getFullYear()) * 12 + (today.getMonth() - birthDate.getMonth());
+  // Round to nearest milestone age: 2, 3, 5, 6, 10, 12, 15
+  const milestoneAges = [2, 3, 5, 6, 10, 12, 15];
+  return milestoneAges.reduce((prev, curr) =>
+    Math.abs(curr - months) < Math.abs(prev - months) ? curr : prev
+  );
+};
 
 export default function MilestoneCategory() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colorScheme } = useTheme();
+  const { selectedChild } = useChild();
   const { category, age } = useLocalSearchParams();
-  const [selectedAge, setSelectedAge] = useState(age ? parseInt(age) : 12);
+
+  // Calculate default age from child's date of birth or use provided age
+  const defaultAge = age ? parseInt(age) : (selectedChild?.date_of_birth ? calculateAgeInMonths(selectedChild.date_of_birth) : 12);
+
+  const [selectedAge, setSelectedAge] = useState(defaultAge);
   const [milestoneResponses, setMilestoneResponses] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [scrollViewRef, setScrollViewRef] = useState(null);
   const [scrollPosition, setScrollPosition] = useState(0);
   const [contentWidth, setContentWidth] = useState(0);
@@ -25,10 +47,64 @@ export default function MilestoneCategory() {
   const categoryInfo = MILESTONE_CATEGORIES.find(cat => cat.id === category);
   const milestones = MILESTONE_DATA[selectedAge]?.[category] || [];
 
-  // Update the URL when selectedAge changes
-  React.useEffect(() => {
-    router.setParams({ age: selectedAge.toString() });
-  }, [selectedAge, router]);
+  // Load saved milestone responses when component mounts or age/category changes
+  useEffect(() => {
+    // Clear responses immediately when age or category changes
+    setMilestoneResponses({});
+
+    const loadMilestoneResponses = async () => {
+      if (!selectedChild?.id) return;
+
+      console.log('Loading milestone responses for:', {
+        childId: selectedChild.id,
+        selectedAge,
+        category
+      });
+
+      setLoading(true);
+      try {
+        const data = await milestoneService.getMilestoneResponses(
+          selectedChild.id,
+          selectedAge,
+          category
+        );
+        console.log('Received data:', data);
+        setMilestoneResponses(data.responses || {});
+      } catch (error) {
+        console.error('Error loading milestone responses:', error);
+        setMilestoneResponses({});
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadMilestoneResponses();
+  }, [selectedChild?.id, selectedAge, category]);
+
+  // Save milestone responses to database whenever they change
+  useEffect(() => {
+    const saveMilestoneResponses = async () => {
+      if (!selectedChild?.id || Object.keys(milestoneResponses).length === 0) return;
+
+      setSaving(true);
+      try {
+        await milestoneService.saveMilestoneResponses(
+          selectedChild.id,
+          selectedAge,
+          category,
+          milestoneResponses
+        );
+      } catch (error) {
+        console.error('Error saving milestone responses:', error);
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    // Debounce saving to avoid too many API calls
+    const timeoutId = setTimeout(saveMilestoneResponses, 500);
+    return () => clearTimeout(timeoutId);
+  }, [milestoneResponses, selectedChild?.id, selectedAge, category]);
 
   const handleResponse = (milestoneIndex, response) => {
     setMilestoneResponses(prev => ({
@@ -61,12 +137,7 @@ export default function MilestoneCategory() {
     setScrollPosition(newPosition);
   };
 
-  // Update the selected age when URL params change
-  React.useEffect(() => {
-    if (age && parseInt(age) !== selectedAge) {
-      setSelectedAge(parseInt(age));
-    }
-  }, [age, selectedAge]);
+
 
   const completedCount = Object.values(milestoneResponses).filter(Boolean).length;
   const totalCount = milestones.length;
@@ -88,11 +159,11 @@ export default function MilestoneCategory() {
         <View style={[styles.infoCard, { backgroundColor: colorScheme.surface }]}>
           <View style={styles.ageSelectorContainer}>
             <TouchableOpacity
-              style={[styles.arrowButton, !scrollPosition && styles.arrowButtonDisabled]}
+              style={[styles.arrowButton, { backgroundColor: colorScheme.primaryLight }, !scrollPosition && styles.arrowButtonDisabled]}
               onPress={() => scrollToAge('prev')}
               disabled={!scrollPosition}
             >
-              <MaterialIcons name="chevron-left" size={24} color={!scrollPosition ? '#CCCCCC' : '#2E5BFF'} />
+              <MaterialIcons name="chevron-left" size={24} color={!scrollPosition ? colorScheme.textTertiary : colorScheme.primary} />
             </TouchableOpacity>
 
             <View
@@ -116,13 +187,14 @@ export default function MilestoneCategory() {
                     key={age}
                     style={[
                       styles.agePill,
-                      selectedAge === age && styles.agePillActive,
+                      { backgroundColor: colorScheme.border },
+                      selectedAge === age && { backgroundColor: colorScheme.primary },
                     ]}
                     onPress={() => {
                       setSelectedAge(age);
                     }}
                   >
-                    <Text style={[styles.agePillText, selectedAge === age && { color: '#FFFFFF' }, selectedAge !== age && { color: colorScheme.textPrimary }]}>
+                    <Text style={[styles.agePillText, { color: selectedAge === age ? '#FFFFFF' : colorScheme.textPrimary }]}>
                       {age === 12 ? '1 year' : `${age} ${age === 1 ? 'month' : 'months'}`}
                     </Text>
                   </TouchableOpacity>
@@ -133,6 +205,7 @@ export default function MilestoneCategory() {
             <TouchableOpacity
               style={[
                 styles.arrowButton,
+                { backgroundColor: colorScheme.primaryLight },
                 scrollPosition >= contentWidth - containerWidth - 10 && styles.arrowButtonDisabled
               ]}
               onPress={() => scrollToAge('next')}
@@ -141,7 +214,7 @@ export default function MilestoneCategory() {
               <MaterialIcons
                 name="chevron-right"
                 size={24}
-                color={scrollPosition >= contentWidth - containerWidth - 10 ? '#CCCCCC' : '#2E5BFF'}
+                color={scrollPosition >= contentWidth - containerWidth - 10 ? colorScheme.textTertiary : colorScheme.primary}
               />
             </TouchableOpacity>
           </View>
@@ -152,26 +225,26 @@ export default function MilestoneCategory() {
             </Text>
           </View>
           <View style={styles.progressContainer}>
-            <View style={styles.progressBarBackground}>
+            <View style={[styles.progressBarBackground, { backgroundColor: colorScheme.border }]}>
               <View
                 style={[
                   styles.progressBarFill,
                   {
                     width: `${progressPercentage}%`,
-                    backgroundColor: progressPercentage === 100 ? '#4CAF50' : '#2E5BFF'
+                    backgroundColor: progressPercentage === 100 ? colorScheme.success : colorScheme.primary
                   }
                 ]}
               />
             </View>
             <View style={styles.responseCounts}>
               <View style={styles.responseCountItem}>
-                <Text style={[styles.responseCountText, { color: '#4CAF50' }]}>{yes} Yes</Text>
+                <Text style={[styles.responseCountText, { color: colorScheme.success }]}>{yes} Yes</Text>
               </View>
               <View style={styles.responseCountItem}>
-                <Text style={[styles.responseCountText, { color: '#FF5252' }]}>{no} No</Text>
+                <Text style={[styles.responseCountText, { color: colorScheme.error }]}>{no} No</Text>
               </View>
               <View style={styles.responseCountItem}>
-                <Text style={[styles.responseCountText, { color: '#FFA000' }]}>{unsure} Unsure</Text>
+                <Text style={[styles.responseCountText, { color: colorScheme.warning }]}>{unsure} Unsure</Text>
               </View>
             </View>
           </View>
@@ -188,14 +261,19 @@ export default function MilestoneCategory() {
                 <TouchableOpacity
                   style={[
                     styles.responseButton,
-                    styles.yesButton,
-                    currentResponse === 'yes' && styles.responseButtonActive
+                    {
+                      backgroundColor: currentResponse === 'yes' ? colorScheme.success : `${colorScheme.success}20`,
+                      borderColor: currentResponse === 'yes' ? colorScheme.success : `${colorScheme.success}50`
+                    }
                   ]}
                   onPress={() => handleResponse(index, 'yes')}
                 >
                   <Text style={[
                     styles.responseButtonText,
-                    currentResponse === 'yes' && styles.responseButtonTextActive
+                    {
+                      color: currentResponse === 'yes' ? '#FFFFFF' : colorScheme.success,
+                      fontWeight: currentResponse === 'yes' ? '700' : '500'
+                    }
                   ]}>
                     Yes
                   </Text>
@@ -203,14 +281,19 @@ export default function MilestoneCategory() {
                 <TouchableOpacity
                   style={[
                     styles.responseButton,
-                    styles.noButton,
-                    currentResponse === 'no' && styles.responseButtonActive
+                    {
+                      backgroundColor: currentResponse === 'no' ? colorScheme.error : `${colorScheme.error}20`,
+                      borderColor: currentResponse === 'no' ? colorScheme.error : `${colorScheme.error}50`
+                    }
                   ]}
                   onPress={() => handleResponse(index, 'no')}
                 >
                   <Text style={[
                     styles.responseButtonText,
-                    currentResponse === 'no' && styles.responseButtonTextActive
+                    {
+                      color: currentResponse === 'no' ? '#FFFFFF' : colorScheme.error,
+                      fontWeight: currentResponse === 'no' ? '700' : '500'
+                    }
                   ]}>
                     No
                   </Text>
@@ -218,14 +301,19 @@ export default function MilestoneCategory() {
                 <TouchableOpacity
                   style={[
                     styles.responseButton,
-                    styles.unsureButton,
-                    currentResponse === 'unsure' && styles.responseButtonActive
+                    {
+                      backgroundColor: currentResponse === 'unsure' ? colorScheme.warning : `${colorScheme.warning}20`,
+                      borderColor: currentResponse === 'unsure' ? colorScheme.warning : `${colorScheme.warning}50`
+                    }
                   ]}
                   onPress={() => handleResponse(index, 'unsure')}
                 >
                   <Text style={[
                     styles.responseButtonText,
-                    currentResponse === 'unsure' && styles.responseButtonTextActive
+                    {
+                      color: currentResponse === 'unsure' ? '#FFFFFF' : colorScheme.warning,
+                      fontWeight: currentResponse === 'unsure' ? '700' : '500'
+                    }
                   ]}>
                     Not Sure
                   </Text>
@@ -242,146 +330,85 @@ export default function MilestoneCategory() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FB',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E0E0E0',
-  },
-  backButton: {
-    padding: 8,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333333',
   },
   content: {
     flex: 1,
-    padding: 16,
+    padding: Spacing.lg,
   },
   infoCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  infoText: {
-    fontSize: 14,
-    color: '#666666',
-    marginBottom: 12,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    ...Shadow.md,
   },
   progressContainer: {
-    marginTop: 8,
+    marginTop: Spacing.sm,
   },
   progressBarBackground: {
     height: 8,
-    backgroundColor: '#E0E0E0',
-    borderRadius: 4,
-    marginBottom: 8,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.sm,
     overflow: 'hidden',
   },
   ageSelectorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: Spacing.md,
     width: '100%',
   },
   ageScrollContainer: {
     flex: 1,
-    marginHorizontal: 8,
+    marginHorizontal: Spacing.sm,
     overflow: 'hidden',
   },
   ageScrollContent: {
-    paddingHorizontal: 8,
+    paddingHorizontal: Spacing.sm,
     alignItems: 'center',
   },
   agePill: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginHorizontal: 4,
-    backgroundColor: '#F5F5F5',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.xxl,
+    marginHorizontal: Spacing.xs,
     minWidth: 80,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  agePillActive: {
-    backgroundColor: '#2E5BFF',
-  },
   agePillText: {
-    fontSize: 14,
-    color: '#666666',
-    fontWeight: '500',
-  },
-  agePillTextActive: {
-    color: '#FFFFFF',
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium,
   },
   arrowButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: '#F0F5FF',
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.xxl,
   },
   arrowButtonDisabled: {
     opacity: 0.5,
   },
-  milestoneCountContainer: {
-    marginTop: 8,
+  milestonesHeader: {
+    marginTop: Spacing.sm,
+  },
+  milestonesTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold,
   },
   progressBarFill: {
     height: '100%',
-    borderRadius: 4,
-  },
-  completionText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#2E5BFF',
-    textAlign: 'right',
+    borderRadius: BorderRadius.sm,
   },
   milestoneItem: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#E0E0E0',
-    marginRight: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: '#2E5BFF',
-    borderColor: '#2E5BFF',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    ...Shadow.md,
   },
   milestoneQuestion: {
-    fontSize: 15,
-    color: '#333333',
-    marginBottom: 12,
+    fontSize: Typography.fontSize.base,
+    marginBottom: Spacing.md,
     lineHeight: 22,
   },
   milestoneText: {
-    fontWeight: '500',
-    color: '#2E5BFF',
+    fontWeight: Typography.fontWeight.medium,
   },
   responseButtons: {
     flexDirection: 'row',
@@ -389,46 +416,26 @@ const styles = StyleSheet.create({
   },
   responseButton: {
     flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingVertical: Spacing.sm + 2,
+    borderRadius: BorderRadius.md,
     alignItems: 'center',
-    marginHorizontal: 4,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  yesButton: {
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
-    borderColor: 'rgba(76, 175, 80, 0.3)',
-  },
-  noButton: {
-    backgroundColor: 'rgba(255, 82, 82, 0.1)',
-    borderColor: 'rgba(255, 82, 82, 0.3)',
-  },
-  unsureButton: {
-    backgroundColor: 'rgba(255, 160, 0, 0.1)',
-    borderColor: 'rgba(255, 160, 0, 0.3)',
-  },
-  responseButtonActive: {
-    backgroundColor: 'transparent',
+    marginHorizontal: Spacing.xs,
+    borderWidth: 1.5,
   },
   responseButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  responseButtonTextActive: {
-    fontWeight: '600',
+    fontSize: Typography.fontSize.sm,
   },
   responseCounts: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 8,
+    marginTop: Spacing.sm,
   },
   responseCountItem: {
     flex: 1,
     alignItems: 'center',
   },
   responseCountText: {
-    fontSize: 13,
-    fontWeight: '500',
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium,
   },
 });

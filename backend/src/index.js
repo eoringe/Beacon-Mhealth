@@ -6,6 +6,7 @@ const errorHandler = require('./middleware/errorHandler');
 // Import routes
 const authRoutes = require('./routes/auth');
 const childRoutes = require('./routes/children');
+const milestoneRoutes = require('./routes/milestones');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -30,6 +31,7 @@ app.get('/health', (req, res) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/children', childRoutes);
+app.use('/api/milestones', milestoneRoutes);
 
 // 404 handler
 app.use((req, res) => {

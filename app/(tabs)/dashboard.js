@@ -75,7 +75,7 @@ export default function DashboardScreen() {
             title: 'Milestones',
             icon: 'flag',
             color: '#FF9800',
-            route: '/milestone-overview',
+            route: '/milestone-checklist',
         },
         {
             id: 'appointments',

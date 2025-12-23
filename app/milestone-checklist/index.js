@@ -6,14 +6,31 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { MILESTONE_CATEGORIES } from '../../constants/milestones';
 import { SafeHeader } from '@/components/SafeHeader';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useChild } from '@/contexts/ChildContext';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
+
+// Helper function to calculate age in months
+const calculateAgeInMonths = (dateOfBirth) => {
+  if (!dateOfBirth) return 12; // Default to 12 months
+  const birthDate = new Date(dateOfBirth);
+  const today = new Date();
+  const months = (today.getFullYear() - birthDate.getFullYear()) * 12 + (today.getMonth() - birthDate.getMonth());
+  // Round to nearest milestone age: 2, 3, 5, 6, 10, 12, 15
+  const milestoneAges = [2, 3, 5, 6, 10, 12, 15];
+  return milestoneAges.reduce((prev, curr) =>
+    Math.abs(curr - months) < Math.abs(prev - months) ? curr : prev
+  );
+};
 
 export default function MilestoneChecklist() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colorScheme } = useTheme();
+  const { selectedChild } = useChild();
   const { age } = useLocalSearchParams();
-  const selectedAge = age ? parseInt(age) : 12; // Default to 12 months if no age provided
+
+  // Calculate default age from child's date of birth or use provided age
+  const selectedAge = age ? parseInt(age) : (selectedChild?.date_of_birth ? calculateAgeInMonths(selectedChild.date_of_birth) : 12);
 
   return (
     <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
@@ -35,7 +52,7 @@ export default function MilestoneChecklist() {
             style={[styles.categoryCard, { backgroundColor: colorScheme.surface }]}
             onPress={() => router.push(`/milestone-checklist/${category.id}?age=${selectedAge}`)}
           >
-            <View style={styles.categoryIcon}>
+            <View style={[styles.categoryIcon, { backgroundColor: colorScheme.primaryLight }]}>
               <MaterialIcons name={category.icon} size={28} color={colorScheme.primary} />
             </View>
             <View style={styles.categoryInfo}>
@@ -82,7 +99,6 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: BorderRadius.xxl,
-    backgroundColor: '#F0F5FF',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.lg,
