@@ -3,12 +3,22 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import * as Notifications from 'expo-notifications';
 import { MILESTONE_CATEGORIES, MILESTONE_DATA } from '../../constants/milestones';
 import { SafeHeader } from '@/components/SafeHeader';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useChild } from '@/contexts/ChildContext';
 import { milestoneService } from '@/services/milestoneService';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
+
+// Configure notification handler - how notifications should be displayed
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 // Helper function to calculate age in months
 const calculateAgeInMonths = (dateOfBirth) => {
@@ -21,6 +31,36 @@ const calculateAgeInMonths = (dateOfBirth) => {
   return milestoneAges.reduce((prev, curr) =>
     Math.abs(curr - months) < Math.abs(prev - months) ? curr : prev
   );
+};
+
+// Function to schedule a reminder notification
+const scheduleReminder = async (ageMonths) => {
+  try {
+    // Request permissions
+    const { status } = await Notifications.requestPermissionsAsync();
+    if (status !== 'granted') {
+      alert('Please enable notifications to receive reminders!');
+      return;
+    }
+
+    // Schedule notification for 5 seconds from now
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '⚠️ Milestone Reminder',
+        body: `Don't forget to book an appointment to discuss your child's ${ageMonths}-month development milestones.`,
+        data: { type: 'milestone_reminder', ageMonths },
+        sound: true,
+      },
+      trigger: {
+        type: 'timeInterval',
+        seconds: 5,
+      },
+    });
+
+    console.log('Reminder notification scheduled for 5 seconds from now');
+  } catch (error) {
+    console.error('Error scheduling notification:', error);
+  }
 };
 
 export default function MilestoneCategory() {
@@ -56,12 +96,6 @@ export default function MilestoneCategory() {
     const loadMilestoneResponses = async () => {
       if (!selectedChild?.id) return;
 
-      console.log('Loading milestone responses for:', {
-        childId: selectedChild.id,
-        selectedAge,
-        category
-      });
-
       setLoading(true);
       try {
         const data = await milestoneService.getMilestoneResponses(
@@ -69,7 +103,6 @@ export default function MilestoneCategory() {
           selectedAge,
           category
         );
-        console.log('Received data:', data);
         setMilestoneResponses(data.responses || {});
       } catch (error) {
         console.error('Error loading milestone responses:', error);
@@ -142,10 +175,25 @@ export default function MilestoneCategory() {
   };
 
   const handleResponse = (milestoneIndex, response) => {
-    setMilestoneResponses(prev => ({
-      ...prev,
+    const updatedResponses = {
+
+
+      ...milestoneResponses,
       [milestoneIndex]: response
-    }));
+    };
+
+    setMilestoneResponses(updatedResponses);
+
+    // Check immediately if we should show the alert
+    const responseValues = Object.values(updatedResponses);
+    const answeredCount = responseValues.length;
+    const yesCount = responseValues.filter(r => r === 'yes').length;
+
+    // Show modal immediately when 5+ questions answered with <3 yes
+    if (answeredCount >= 5 && yesCount < 3) {
+      // Small delay to ensure state is updated
+      setTimeout(() => setShowAlertModal(true), 100);
+    }
   };
 
   const getResponseCounts = () => {
@@ -403,7 +451,10 @@ export default function MilestoneCategory() {
                   backgroundColor: colorScheme.background,
                   borderColor: colorScheme.border
                 }]}
-                onPress={() => setShowAlertModal(false)}
+                onPress={() => {
+                  setShowAlertModal(false);
+                  scheduleReminder(selectedAge);
+                }}
               >
                 <Text style={[styles.modalButtonText, { color: colorScheme.textSecondary }]}>
                   Remind Me Later

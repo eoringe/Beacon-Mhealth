@@ -1,300 +1,211 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     ScrollView,
     TouchableOpacity,
+    ActivityIndicator,
+    Alert,
+    Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Calendar } from 'react-native-calendars';
+import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
 import { SafeHeader } from '@/components/SafeHeader';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
+import appointmentService from '@/services/appointmentService';
 
 export default function BookAppointmentScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
-    const { colorScheme, isDark } = useTheme();
-    const [selectedDate, setSelectedDate] = useState('');
-    const [selectedTime, setSelectedTime] = useState('');
-    const [selectedDoctor, setSelectedDoctor] = useState(null);
-    const [appointmentType, setAppointmentType] = useState('in-person');
+    const { colorScheme } = useTheme();
 
-    const doctors = [
-        {
-            id: 1,
-            name: 'Dr. Sarah Johnson',
-            specialty: 'Pediatrician',
-            rating: 4.8,
-        },
-        {
-            id: 2,
-            name: 'Dr. Michael Chen',
-            specialty: 'General Practitioner',
-            rating: 4.9,
-        },
-        {
-            id: 3,
-            name: 'Dr. Emily Thompson',
-            specialty: 'Pediatric Specialist',
-            rating: 4.7,
-        },
-    ];
+    const [doctors, setDoctors] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [expandedSpecialty, setExpandedSpecialty] = useState(null);
 
-    const timeSlots = [
-        '09:00 AM',
-        '10:00 AM',
-        '11:00 AM',
-        '02:00 PM',
-        '03:00 PM',
-        '04:00 PM',
-    ];
+    useEffect(() => {
+        fetchDoctors();
+    }, []);
 
-    const appointmentTypes = [
-        { id: 'in-person', label: 'In-Person', icon: 'location-on' },
-        { id: 'teleconsult', label: 'Teleconsultation', icon: 'videocam' },
-    ];
-
-    const handleContinue = () => {
-        if (selectedDate && selectedTime && selectedDoctor) {
-            router.push('/appointments/confirmation');
+    const fetchDoctors = async () => {
+        try {
+            setLoading(true);
+            const data = await appointmentService.getDoctors();
+            setDoctors(data);
+        } catch (error) {
+            Alert.alert('Error', 'Failed to load doctors. Please try again.');
+            console.error('Error fetching doctors:', error);
+        } finally {
+            setLoading(false);
         }
     };
 
+    const handleDoctorSelect = (doctor) => {
+        router.push({
+            pathname: '/appointments/select-slot',
+            params: { doctor: JSON.stringify(doctor) }
+        });
+    };
+
+    const toggleSpecialty = (specialty) => {
+        setExpandedSpecialty(expandedSpecialty === specialty ? null : specialty);
+    };
+
+    // Group doctors by specialty
+    const groupedDoctors = doctors.reduce((acc, doctor) => {
+        const specialty = doctor.specialty || 'General';
+        if (!acc[specialty]) {
+            acc[specialty] = [];
+        }
+        acc[specialty].push(doctor);
+        return acc;
+    }, {});
+
+    const specialties = Object.keys(groupedDoctors);
+
+    if (loading) {
+        return (
+            <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
+                <SafeHeader title="Select Doctor" showBack={true} />
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={colorScheme.primary} />
+                    <Text style={[styles.loadingText, { color: colorScheme.textSecondary }]}>
+                        Loading doctors...
+                    </Text>
+                </View>
+            </View>
+        );
+    }
+
     return (
-        <View
-            style={[styles.container, { backgroundColor: colorScheme.background }]}
-        >
-            <SafeHeader title="Book Appointment" showBack={true} />
+        <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
+            <SafeHeader title="Select Doctor" showBack={true} />
 
             <ScrollView
                 style={styles.content}
                 contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl }}
                 showsVerticalScrollIndicator={false}
             >
-                {/* Doctor Selection */}
-                <View style={styles.section}>
-                    <Text
-                        style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}
-                    >
-                        Select Doctor
-                    </Text>
-                    {doctors.map((doctor) => (
-                        <TouchableOpacity
-                            key={doctor.id}
-                            style={[
-                                styles.doctorCard,
-                                {
-                                    backgroundColor: colorScheme.surface,
-                                    borderWidth: selectedDoctor?.id === doctor.id ? 2 : 0,
-                                    borderColor: colorScheme.primary,
-                                },
-                            ]}
-                            onPress={() => setSelectedDoctor(doctor)}
-                            activeOpacity={0.7}
+                {specialties.length === 0 ? (
+                    <View style={styles.emptyContainer}>
+                        <Text style={[styles.emptyText, { color: colorScheme.textSecondary }]}>
+                            No doctors available at the moment.
+                        </Text>
+                    </View>
+                ) : (
+                    specialties.map((specialty) => (
+                        <Animated.View
+                            key={specialty}
+                            style={styles.specialtyContainer}
+                            layout={LinearTransition.duration(300)}
                         >
-                            <View
-                                style={[
-                                    styles.doctorAvatar,
-                                    { backgroundColor: colorScheme.primaryLight },
-                                ]}
-                            >
-                                <MaterialIcons
-                                    name="person"
-                                    size={28}
-                                    color={colorScheme.primary}
-                                />
-                            </View>
-                            <View style={styles.doctorInfo}>
-                                <Text
-                                    style={[
-                                        styles.doctorName,
-                                        { color: colorScheme.textPrimary },
-                                    ]}
-                                >
-                                    {doctor.name}
-                                </Text>
-                                <Text
-                                    style={[
-                                        styles.doctorSpecialty,
-                                        { color: colorScheme.textSecondary },
-                                    ]}
-                                >
-                                    {doctor.specialty}
-                                </Text>
-                                <View style={styles.ratingRow}>
-                                    <MaterialIcons
-                                        name="star"
-                                        size={16}
-                                        color={colorScheme.warning}
-                                    />
-                                    <Text
-                                        style={[styles.rating, { color: colorScheme.textSecondary }]}
-                                    >
-                                        {doctor.rating}
-                                    </Text>
-                                </View>
-                            </View>
-                            {selectedDoctor?.id === doctor.id && (
-                                <MaterialIcons
-                                    name="check-circle"
-                                    size={24}
-                                    color={colorScheme.primary}
-                                />
-                            )}
-                        </TouchableOpacity>
-                    ))}
-                </View>
-
-                {/* Appointment Type */}
-                <View style={styles.section}>
-                    <Text
-                        style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}
-                    >
-                        Appointment Type
-                    </Text>
-                    <View style={styles.typeButtons}>
-                        {appointmentTypes.map((type) => (
                             <TouchableOpacity
-                                key={type.id}
                                 style={[
-                                    styles.typeButton,
+                                    styles.specialtyHeader,
                                     {
-                                        backgroundColor:
-                                            appointmentType === type.id
-                                                ? colorScheme.primary
-                                                : colorScheme.surface,
+                                        backgroundColor: colorScheme.surface,
                                         borderColor: colorScheme.border,
                                     },
                                 ]}
-                                onPress={() => setAppointmentType(type.id)}
+                                onPress={() => toggleSpecialty(specialty)}
                                 activeOpacity={0.7}
                             >
-                                <MaterialIcons
-                                    name={type.icon}
-                                    size={24}
-                                    color={
-                                        appointmentType === type.id
-                                            ? '#FFFFFF'
-                                            : colorScheme.textSecondary
-                                    }
-                                />
-                                <Text
-                                    style={[
-                                        styles.typeLabel,
-                                        {
-                                            color:
-                                                appointmentType === type.id
-                                                    ? '#FFFFFF'
-                                                    : colorScheme.textPrimary,
-                                        },
-                                    ]}
-                                >
-                                    {type.label}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                </View>
-
-                {/* Calendar */}
-                <View style={styles.section}>
-                    <Text
-                        style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}
-                    >
-                        Select Date
-                    </Text>
-                    <View style={[styles.calendarCard, { backgroundColor: colorScheme.surface }]}>
-                        <Calendar
-                            onDayPress={(day) => setSelectedDate(day.dateString)}
-                            markedDates={{
-                                [selectedDate]: {
-                                    selected: true,
-                                    selectedColor: colorScheme.primary,
-                                },
-                            }}
-                            minDate={new Date().toISOString().split('T')[0]}
-                            theme={{
-                                backgroundColor: colorScheme.surface,
-                                calendarBackground: colorScheme.surface,
-                                textSectionTitleColor: colorScheme.textSecondary,
-                                selectedDayBackgroundColor: colorScheme.primary,
-                                selectedDayTextColor: '#FFFFFF',
-                                todayTextColor: colorScheme.primary,
-                                dayTextColor: colorScheme.textPrimary,
-                                textDisabledColor: colorScheme.textTertiary,
-                                monthTextColor: colorScheme.textPrimary,
-                                textMonthFontWeight: 'bold',
-                                arrowColor: colorScheme.primary,
-                            }}
-                        />
-                    </View>
-                </View>
-
-                {/* Time Slots */}
-                {selectedDate && (
-                    <View style={styles.section}>
-                        <Text
-                            style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}
-                        >
-                            Select Time
-                        </Text>
-                        <View style={styles.timeGrid}>
-                            {timeSlots.map((time) => (
-                                <TouchableOpacity
-                                    key={time}
-                                    style={[
-                                        styles.timeSlot,
-                                        {
-                                            backgroundColor:
-                                                selectedTime === time
-                                                    ? colorScheme.primary
-                                                    : colorScheme.surface,
-                                            borderColor: colorScheme.border,
-                                        },
-                                    ]}
-                                    onPress={() => setSelectedTime(time)}
-                                    activeOpacity={0.7}
-                                >
-                                    <Text
-                                        style={[
-                                            styles.timeText,
-                                            {
-                                                color:
-                                                    selectedTime === time
-                                                        ? '#FFFFFF'
-                                                        : colorScheme.textPrimary,
-                                            },
-                                        ]}
-                                    >
-                                        {time}
+                                <View style={styles.specialtyTitleRow}>
+                                    <View style={[styles.iconContainer, { backgroundColor: colorScheme.primaryLight }]}>
+                                        <MaterialIcons name="medical-services" size={24} color={colorScheme.primary} />
+                                    </View>
+                                    <Text style={[styles.specialtyTitle, { color: colorScheme.textPrimary }]}>
+                                        {specialty}
                                     </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    </View>
-                )}
+                                </View>
+                                <MaterialIcons
+                                    name={expandedSpecialty === specialty ? "expand-less" : "expand-more"}
+                                    size={24}
+                                    color={colorScheme.textSecondary}
+                                />
+                            </TouchableOpacity>
 
-                {/* Continue Button */}
-                <TouchableOpacity
-                    style={[
-                        styles.continueButton,
-                        {
-                            backgroundColor:
-                                selectedDate && selectedTime && selectedDoctor
-                                    ? colorScheme.primary
-                                    : colorScheme.border,
-                        },
-                    ]}
-                    onPress={handleContinue}
-                    disabled={!selectedDate || !selectedTime || !selectedDoctor}
-                    activeOpacity={0.8}
-                >
-                    <Text style={styles.continueButtonText}>Continue</Text>
-                </TouchableOpacity>
+                            {expandedSpecialty === specialty && (
+                                <Animated.View
+                                    style={styles.doctorsList}
+                                    entering={FadeIn}
+                                    exiting={FadeOut}
+                                >
+                                    {groupedDoctors[specialty].map((doctor) => (
+                                        <TouchableOpacity
+                                            key={doctor.id}
+                                            style={[
+                                                styles.doctorCard,
+                                                {
+                                                    backgroundColor: colorScheme.surface,
+                                                    borderColor: colorScheme.border,
+                                                },
+                                            ]}
+                                            onPress={() => handleDoctorSelect(doctor)}
+                                            activeOpacity={0.7}
+                                        >
+                                            {doctor.photo_url ? (
+                                                <Image
+                                                    source={{ uri: doctor.photo_url }}
+                                                    style={styles.doctorPhoto}
+                                                />
+                                            ) : (
+                                                <View
+                                                    style={[
+                                                        styles.doctorAvatar,
+                                                        { backgroundColor: colorScheme.primaryLight },
+                                                    ]}
+                                                >
+                                                    <MaterialIcons
+                                                        name="person"
+                                                        size={24}
+                                                        color={colorScheme.primary}
+                                                    />
+                                                </View>
+                                            )}
+                                            <View style={styles.doctorInfo}>
+                                                <Text
+                                                    style={[
+                                                        styles.doctorName,
+                                                        { color: colorScheme.textPrimary },
+                                                    ]}
+                                                >
+                                                    {doctor.name}
+                                                </Text>
+                                                {doctor.phone && (
+                                                    <View style={styles.phoneRow}>
+                                                        <MaterialIcons
+                                                            name="phone"
+                                                            size={14}
+                                                            color={colorScheme.textTertiary}
+                                                        />
+                                                        <Text
+                                                            style={[
+                                                                styles.phoneText,
+                                                                { color: colorScheme.textTertiary },
+                                                            ]}
+                                                        >
+                                                            {doctor.phone}
+                                                        </Text>
+                                                    </View>
+                                                )}
+                                            </View>
+                                            <MaterialIcons
+                                                name="chevron-right"
+                                                size={24}
+                                                color={colorScheme.textTertiary}
+                                            />
+                                        </TouchableOpacity>
+                                    ))}
+                                </Animated.View>
+                            )}
+                        </Animated.View>
+                    ))
+                )}
             </ScrollView>
         </View>
     );
@@ -306,27 +217,68 @@ const styles = StyleSheet.create({
     },
     content: {
         flex: 1,
+        padding: Spacing.md,
     },
-    section: {
-        paddingHorizontal: Spacing.lg,
-        marginBottom: Spacing.xl,
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    sectionTitle: {
-        fontSize: Typography.fontSize.lg,
-        fontWeight: Typography.fontWeight.semibold,
+    loadingText: {
+        marginTop: Spacing.md,
+        fontSize: Typography.fontSize.base,
+    },
+    specialtyContainer: {
         marginBottom: Spacing.md,
+        overflow: 'hidden', // Ensure animation stays within bounds
+    },
+    specialtyHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: Spacing.md,
+        borderRadius: BorderRadius.lg,
+        borderWidth: 1,
+        ...Shadow.sm,
+        zIndex: 1, // Keep header above list during animation
+    },
+    specialtyTitleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.md,
+    },
+    iconContainer: {
+        width: 40,
+        height: 40,
+        borderRadius: BorderRadius.md,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    specialtyTitle: {
+        fontSize: Typography.fontSize.md,
+        fontWeight: Typography.fontWeight.semibold,
+    },
+    doctorsList: {
+        marginTop: Spacing.sm,
+        marginLeft: Spacing.md,
     },
     doctorCard: {
         flexDirection: 'row',
         alignItems: 'center',
         padding: Spacing.md,
-        borderRadius: BorderRadius.lg,
         marginBottom: Spacing.sm,
+        borderRadius: BorderRadius.lg,
+        borderWidth: 1,
         ...Shadow.sm,
     },
+    doctorPhoto: {
+        width: 48,
+        height: 48,
+        borderRadius: BorderRadius.xl,
+    },
     doctorAvatar: {
-        width: 56,
-        height: 56,
+        width: 48,
+        height: 48,
         borderRadius: BorderRadius.xl,
         justifyContent: 'center',
         alignItems: 'center',
@@ -337,70 +289,22 @@ const styles = StyleSheet.create({
     },
     doctorName: {
         fontSize: Typography.fontSize.md,
-        fontWeight: Typography.fontWeight.semibold,
+        fontWeight: Typography.fontWeight.medium,
         marginBottom: 2,
     },
-    doctorSpecialty: {
-        fontSize: Typography.fontSize.sm,
-        marginBottom: Spacing.xs,
-    },
-    ratingRow: {
+    phoneRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
     },
-    rating: {
-        fontSize: Typography.fontSize.sm,
+    phoneText: {
+        fontSize: Typography.fontSize.xs,
     },
-    typeButtons: {
-        flexDirection: 'row',
-        gap: Spacing.md,
-    },
-    typeButton: {
-        flex: 1,
-        flexDirection: 'row',
+    emptyContainer: {
+        padding: Spacing.xl,
         alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: Spacing.md,
-        borderRadius: BorderRadius.md,
-        borderWidth: 1,
-        gap: Spacing.xs,
     },
-    typeLabel: {
+    emptyText: {
         fontSize: Typography.fontSize.base,
-        fontWeight: Typography.fontWeight.medium,
-    },
-    calendarCard: {
-        borderRadius: BorderRadius.lg,
-        overflow: 'hidden',
-        ...Shadow.md,
-    },
-    timeGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: Spacing.sm,
-    },
-    timeSlot: {
-        width: '31%',
-        paddingVertical: Spacing.md,
-        borderRadius: BorderRadius.md,
-        borderWidth: 1,
-        alignItems: 'center',
-    },
-    timeText: {
-        fontSize: Typography.fontSize.sm,
-        fontWeight: Typography.fontWeight.medium,
-    },
-    continueButton: {
-        marginHorizontal: Spacing.lg,
-        paddingVertical: Spacing.md,
-        borderRadius: BorderRadius.md,
-        alignItems: 'center',
-        marginTop: Spacing.md,
-    },
-    continueButtonText: {
-        color: '#FFFFFF',
-        fontSize: Typography.fontSize.md,
-        fontWeight: Typography.fontWeight.semibold,
     },
 });

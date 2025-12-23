@@ -24,8 +24,7 @@ const authMiddleware = async (req, res, next) => {
             };
 
             // Fetch user from database to get UUID
-            const { Pool } = require('pg');
-            const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+            const { pool } = require('../config/database');
             const client = await pool.connect();
             try {
                 const result = await client.query('SELECT * FROM users WHERE firebase_uid = $1', [decodedToken.uid]);
@@ -39,8 +38,6 @@ const authMiddleware = async (req, res, next) => {
                 console.error('Database error in auth middleware:', dbError);
             } finally {
                 client.release();
-                // Don't close pool here as it might be shared, but creating new pool per request is bad practice.
-                // Ideally pool should be imported. For quick fix, we'll rely on pool management or import it properly.
             }
 
             next();

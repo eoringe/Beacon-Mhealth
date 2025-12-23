@@ -7,7 +7,7 @@ import {
     TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { SafeHeader } from '@/components/SafeHeader';
@@ -16,7 +16,30 @@ import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 export default function AppointmentConfirmationScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
+    const params = useLocalSearchParams();
     const { colorScheme } = useTheme();
+
+    const { doctorName, specialty, date, time } = params;
+
+    const formatDate = (dateString) => {
+        if (!dateString) return '';
+        const d = new Date(dateString);
+        return d.toLocaleDateString('en-US', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+        });
+    };
+
+    const formatTime = (time24) => {
+        if (!time24) return '';
+        const [hours, minutes] = time24.split(':');
+        const hour = parseInt(hours);
+        const ampm = hour >= 12 ? 'PM' : 'AM';
+        const hour12 = hour % 12 || 12;
+        return `${hour12}:${minutes} ${ampm}`;
+    };
 
     return (
         <View
@@ -90,7 +113,7 @@ export default function AppointmentConfirmationScreen() {
                                 <Text
                                     style={[styles.summaryValue, { color: colorScheme.textPrimary }]}
                                 >
-                                    Dr. Sarah Johnson
+                                    {doctorName || 'Doctor'}
                                 </Text>
                                 <Text
                                     style={[
@@ -98,7 +121,7 @@ export default function AppointmentConfirmationScreen() {
                                         { color: colorScheme.textTertiary },
                                     ]}
                                 >
-                                    Pediatrician
+                                    {specialty || 'Specialist'}
                                 </Text>
                             </View>
                         </View>
@@ -129,7 +152,7 @@ export default function AppointmentConfirmationScreen() {
                                 <Text
                                     style={[styles.summaryValue, { color: colorScheme.textPrimary }]}
                                 >
-                                    December 15, 2024
+                                    {formatDate(date)}
                                 </Text>
                                 <Text
                                     style={[
@@ -137,7 +160,7 @@ export default function AppointmentConfirmationScreen() {
                                         { color: colorScheme.textTertiary },
                                     ]}
                                 >
-                                    10:00 AM
+                                    {formatTime(time)}
                                 </Text>
                             </View>
                         </View>
@@ -194,7 +217,7 @@ export default function AppointmentConfirmationScreen() {
                             styles.secondaryButton,
                             { borderColor: colorScheme.border },
                         ]}
-                        onPress={() => router.push('/appointments')}
+                        onPress={() => router.replace('/appointments')}
                         activeOpacity={0.8}
                     >
                         <MaterialIcons
@@ -218,7 +241,7 @@ export default function AppointmentConfirmationScreen() {
                             styles.secondaryButton,
                             { borderColor: colorScheme.border },
                         ]}
-                        onPress={() => router.push('/(tabs)/dashboard')}
+                        onPress={() => router.replace('/(tabs)/dashboard')}
                         activeOpacity={0.8}
                     >
                         <MaterialIcons

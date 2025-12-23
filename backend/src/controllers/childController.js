@@ -1,7 +1,4 @@
-const { Pool } = require('pg');
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-});
+const { pool } = require('../config/database');
 
 // Add a new child
 exports.addChild = async (req, res) => {

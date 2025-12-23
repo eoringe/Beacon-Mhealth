@@ -7,6 +7,7 @@ const errorHandler = require('./middleware/errorHandler');
 const authRoutes = require('./routes/auth');
 const childRoutes = require('./routes/children');
 const milestoneRoutes = require('./routes/milestones');
+const appointmentRoutes = require('./routes/appointments');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -32,6 +33,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/children', childRoutes);
 app.use('/api/milestones', milestoneRoutes);
+app.use('/api/appointments', appointmentRoutes);
 
 // 404 handler
 app.use((req, res) => {

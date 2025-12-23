@@ -18,12 +18,21 @@
     },
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.beaconchildrencenter.app"
     },
     "android": {
+      "package": "com.beaconchildrencenter.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "NOTIFICATIONS"
+      ],
+      "notification": {
+        "icon": "./assets/images/icon.png",
+        "color": "#2E5BFF"
       }
     },
     "web": {
@@ -45,6 +54,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "beceb984-02c2-4359-9baf-558bd57cb036"
+      }
     }
   }
 }
