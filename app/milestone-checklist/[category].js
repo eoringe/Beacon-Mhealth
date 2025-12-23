@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -94,6 +94,9 @@ export default function MilestoneCategory() {
           category,
           milestoneResponses
         );
+
+        // Check milestone progress after saving
+        checkMilestoneProgress();
       } catch (error) {
         console.error('Error saving milestone responses:', error);
       } finally {
@@ -105,6 +108,54 @@ export default function MilestoneCategory() {
     const timeoutId = setTimeout(saveMilestoneResponses, 500);
     return () => clearTimeout(timeoutId);
   }, [milestoneResponses, selectedChild?.id, selectedAge, category]);
+
+  // Check if milestone progress is concerning and alert parent
+  const checkMilestoneProgress = async () => {
+    try {
+      // Get all responses for this age to check overall progress
+      const allResponses = await milestoneService.getAllMilestoneResponsesForChild(selectedChild.id);
+
+      // Filter for current age
+      const currentAgeResponses = allResponses.filter(r => r.age_months === selectedAge);
+
+      if (currentAgeResponses.length === 0) return;
+
+      // Count total 'yes' responses across all categories for this age
+      let totalYes = 0;
+      let totalQuestions = 0;
+
+      currentAgeResponses.forEach(categoryData => {
+        const responses = categoryData.responses;
+        const yesCount = Object.values(responses).filter(r => r === 'yes').length;
+        totalYes += yesCount;
+        totalQuestions += Object.keys(responses).length;
+      });
+
+      // Alert if less than 3 'yes' responses across all categories
+      if (totalQuestions >= 5 && totalYes < 3) {
+        Alert.alert(
+          '⚠️ Developmental Concern',
+          `Your child has fewer than 3 "Yes" responses for ${selectedAge}-month milestones.\n\nWe recommend booking an appointment with your healthcare provider to discuss your child's development.`,
+          [
+            {
+              text: 'Remind Me Later',
+              style: 'cancel'
+            },
+            {
+              text: 'Book Appointment',
+              onPress: () => {
+                // Navigate to appointments
+                router.push('/appointments/book');
+              }
+            }
+          ],
+          { cancelable: false }
+        );
+      }
+    } catch (error) {
+      console.error('Error checking milestone progress:', error);
+    }
+  };
 
   const handleResponse = (milestoneIndex, response) => {
     setMilestoneResponses(prev => ({
@@ -119,11 +170,12 @@ export default function MilestoneCategory() {
       yes: responses.filter(r => r === 'yes').length,
       no: responses.filter(r => r === 'no').length,
       unsure: responses.filter(r => r === 'unsure').length,
-      total: milestones.length
+      answered: responses.length, // How many questions have been answered
+      total: milestones.length // Total questions available
     };
   };
 
-  const { yes, no, unsure, total } = getResponseCounts();
+  const { yes, no, unsure, answered, total } = getResponseCounts();
 
   const scrollToAge = (direction) => {
     if (!scrollViewRef) return;
@@ -247,6 +299,16 @@ export default function MilestoneCategory() {
                 <Text style={[styles.responseCountText, { color: colorScheme.warning }]}>{unsure} Unsure</Text>
               </View>
             </View>
+
+            {/* Warning banner if yes responses are concerning */}
+            {answered >= 5 && yes < 3 && (
+              <View style={[styles.warningBanner, { backgroundColor: `${colorScheme.warning}15`, borderColor: colorScheme.warning }]}>
+                <MaterialIcons name="warning" size={20} color={colorScheme.warning} />
+                <Text style={[styles.warningText, { color: colorScheme.warning }]}>
+                  Fewer than 3 "Yes" responses. Consider booking an appointment.
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -435,6 +497,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   responseCountText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium,
+  },
+  warningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.md,
+    borderWidth: 1,
+    gap: Spacing.sm,
+  },
+  warningText: {
+    flex: 1,
     fontSize: Typography.fontSize.sm,
     fontWeight: Typography.fontWeight.medium,
   },
