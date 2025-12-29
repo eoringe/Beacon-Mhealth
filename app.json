@@ -19,7 +19,11 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.beaconchildrencenter.app"
+      "bundleIdentifier": "com.beaconchildrencenter.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "We need access to your camera for video consultations.",
+        "NSMicrophoneUsageDescription": "We need access to your microphone for video consultations."
+      }
     },
     "android": {
       "package": "com.beaconchildrencenter.app",
@@ -28,7 +32,12 @@
         "backgroundColor": "#ffffff"
       },
       "permissions": [
-        "NOTIFICATIONS"
+        "NOTIFICATIONS",
+        "CAMERA",
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
       ],
       "notification": {
         "icon": "./assets/images/icon.png",
@@ -50,7 +59,23 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true,
+            "packagingOptions": {
+              "pickFirst": [
+                "**/libc++_shared.so",
+                "**/libjsc.so",
+                "**/libhermes.so"
+              ]
+            }
+          }
+        }
+      ],
+      "./plugins/withJitsi"
     ],
     "experiments": {
       "typedRoutes": true

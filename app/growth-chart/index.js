@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -6,57 +6,79 @@ import {
     ScrollView,
     TouchableOpacity,
     Dimensions,
+    ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { SafeHeader } from '@/components/SafeHeader';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import { GrowthLineChart } from '@/components/GrowthLineChart';
-
-
+import growthService from '@/services/growthService';
+import { childService } from '@/services/childService';
 
 export default function GrowthChartScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
+    const { childId } = useLocalSearchParams();
     const { colorScheme, isDark } = useTheme();
 
     const [selectedTab, setSelectedTab] = useState('height');
+    const [loading, setLoading] = useState(true);
+    const [measurements, setMeasurements] = useState([]);
+    const [child, setChild] = useState(null);
 
-    // Sample data
-    const heightData = [
-        { x: 0, y: 50 },
-        { x: 2, y: 58 },
-        { x: 4, y: 64 },
-        { x: 6, y: 68 },
-        { x: 9, y: 72 },
-        { x: 12, y: 76 },
-        { x: 15, y: 78 },
-        { x: 18, y: 82 },
-    ];
+    const fetchData = async () => {
+        if (!childId) return;
+        setLoading(true);
+        try {
+            // Fetch child details to get DOB
+            const children = await childService.getChildren();
+            const currentChild = children.find(c => c.id === childId);
+            setChild(currentChild);
 
-    const weightData = [
-        { x: 0, y: 3.5 },
-        { x: 2, y: 5.5 },
-        { x: 4, y: 6.8 },
-        { x: 6, y: 7.9 },
-        { x: 9, y: 9.2 },
-        { x: 12, y: 10.2 },
-        { x: 15, y: 10.8 },
-        { x: 18, y: 11.5 },
-    ];
+            // Fetch measurements
+            const data = await growthService.getMeasurements(childId);
+            setMeasurements(data);
+        } catch (error) {
+            console.error('Error fetching growth data:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
-    const headCircData = [
-        { x: 0, y: 35 },
-        { x: 2, y: 39 },
-        { x: 4, y: 42 },
-        { x: 6, y: 44 },
-        { x: 9, y: 45 },
-        { x: 12, y: 46 },
-        { x: 15, y: 46.5 },
-        { x: 18, y: 47 },
-    ];
+    useFocusEffect(
+        useCallback(() => {
+            fetchData();
+        }, [childId])
+    );
+
+    const calculateAgeInMonths = (birthDate, recordDate) => {
+        if (!birthDate || !recordDate) return 0;
+        const dob = new Date(birthDate);
+        const record = new Date(recordDate);
+        const months = (record.getFullYear() - dob.getFullYear()) * 12 + (record.getMonth() - dob.getMonth());
+        return Math.max(0, months); // Ensure non-negative
+    };
+
+    const processData = (type) => {
+        if (!child || !measurements.length) return [];
+
+        return measurements
+            .filter(m => m[type] !== null && m[type] !== undefined)
+            .map(m => ({
+                x: calculateAgeInMonths(child.date_of_birth, m.recorded_date),
+                y: parseFloat(m[type]),
+                date: m.recorded_date,
+                id: m.id
+            }))
+            .sort((a, b) => a.x - b.x);
+    };
+
+    const heightData = processData('height');
+    const weightData = processData('weight');
+    const headCircData = processData('head_circumference');
 
     const tabs = [
         { id: 'height', label: 'Height', icon: 'height', color: colorScheme.chartHeight },
@@ -82,7 +104,16 @@ export default function GrowthChartScreen() {
         return colorScheme.chartHeadCirc;
     };
 
-    const latestMeasurement = getCurrentData()[getCurrentData().length - 1];
+    const currentData = getCurrentData();
+    const latestMeasurement = currentData.length > 0 ? currentData[currentData.length - 1] : null;
+
+    if (loading) {
+        return (
+            <View style={[styles.container, { backgroundColor: colorScheme.background, justifyContent: 'center', alignItems: 'center' }]}>
+                <ActivityIndicator size="large" color={colorScheme.primary} />
+            </View>
+        );
+    }
 
     return (
         <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
@@ -90,7 +121,7 @@ export default function GrowthChartScreen() {
                 title="Growth Chart"
                 showBack={true}
                 rightComponent={
-                    <TouchableOpacity onPress={() => router.push('/growth-chart/add-measurement')}>
+                    <TouchableOpacity onPress={() => router.push({ pathname: '/growth-chart/add-measurement', params: { childId } })}>
                         <MaterialIcons name="add" size={24} color={colorScheme.primary} />
                     </TouchableOpacity>
                 }
@@ -135,36 +166,49 @@ export default function GrowthChartScreen() {
                 </View>
 
                 {/* Latest Measurement Card */}
-                <View style={[styles.latestCard, { backgroundColor: colorScheme.surface }]}>
-                    <Text style={[styles.latestLabel, { color: colorScheme.textSecondary }]}>
-                        Latest {selectedTab.charAt(0).toUpperCase() + selectedTab.slice(1)}
-                    </Text>
-                    <Text style={[styles.latestValue, { color: getCurrentColor() }]}>
-                        {latestMeasurement.y} {selectedTab === 'weight' ? 'kg' : 'cm'}
-                    </Text>
-                    <Text style={[styles.latestDate, { color: colorScheme.textTertiary }]}>
-                        At {latestMeasurement.x} months
-                    </Text>
-                </View>
+                {latestMeasurement ? (
+                    <View style={[styles.latestCard, { backgroundColor: colorScheme.surface }]}>
+                        <Text style={[styles.latestLabel, { color: colorScheme.textSecondary }]}>
+                            Latest {selectedTab.charAt(0).toUpperCase() + selectedTab.slice(1)}
+                        </Text>
+                        <Text style={[styles.latestValue, { color: getCurrentColor() }]}>
+                            {latestMeasurement.y} {selectedTab === 'weight' ? 'kg' : 'cm'}
+                        </Text>
+                        <Text style={[styles.latestDate, { color: colorScheme.textTertiary }]}>
+                            At {latestMeasurement.x} months
+                        </Text>
+                    </View>
+                ) : (
+                    <View style={[styles.latestCard, { backgroundColor: colorScheme.surface }]}>
+                        <Text style={[styles.latestLabel, { color: colorScheme.textSecondary }]}>
+                            No data available
+                        </Text>
+                        <Text style={[styles.latestDate, { color: colorScheme.textTertiary }]}>
+                            Add a measurement to see growth data
+                        </Text>
+                    </View>
+                )}
 
                 {/* Chart */}
-                <View style={[styles.chartCard, { backgroundColor: colorScheme.surface }]}>
-                    <Text style={[styles.chartTitle, { color: colorScheme.textPrimary }]}>
-                        {getCurrentLabel()} Over Time
-                    </Text>
+                {currentData.length > 0 && (
+                    <View style={[styles.chartCard, { backgroundColor: colorScheme.surface }]}>
+                        <Text style={[styles.chartTitle, { color: colorScheme.textPrimary }]}>
+                            {getCurrentLabel()} Over Time
+                        </Text>
 
-                    <View style={styles.chartContainer}>
-                        <GrowthLineChart
-                            data={getCurrentData()}
-                            width={Dimensions.get('window').width - (Spacing.lg * 2)}
-                            height={300}
-                            color={getCurrentColor()}
-                            label={getCurrentLabel()}
-                            unit={selectedTab === 'weight' ? 'kg' : 'cm'}
-                            isDark={isDark}
-                        />
+                        <View style={styles.chartContainer}>
+                            <GrowthLineChart
+                                data={currentData}
+                                width={Dimensions.get('window').width - (Spacing.lg * 2)}
+                                height={300}
+                                color={getCurrentColor()}
+                                label={getCurrentLabel()}
+                                unit={selectedTab === 'weight' ? 'kg' : 'cm'}
+                                isDark={isDark}
+                            />
+                        </View>
                     </View>
-                </View>
+                )}
 
                 {/* Measurement History */}
                 <View style={styles.historySection}>
@@ -174,36 +218,42 @@ export default function GrowthChartScreen() {
                         </Text>
                     </View>
 
-                    {getCurrentData().slice().reverse().map((measurement, index) => {
-                        const currentTab = tabs.find(t => t.id === selectedTab);
-                        return (
-                            <View
-                                key={index}
-                                style={[styles.historyItem, { backgroundColor: colorScheme.surface }]}
-                            >
-                                <View style={[styles.historyIconContainer, { backgroundColor: `${getCurrentColor()}20` }]}>
-                                    <MaterialIcons
-                                        name={currentTab?.icon || 'height'}
-                                        size={20}
-                                        color={getCurrentColor()}
-                                    />
-                                </View>
+                    {currentData.length === 0 ? (
+                        <Text style={{ color: colorScheme.textSecondary, textAlign: 'center', marginTop: Spacing.lg }}>
+                            No measurements recorded yet.
+                        </Text>
+                    ) : (
+                        currentData.slice().reverse().map((measurement, index) => {
+                            const currentTab = tabs.find(t => t.id === selectedTab);
+                            return (
+                                <View
+                                    key={index}
+                                    style={[styles.historyItem, { backgroundColor: colorScheme.surface }]}
+                                >
+                                    <View style={[styles.historyIconContainer, { backgroundColor: `${getCurrentColor()}20` }]}>
+                                        <MaterialIcons
+                                            name={currentTab?.icon || 'height'}
+                                            size={20}
+                                            color={getCurrentColor()}
+                                        />
+                                    </View>
 
-                                <View style={styles.historyContent}>
-                                    <Text style={[styles.historyValue, { color: colorScheme.textPrimary }]}>
-                                        {measurement.y} {selectedTab === 'weight' ? 'kg' : 'cm'}
-                                    </Text>
-                                    <Text style={[styles.historyDate, { color: colorScheme.textSecondary }]}>
-                                        At {measurement.x} months old
-                                    </Text>
-                                </View>
+                                    <View style={styles.historyContent}>
+                                        <Text style={[styles.historyValue, { color: colorScheme.textPrimary }]}>
+                                            {measurement.y} {selectedTab === 'weight' ? 'kg' : 'cm'}
+                                        </Text>
+                                        <Text style={[styles.historyDate, { color: colorScheme.textSecondary }]}>
+                                            At {measurement.x} months old ({new Date(measurement.date).toLocaleDateString()})
+                                        </Text>
+                                    </View>
 
-                                <TouchableOpacity>
-                                    <MaterialIcons name="more-vert" size={20} color={colorScheme.textTertiary} />
-                                </TouchableOpacity>
-                            </View>
-                        );
-                    })}
+                                    {/* <TouchableOpacity>
+                                        <MaterialIcons name="more-vert" size={20} color={colorScheme.textTertiary} />
+                                    </TouchableOpacity> */}
+                                </View>
+                            );
+                        })
+                    )}
                 </View>
             </ScrollView>
         </View>

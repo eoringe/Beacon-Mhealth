@@ -16,13 +16,20 @@ export function GrowthLineChart({ data, width, height, color, label, unit, isDar
     const yMax = Math.max(...yValues);
 
     // Add padding to y-axis range
-    const yPadding = (yMax - yMin) * 0.1;
+    let yPadding = (yMax - yMin) * 0.1;
+    if (yPadding === 0) yPadding = yMax * 0.1 || 10; // Default padding if flat line
     const yRangeMin = Math.max(0, yMin - yPadding);
     const yRangeMax = yMax + yPadding;
 
     // Scale functions
-    const scaleX = (x) => ((x - xMin) / (xMax - xMin)) * chartWidth;
-    const scaleY = (y) => chartHeight - ((y - yRangeMin) / (yRangeMax - yRangeMin)) * chartHeight;
+    const scaleX = (x) => {
+        if (xMax === xMin) return chartWidth / 2; // Center if single point
+        return ((x - xMin) / (xMax - xMin)) * chartWidth;
+    };
+    const scaleY = (y) => {
+        if (yRangeMax === yRangeMin) return chartHeight / 2;
+        return chartHeight - ((y - yRangeMin) / (yRangeMax - yRangeMin)) * chartHeight;
+    };
 
     // Generate points for polyline
     const points = data.map(d => `${scaleX(d.x)},${scaleY(d.y)}`).join(' ');

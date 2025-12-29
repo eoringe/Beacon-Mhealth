@@ -89,7 +89,7 @@ export default function DashboardScreen() {
             title: 'Teleconsult',
             icon: 'videocam',
             color: colorScheme.info,
-            route: '/teleconsultation',
+            route: '/teleconsult',
         },
         {
             id: 'notifications',
@@ -178,7 +178,17 @@ export default function DashboardScreen() {
                             <TouchableOpacity
                                 key={action.id}
                                 style={[styles.actionCard, { backgroundColor: colorScheme.surface }]}
-                                onPress={() => router.push(action.route)}
+                                onPress={() => {
+                                    if (action.id === 'growth_chart') {
+                                        if (selectedChild) {
+                                            router.push({ pathname: '/growth-chart', params: { childId: selectedChild.id } });
+                                        } else {
+                                            Alert.alert('Select Child', 'Please select a child to view their growth chart.');
+                                        }
+                                    } else {
+                                        router.push(action.route);
+                                    }
+                                }}
                             >
                                 <View style={[styles.actionIconContainer, { backgroundColor: `${action.color}15` }]}>
                                     <MaterialIcons name={action.icon} size={28} color={action.color} />

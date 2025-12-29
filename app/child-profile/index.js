@@ -14,14 +14,18 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { SafeHeader } from '@/components/SafeHeader';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 
+import { useChild } from '@/contexts/ChildContext';
+
 export default function ChildProfileScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { colorScheme } = useTheme();
+    const { selectedChild } = useChild();
 
     // Sample data - will be replaced with actual data
     const childData = {
         name: 'Emma Johnson',
+        // ... (keep existing mock data for now as the whole screen relies on it)
         photo: require('../../assets/images/beacon.jpg'),
         dateOfBirth: '2023-06-15',
         age: '18 months',
@@ -54,6 +58,15 @@ export default function ChildProfileScreen() {
             { type: 'milestone', title: 'Says 5+ words', date: '2024-11-10' },
             { type: 'appointment', title: 'Pediatrician checkup', date: '2024-11-05' },
         ],
+    };
+
+    const handleViewChart = () => {
+        if (selectedChild) {
+            router.push({ pathname: '/growth-chart', params: { childId: selectedChild.id } });
+        } else {
+            // Fallback or alert
+            router.push('/growth-chart');
+        }
     };
 
     const getActivityIcon = (type) => {
@@ -125,7 +138,7 @@ export default function ChildProfileScreen() {
                         <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
                             Growth Summary
                         </Text>
-                        <TouchableOpacity onPress={() => router.push('/growth-chart')}>
+                        <TouchableOpacity onPress={handleViewChart}>
                             <Text style={[styles.viewAllText, { color: colorScheme.primary }]}>View Chart</Text>
                         </TouchableOpacity>
                     </View>
@@ -280,7 +293,7 @@ export default function ChildProfileScreen() {
                     <View style={styles.quickActionsGrid}>
                         <TouchableOpacity
                             style={[styles.quickActionButton, { backgroundColor: colorScheme.surface }]}
-                            onPress={() => router.push('/growth-chart')}
+                            onPress={handleViewChart}
                         >
                             <MaterialIcons name="straighten" size={24} color={colorScheme.primary} />
                             <Text style={[styles.quickActionLabel, { color: colorScheme.textPrimary }]}>

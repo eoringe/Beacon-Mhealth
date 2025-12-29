@@ -6,18 +6,23 @@ import {
     ScrollView,
     TouchableOpacity,
     TextInput,
+    Alert,
+    ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { SafeHeader } from '@/components/SafeHeader';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
+import growthService from '@/services/growthService';
 
 export default function AddMeasurementScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
+    const { childId } = useLocalSearchParams();
     const { colorScheme } = useTheme();
+    const [loading, setLoading] = useState(false);
 
     const [measurementData, setMeasurementData] = useState({
         date: new Date().toISOString().split('T')[0],
@@ -28,10 +33,40 @@ export default function AddMeasurementScreen() {
         notes: '',
     });
 
-    const handleSave = () => {
-        // Save logic here
-        console.log('Saving measurement:', measurementData);
-        router.back();
+    const handleSave = async () => {
+        if (!childId) {
+            Alert.alert('Error', 'Child ID is missing');
+            return;
+        }
+
+        if (!measurementData.date) {
+            Alert.alert('Error', 'Date is required');
+            return;
+        }
+
+        if (!measurementData.weight && !measurementData.height && !measurementData.headCircumference) {
+            Alert.alert('Error', 'Please enter at least one measurement (Weight, Height, or Head Circumference)');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            await growthService.addMeasurement(childId, {
+                date: measurementData.date,
+                weight: measurementData.weight ? parseFloat(measurementData.weight) : null,
+                height: measurementData.height ? parseFloat(measurementData.height) : null,
+                headCircumference: measurementData.headCircumference ? parseFloat(measurementData.headCircumference) : null,
+                notes: measurementData.notes,
+            });
+            Alert.alert('Success', 'Measurement added successfully', [
+                { text: 'OK', onPress: () => router.back() }
+            ]);
+        } catch (error) {
+            console.error('Error saving measurement:', error);
+            Alert.alert('Error', 'Failed to save measurement. Please try again.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -40,13 +75,17 @@ export default function AddMeasurementScreen() {
                 title="Add Measurement"
                 showBack={true}
                 rightComponent={
-                    <TouchableOpacity onPress={handleSave}>
-                        <Text
-                            style={[styles.saveButton, { color: colorScheme.primary }]}
-                            numberOfLines={1}
-                        >
-                            Save
-                        </Text>
+                    <TouchableOpacity onPress={handleSave} disabled={loading}>
+                        {loading ? (
+                            <ActivityIndicator size="small" color={colorScheme.primary} />
+                        ) : (
+                            <Text
+                                style={[styles.saveButton, { color: colorScheme.primary }]}
+                                numberOfLines={1}
+                            >
+                                Save
+                            </Text>
+                        )}
                     </TouchableOpacity>
                 }
             />
@@ -84,8 +123,8 @@ export default function AddMeasurementScreen() {
                         />
                     </View>
 
-                    {/* Age in Months */}
-                    <View style={styles.formGroup}>
+                    {/* Age in Months (Optional/Calculated - keeping as input for now if needed, but usually calculated from DOB) */}
+                    {/* <View style={styles.formGroup}>
                         <Text style={[styles.label, { color: colorScheme.textSecondary }]}>
                             Age (Months)
                         </Text>
@@ -101,7 +140,7 @@ export default function AddMeasurementScreen() {
                             placeholderTextColor={colorScheme.textTertiary}
                             keyboardType="numeric"
                         />
-                    </View>
+                    </View> */}
 
                     {/* Height */}
                     <View style={styles.formGroup}>
@@ -192,11 +231,18 @@ export default function AddMeasurementScreen() {
 
                     {/* Save Button */}
                     <TouchableOpacity
-                        style={[styles.saveButtonLarge, { backgroundColor: colorScheme.primary }]}
+                        style={[styles.saveButtonLarge, { backgroundColor: colorScheme.primary, opacity: loading ? 0.7 : 1 }]}
                         onPress={handleSave}
+                        disabled={loading}
                     >
-                        <MaterialIcons name="check" size={24} color="#FFFFFF" />
-                        <Text style={styles.saveButtonText}>Save Measurement</Text>
+                        {loading ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                            <>
+                                <MaterialIcons name="check" size={24} color="#FFFFFF" />
+                                <Text style={styles.saveButtonText}>Save Measurement</Text>
+                            </>
+                        )}
                     </TouchableOpacity>
                 </View>
             </ScrollView>

@@ -1,3 +1,4 @@
+import 'react-native-get-random-values';
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack, useSegments, useRouter } from 'expo-router';
@@ -121,6 +122,7 @@ function NavigationWrapper() {
           <Stack.Screen name="auth" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
           <Stack.Screen name="children/add" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
           <Stack.Screen name="children/index" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
+          <Stack.Screen name="teleconsult/index" options={{ headerShown: false, contentStyle: { backgroundColor: colorScheme.background } }} />
           <Stack.Screen name="+not-found" />
         </Stack>
       </View>

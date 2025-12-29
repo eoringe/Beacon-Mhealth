@@ -8,6 +8,7 @@ const authRoutes = require('./routes/auth');
 const childRoutes = require('./routes/children');
 const milestoneRoutes = require('./routes/milestones');
 const appointmentRoutes = require('./routes/appointments');
+const growthRoutes = require('./routes/growth');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -34,6 +35,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/children', childRoutes);
 app.use('/api/milestones', milestoneRoutes);
 app.use('/api/appointments', appointmentRoutes);
+app.use('/api/growth', growthRoutes);
 
 // 404 handler
 app.use((req, res) => {

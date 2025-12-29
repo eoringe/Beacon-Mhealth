@@ -97,6 +97,7 @@ export const AuthProvider = ({ children }) => {
 
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             console.log('AuthContext: Firebase login successful');
+            console.log('AuthContext: Logged in user:', userCredential.user.displayName);
 
             // ENFORCE EMAIL VERIFICATION - Block login if email not verified
             if (!userCredential.user.emailVerified) {
