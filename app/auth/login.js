@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons, Feather } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { validatePassword, getPasswordStrength } from '@/utils/validation';
 import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme';
 
@@ -178,7 +179,12 @@ export default function AuthScreen() {
 
                         {/* Form Content */}
                         {activeTab === 'login' ? (
-                            <View style={styles.form}>
+                            <Animated.View
+                                key="login-form"
+                                style={styles.form}
+                                entering={FadeIn.duration(300)}
+                                exiting={FadeOut.duration(150)}
+                            >
                                 {/* Email Input */}
                                 <View style={styles.inputGroup}>
                                     <Text style={styles.inputLabel}>Email</Text>
@@ -251,21 +257,21 @@ export default function AuthScreen() {
                                 {/* Social Login Buttons */}
                                 <View style={styles.socialButtonsContainer}>
                                     <TouchableOpacity style={styles.socialButton} onPress={handleGoogleLogin}>
-                                        <MaterialIcons name="g-translate" size={20} color="#DB4437" />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={styles.socialButton}>
-                                        <MaterialIcons name="facebook" size={20} color="#4267B2" />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={styles.socialButton}>
-                                        <MaterialIcons name="apple" size={20} color="#000000" />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={styles.socialButton}>
-                                        <MaterialIcons name="phone" size={20} color="#333333" />
+                                        <Image
+                                            source={require('../../assets/images/google-logo.png')}
+                                            style={{ width: 40, height: 40 }}
+                                        />
+                                        <Text style={styles.socialButtonText}>Continue with Google</Text>
                                     </TouchableOpacity>
                                 </View>
-                            </View>
+                            </Animated.View>
                         ) : (
-                            <View style={styles.form}>
+                            <Animated.View
+                                key="signup-form"
+                                style={styles.form}
+                                entering={FadeIn.duration(300)}
+                                exiting={FadeOut.duration(150)}
+                            >
                                 {/* Full Name Input */}
                                 <View style={styles.inputGroup}>
                                     <Text style={styles.inputLabel}>Full Name</Text>
@@ -375,19 +381,14 @@ export default function AuthScreen() {
                                 {/* Social Login Buttons */}
                                 <View style={styles.socialButtonsContainer}>
                                     <TouchableOpacity style={styles.socialButton} onPress={handleGoogleLogin}>
-                                        <MaterialIcons name="g-translate" size={20} color="#DB4437" />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={styles.socialButton}>
-                                        <MaterialIcons name="facebook" size={20} color="#4267B2" />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={styles.socialButton}>
-                                        <MaterialIcons name="apple" size={20} color="#000000" />
-                                    </TouchableOpacity>
-                                    <TouchableOpacity style={styles.socialButton}>
-                                        <MaterialIcons name="phone" size={20} color="#333333" />
+                                        <Image
+                                            source={require('../../assets/images/google-logo.png')}
+                                            style={{ width: 40, height: 40 }}
+                                        />
+                                        <Text style={styles.socialButtonText}>Continue with Google</Text>
                                     </TouchableOpacity>
                                 </View>
-                            </View>
+                            </Animated.View>
                         )}
                     </ScrollView>
                 </KeyboardAvoidingView>
@@ -526,7 +527,8 @@ const styles = StyleSheet.create({
     },
     primaryButton: {
         backgroundColor: Colors.primary,
-        paddingVertical: Spacing.md,
+        height: 48,
+        justifyContent: 'center',
         borderRadius: BorderRadius.md,
         alignItems: 'center',
         marginBottom: Spacing.sm + 2,
@@ -545,18 +547,30 @@ const styles = StyleSheet.create({
     socialButtonsContainer: {
         flexDirection: 'row',
         justifyContent: 'center',
-        gap: Spacing.md,
-        marginBottom: Spacing.lg,
+        marginTop: 20,
     },
     socialButton: {
-        width: 44,
-        height: 44,
-        borderRadius: BorderRadius.full,
-        backgroundColor: Colors.background,
-        justifyContent: 'center',
+        flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#fff',
         borderWidth: 1,
-        borderColor: Colors.border,
+        borderColor: '#ddd',
+        height: 48,
+        paddingHorizontal: Spacing.lg,
+        borderRadius: BorderRadius.md,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        gap: 12,
+        width: '100%',
+    },
+    socialButtonText: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: '#333',
     },
     strengthContainer: {
         marginTop: Spacing.sm,
