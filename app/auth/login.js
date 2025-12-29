@@ -24,7 +24,7 @@ import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme';
 export default function AuthScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const { login, signup, loading, resendVerificationEmail, logout } = useAuth();
+    const { login, loginWithGoogle, signup, loading, resendVerificationEmail, logout } = useAuth();
     const [activeTab, setActiveTab] = useState('login');
 
     // Login state
@@ -82,6 +82,18 @@ export default function AuthScreen() {
             router.replace('/(tabs)/dashboard');
         } catch (error) {
             Alert.alert('Login Failed', error.message);
+        }
+    };
+
+    const handleGoogleLogin = async () => {
+        try {
+            const result = await loginWithGoogle();
+            if (result.success) {
+                // Determine redirect based on user role/status if needed
+                router.replace('/(tabs)/dashboard');
+            }
+        } catch (error) {
+            Alert.alert('Google Login Failed', error.message);
         }
     };
 
@@ -238,7 +250,7 @@ export default function AuthScreen() {
 
                                 {/* Social Login Buttons */}
                                 <View style={styles.socialButtonsContainer}>
-                                    <TouchableOpacity style={styles.socialButton}>
+                                    <TouchableOpacity style={styles.socialButton} onPress={handleGoogleLogin}>
                                         <MaterialIcons name="g-translate" size={20} color="#DB4437" />
                                     </TouchableOpacity>
                                     <TouchableOpacity style={styles.socialButton}>
@@ -362,7 +374,7 @@ export default function AuthScreen() {
 
                                 {/* Social Login Buttons */}
                                 <View style={styles.socialButtonsContainer}>
-                                    <TouchableOpacity style={styles.socialButton}>
+                                    <TouchableOpacity style={styles.socialButton} onPress={handleGoogleLogin}>
                                         <MaterialIcons name="g-translate" size={20} color="#DB4437" />
                                     </TouchableOpacity>
                                     <TouchableOpacity style={styles.socialButton}>

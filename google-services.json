@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "42471785456",
+    "project_id": "beaconmobileapp-256f4",
+    "storage_bucket": "beaconmobileapp-256f4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:42471785456:android:92f43d0b093ddc74e15335",
+        "android_client_info": {
+          "package_name": "com.beaconchildrencenter.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "42471785456-fh7oic285gea6fv498sf5jf44q6fm84l.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAc4kzYbDpArPtxPEPZ9s2mBinwm-AEnLU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "42471785456-fh7oic285gea6fv498sf5jf44q6fm84l.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

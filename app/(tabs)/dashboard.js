@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
     View,
     Text,
@@ -25,6 +25,12 @@ export default function DashboardScreen() {
     const { colorScheme } = useTheme();
     const { logout, user } = useAuth();
     const { selectedChild } = useChild();
+
+    useEffect(() => {
+        if (user) {
+            console.log('Logged in user:', user.displayName || user.email);
+        }
+    }, [user]);
 
     const handleLogout = () => {
         Alert.alert(

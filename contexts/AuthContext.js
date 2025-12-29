@@ -12,6 +12,13 @@ import { auth } from '@/config/firebase';
 import authService from '@/services/authService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+
+// Configure Google Sign-In
+GoogleSignin.configure({
+    webClientId: '42471785456-fh7oic285gea6fv498sf5jf44q6fm84l.apps.googleusercontent.com',
+});
+
 const AuthContext = createContext({});
 
 export const useAuth = () => useContext(AuthContext);
@@ -148,9 +155,94 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const loginWithGoogle = async () => {
+        try {
+            setLoading(true);
+            console.log('AuthContext: loginWithGoogle started');
+
+            // Check if device has Google Play Services
+            console.log('AuthContext: Checking Play Services...');
+            await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+            console.log('AuthContext: Play Services available');
+
+            // Get the ID token
+            console.log('AuthContext: Calling GoogleSignin.signIn()...');
+            const signInResult = await GoogleSignin.signIn();
+            console.log('AuthContext: Sign-In Result:', JSON.stringify(signInResult, null, 2));
+            const idToken = signInResult.data ? signInResult.data.idToken : signInResult.idToken;
+            console.log('AuthContext: Extracted idToken:', idToken ? 'Token exists' : 'Token is MISSING');
+
+            if (!idToken) {
+                throw new Error('No ID token found in Google Sign-In response');
+            }
+
+            // Create a Google credential with the token
+            const googleCredential = GoogleAuthProvider.credential(idToken);
+            console.log('AuthContext: Firebase credential created');
+
+            // Sign-in the user with the credential
+            console.log('AuthContext: Signing in to Firebase...');
+            const userCredential = await signInWithCredential(auth, googleCredential);
+            console.log('AuthContext: Firebase Sign-In successful');
+
+            // Get Firebase token and register in backend
+            const token = await userCredential.user.getIdToken();
+            await authService.storeToken(token);
+
+            // Background registration (fire-and-forget)
+            authService.registerUser(userCredential.user).catch(err =>
+                console.error('Background registration failed:', err)
+            );
+
+            return { success: true, user: userCredential.user };
+
+        } catch (error) {
+            if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+                throw new Error('Sign in cancelled');
+            } else if (error.code === statusCodes.IN_PROGRESS) {
+                throw new Error('Sign in in progress');
+            } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+                throw new Error('Play services not available');
+            } else {
+                console.error('Google Sign-In Error:', error);
+                throw new Error(error.message || 'Google Sign-In failed');
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const logout = async () => {
         try {
+            // 1. Firebase SignOut
             await signOut(auth);
+
+            // 2. Google SignOut & Revoke
+            try {
+                console.log('AuthContext: Attempting Google cleanup...');
+
+                // Force revoke access - this ensures the "Choose Account" prompt appears next time
+                try {
+                    await GoogleSignin.revokeAccess();
+                    console.log('AuthContext: Google access revoked');
+                } catch (revokeError) {
+                    // It's okay if this fails (e.g. not signed in)
+                    console.log('AuthContext: Revoke skipped (likely not signed in)');
+                }
+
+                // Force sign out
+                try {
+                    await GoogleSignin.signOut();
+                    console.log('AuthContext: Google session cleared');
+                } catch (signOutError) {
+                    // It's okay if this fails
+                    console.log('AuthContext: Google signOut skipped');
+                }
+            } catch (googleError) {
+                console.log('AuthContext: Google cleanup warning:', googleError.message);
+            }
+
+            // 3. Clear App State
             await authService.logout();
         } catch (error) {
             console.error('Logout error:', error);
@@ -177,6 +269,7 @@ export const AuthProvider = ({ children }) => {
         initializing,
         signup,
         login,
+        loginWithGoogle,
         logout,
         resendVerificationEmail
     };

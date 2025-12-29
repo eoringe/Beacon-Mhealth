@@ -27,6 +27,7 @@
     },
     "android": {
       "package": "com.beaconchildrencenter.app",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -74,8 +75,7 @@
             }
           }
         }
-      ],
-      "./plugins/withJitsi"
+      ]
     ],
     "experiments": {
       "typedRoutes": true
