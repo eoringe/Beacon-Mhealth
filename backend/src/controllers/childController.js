@@ -2,27 +2,32 @@ const { pool } = require('../config/database');
 
 // Add a new child
 exports.addChild = async (req, res) => {
+    console.log('[ChildController] Adding new child for user:', req.user.id);
     const client = await pool.connect();
     try {
-        const { firstName, lastName, dateOfBirth, gender, bloodType, allergies } = req.body;
+        const { firstName, lastName, dateOfBirth, gender, bloodType, allergies, registrationNumber } = req.body;
         const userId = req.user.id; // From auth middleware
+
+        console.log('[ChildController] Child data:', { firstName, lastName, dateOfBirth, gender, registrationNumber });
 
         // Validation
         if (!firstName || !dateOfBirth || !gender) {
+            console.warn('[ChildController] Validation failed: missing fields');
             return res.status(400).json({ error: 'First name, date of birth, and gender are required' });
         }
 
         const query = `
-            INSERT INTO children (parent_id, first_name, last_name, date_of_birth, gender, blood_type, allergies)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO children (parent_id, first_name, last_name, date_of_birth, gender, blood_type, allergies, registration_number)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING *
         `;
-        const values = [userId, firstName, lastName, dateOfBirth, gender, bloodType, allergies];
+        const values = [userId, firstName, lastName, dateOfBirth, gender, bloodType, allergies, registrationNumber];
 
         const result = await client.query(query, values);
+        console.log('[ChildController] Child added successfully:', result.rows[0].id);
         res.status(201).json(result.rows[0]);
     } catch (error) {
-        console.error('Error adding child:', error);
+        console.error('[ChildController] Error adding child:', error);
         res.status(500).json({ error: 'Server error adding child' });
     } finally {
         client.release();
@@ -31,14 +36,16 @@ exports.addChild = async (req, res) => {
 
 // Get all children for the logged-in user
 exports.getChildren = async (req, res) => {
+    console.log('[ChildController] Fetching children for user:', req.user.id);
     const client = await pool.connect();
     try {
         const userId = req.user.id;
         const query = 'SELECT * FROM children WHERE parent_id = $1 ORDER BY created_at DESC';
         const result = await client.query(query, [userId]);
+        console.log('[ChildController] Found children count:', result.rows.length);
         res.json(result.rows);
     } catch (error) {
-        console.error('Error fetching children:', error);
+        console.error('[ChildController] Error fetching children:', error);
         res.status(500).json({ error: 'Server error fetching children' });
     } finally {
         client.release();

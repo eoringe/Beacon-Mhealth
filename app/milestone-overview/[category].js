@@ -1,9 +1,13 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Animated } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { MILESTONE_CATEGORIES, MILESTONE_DATA } from '../../constants/milestones';
+import {
+  MILESTONE_CATEGORIES,
+  MILESTONE_AGES,
+  getMilestonesForAge
+} from '../../constants/milestones';
 import { SafeHeader } from '@/components/SafeHeader';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
@@ -15,14 +19,35 @@ export default function MilestoneOverviewCategory() {
   const insets = useSafeAreaInsets();
   const { colorScheme } = useTheme();
   const { category, age } = useLocalSearchParams();
-  const [selectedAge, setSelectedAge] = useState(age ? parseInt(age) : 12);
+
+  const allAges = useMemo(() => MILESTONE_AGES.map(a => a.value), []);
+
+  const [selectedAge, setSelectedAge] = useState(() => {
+    if (age) {
+      const parsedAge = parseInt(age);
+      // Find closest valid age if exact match not found
+      let closest = allAges[0];
+      for (const a of allAges) {
+        if (parsedAge >= a) closest = a;
+        else break;
+      }
+      return closest;
+    }
+    return 12;
+  });
+
   const [activeTab, setActiveTab] = useState(0);
   const scrollViewRef = useRef(null);
   const scrollX = useRef(new Animated.Value(0)).current;
 
-  const allAges = [2, 3, 5, 6, 10, 12, 15];
   const categoryInfo = MILESTONE_CATEGORIES.find(cat => cat.id === category);
-  const milestones = MILESTONE_DATA[selectedAge]?.[category] || [];
+
+  const milestones = useMemo(() => {
+    const data = getMilestonesForAge(selectedAge);
+    const categoryData = data?.[category] || [];
+    // Support both string array and object array (new WHO format)
+    return categoryData.map(m => typeof m === 'string' ? m : m.milestone);
+  }, [selectedAge, category]);
 
   const scrollToAge = (index) => {
     if (scrollViewRef.current) {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     View,
     Text,
@@ -6,6 +6,8 @@ import {
     ScrollView,
     TouchableOpacity,
     Image,
+    ActivityIndicator,
+    Alert
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -13,6 +15,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { SafeHeader } from '@/components/SafeHeader';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
+import patientService from '@/services/patientService';
 
 import { useChild } from '@/contexts/ChildContext';
 
@@ -21,52 +24,115 @@ export default function ChildProfileScreen() {
     const router = useRouter();
     const { colorScheme } = useTheme();
     const { selectedChild } = useChild();
+    const [clinicalData, setClinicalData] = useState(null);
+    const [loadingClinical, setLoadingClinical] = useState(false);
+    const [mediaList, setMediaList] = useState([]);
+    const [loadingMedia, setLoadingMedia] = useState(false);
 
-    // Sample data - will be replaced with actual data
+    // Placeholder data for sections not yet connected to backend
     const childData = {
-        name: 'Emma Johnson',
-        // ... (keep existing mock data for now as the whole screen relies on it)
-        photo: require('../../assets/images/beacon.jpg'),
-        dateOfBirth: '2023-06-15',
-        age: '18 months',
-        gender: 'Female',
         growth: {
-            height: { value: 82, unit: 'cm', percentile: 75 },
-            weight: { value: 11.5, unit: 'kg', percentile: 70 },
-            headCirc: { value: 47, unit: 'cm', percentile: 80 },
-            lastUpdated: '2024-11-20',
+            height: { value: '--', unit: 'cm', percentile: '--' },
+            weight: { value: '--', unit: 'kg', percentile: '--' },
+            headCirc: { value: '--', unit: 'cm', percentile: '--' },
+            lastUpdated: 'No data',
         },
         milestones: {
-            completed: 18,
-            total: 25,
+            completed: 0,
+            total: 0,
             byCategory: {
-                physical: { completed: 4, total: 5 },
-                cognitive: { completed: 3, total: 5 },
-                social: { completed: 4, total: 5 },
-                language: { completed: 3, total: 5 },
-                selfhelp: { completed: 4, total: 5 },
+                physical: { completed: 0, total: 0 },
+                cognitive: { completed: 0, total: 0 },
+                social: { completed: 0, total: 0 },
+                language: { completed: 0, total: 0 },
+                selfhelp: { completed: 0, total: 0 },
             },
         },
         vaccinations: {
-            completed: 8,
-            total: 12,
-            nextDue: { name: 'MMR Dose 2', date: '2024-12-15' },
+            completed: 0,
+            total: 0,
+            nextDue: { name: 'No upcoming vaccines', date: '--' },
         },
-        recentActivity: [
-            { type: 'measurement', title: 'Height recorded', value: '82 cm', date: '2024-11-20' },
-            { type: 'vaccine', title: 'Flu vaccine completed', date: '2024-11-15' },
-            { type: 'milestone', title: 'Says 5+ words', date: '2024-11-10' },
-            { type: 'appointment', title: 'Pediatrician checkup', date: '2024-11-05' },
-        ],
+        recentActivity: [],
+    };
+
+    // Fetch clinical data and media if registration number exists
+    useEffect(() => {
+        if (selectedChild?.registration_number) {
+            fetchClinicalData();
+            fetchMediaList();
+        }
+    }, [selectedChild]);
+
+    const fetchClinicalData = async () => {
+        try {
+            setLoadingClinical(true);
+            const data = await patientService.lookupPatient(selectedChild.registration_number);
+            setClinicalData(data);
+        } catch (error) {
+            console.error('Error fetching clinical data:', error);
+        } finally {
+            setLoadingClinical(false);
+        }
+    };
+
+    const fetchMediaList = async () => {
+        try {
+            setLoadingMedia(true);
+            const media = await patientService.getMediaList(selectedChild.registration_number);
+            setMediaList(media);
+        } catch (error) {
+            console.error('Error fetching media:', error);
+        } finally {
+            setLoadingMedia(false);
+        }
+    };
+
+    const handleOpenReport = (media) => {
+        const downloadUrl = patientService.getMediaDownloadUrl(media.id);
+        // For PDFs, we can use Linking to open them externally
+        import('expo-linking').then(Linking => {
+            Linking.openURL(downloadUrl);
+        });
+    };
+
+    if (!selectedChild) {
+        return (
+            <View style={[styles.container, { backgroundColor: colorScheme.background, justifyContent: 'center', alignItems: 'center' }]}>
+                <Text style={{ color: colorScheme.textPrimary }}>No child selected</Text>
+                <TouchableOpacity onPress={() => router.back()} style={{ marginTop: 20 }}>
+                    <Text style={{ color: colorScheme.primary }}>Go Back</Text>
+                </TouchableOpacity>
+            </View>
+        );
+    }
+
+    const calculateAge = (dob) => {
+        if (!dob) return 'Age unknown';
+        const birthDate = new Date(dob);
+        const today = new Date();
+        let age = today.getFullYear() - birthDate.getFullYear();
+        const m = today.getMonth() - birthDate.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+            age--;
+        }
+
+        if (age === 0) {
+            const months = (today.getFullYear() - birthDate.getFullYear()) * 12 + (today.getMonth() - birthDate.getMonth());
+            return `${months} months`;
+        }
+
+        return `${age} years`;
+    };
+
+    // Format date for display
+    const formatDate = (dateString) => {
+        if (!dateString) return 'N/A';
+        return new Date(dateString).toLocaleDateString();
     };
 
     const handleViewChart = () => {
-        if (selectedChild) {
-            router.push({ pathname: '/growth-chart', params: { childId: selectedChild.id } });
-        } else {
-            // Fallback or alert
-            router.push('/growth-chart');
-        }
+        router.push({ pathname: '/growth-chart', params: { childId: selectedChild.id } });
     };
 
     const getActivityIcon = (type) => {
@@ -89,6 +155,11 @@ export default function ChildProfileScreen() {
         }
     };
 
+    // Construct profile display data
+    const displayName = selectedChild.first_name && selectedChild.last_name
+        ? `${selectedChild.first_name} ${selectedChild.last_name}`
+        : selectedChild.fullname || 'Unnamed Child';
+
     return (
         <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
             <SafeHeader
@@ -104,26 +175,30 @@ export default function ChildProfileScreen() {
                 {/* Profile Header */}
                 <View style={[styles.headerSection, { backgroundColor: colorScheme.surface }]}>
                     <View style={styles.photoContainer}>
-                        <Image
-                            source={childData.photo}
-                            style={styles.profilePhoto}
-                        />
+                        <View style={[styles.profilePhotoPlaceholder, { backgroundColor: `${colorScheme.primary}20`, borderColor: colorScheme.surface }]}>
+                            <MaterialIcons name="person" size={60} color={colorScheme.primary} />
+                        </View>
                         <TouchableOpacity style={[styles.editPhotoButton, { backgroundColor: colorScheme.primary }]}>
                             <MaterialIcons name="camera-alt" size={20} color="#FFFFFF" />
                         </TouchableOpacity>
                     </View>
 
-                    <Text style={[styles.childName, { color: colorScheme.textPrimary }]}>{childData.name}</Text>
+                    <Text style={[styles.childName, { color: colorScheme.textPrimary }]}>{displayName}</Text>
                     <Text style={[styles.childAge, { color: colorScheme.textSecondary }]}>
-                        {childData.age} • {childData.gender}
+                        {calculateAge(selectedChild.date_of_birth)} • {selectedChild.gender}
                     </Text>
                     <Text style={[styles.dateOfBirth, { color: colorScheme.textTertiary }]}>
-                        Born {childData.dateOfBirth}
+                        Born {formatDate(selectedChild.date_of_birth)}
                     </Text>
+                    {selectedChild.registration_number && (
+                        <Text style={[styles.regNumber, { color: colorScheme.primary, backgroundColor: `${colorScheme.primary}15` }]}>
+                            Reg: {selectedChild.registration_number}
+                        </Text>
+                    )}
 
                     <TouchableOpacity
                         style={[styles.editProfileButton, { borderColor: colorScheme.border }]}
-                        onPress={() => router.push('/child-profile/edit')}
+                        onPress={() => router.push({ pathname: '/children/edit', params: { id: selectedChild.id } })}
                     >
                         <MaterialIcons name="edit" size={18} color={colorScheme.primary} />
                         <Text style={[styles.editProfileText, { color: colorScheme.primary }]}>
@@ -132,161 +207,188 @@ export default function ChildProfileScreen() {
                     </TouchableOpacity>
                 </View>
 
-                {/* Growth Summary */}
-                <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
-                            Growth Summary
-                        </Text>
-                        <TouchableOpacity onPress={handleViewChart}>
-                            <Text style={[styles.viewAllText, { color: colorScheme.primary }]}>View Chart</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    <View style={[styles.growthCard, { backgroundColor: colorScheme.surface }]}>
-                        <View style={styles.growthRow}>
-                            <View style={styles.growthItem}>
-                                <MaterialIcons name="height" size={24} color={colorScheme.chartHeight} />
-                                <Text style={[styles.growthLabel, { color: colorScheme.textSecondary }]}>Height</Text>
-                                <Text style={[styles.growthValue, { color: colorScheme.textPrimary }]}>
-                                    {childData.growth.height.value} {childData.growth.height.unit}
-                                </Text>
-                                <Text style={[styles.percentile, { color: colorScheme.chartHeight }]}>
-                                    {childData.growth.height.percentile}th %ile
-                                </Text>
-                            </View>
-
-                            <View style={styles.growthItem}>
-                                <MaterialIcons name="monitor-weight" size={24} color={colorScheme.chartWeight} />
-                                <Text style={[styles.growthLabel, { color: colorScheme.textSecondary }]}>Weight</Text>
-                                <Text style={[styles.growthValue, { color: colorScheme.textPrimary }]}>
-                                    {childData.growth.weight.value} {childData.growth.weight.unit}
-                                </Text>
-                                <Text style={[styles.percentile, { color: colorScheme.chartWeight }]}>
-                                    {childData.growth.weight.percentile}th %ile
-                                </Text>
-                            </View>
-
-                            <View style={styles.growthItem}>
-                                <MaterialIcons name="face" size={24} color={colorScheme.chartHeadCirc} />
-                                <Text style={[styles.growthLabel, { color: colorScheme.textSecondary }]}>Head</Text>
-                                <Text style={[styles.growthValue, { color: colorScheme.textPrimary }]}>
-                                    {childData.growth.headCirc.value} {childData.growth.headCirc.unit}
-                                </Text>
-                                <Text style={[styles.percentile, { color: colorScheme.chartHeadCirc }]}>
-                                    {childData.growth.headCirc.percentile}th %ile
-                                </Text>
-                            </View>
-                        </View>
-                        <Text style={[styles.lastUpdated, { color: colorScheme.textTertiary }]}>
-                            Last updated: {childData.growth.lastUpdated}
-                        </Text>
-                    </View>
-                </View>
-
-                {/* Milestone Progress */}
-                <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
-                            Milestone Progress
-                        </Text>
-                        <TouchableOpacity onPress={() => router.push('/milestone-checklist')}>
-                            <Text style={[styles.viewAllText, { color: colorScheme.primary }]}>View All</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    <View style={[styles.card, { backgroundColor: colorScheme.surface }]}>
-                        <View style={styles.progressHeader}>
-                            <Text style={[styles.progressText, { color: colorScheme.textPrimary }]}>
-                                {childData.milestones.completed} of {childData.milestones.total} completed
-                            </Text>
-                            <Text style={[styles.progressPercentage, { color: colorScheme.primary }]}>
-                                {Math.round((childData.milestones.completed / childData.milestones.total) * 100)}%
+                {/* Clinical Info Section - Only if Reg Number exists */}
+                {/* Clinical Info Section - Only if Reg Number exists */}
+                {selectedChild.registration_number && (
+                    <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                            <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
+                                Clinic Details
                             </Text>
                         </View>
 
-                        <View style={styles.progressBarContainer}>
-                            <View style={[styles.progressBarBackground, { backgroundColor: colorScheme.border }]}>
-                                <View
-                                    style={[
-                                        styles.progressBarFill,
-                                        {
-                                            backgroundColor: colorScheme.primary,
-                                            width: `${(childData.milestones.completed / childData.milestones.total) * 100}%`,
-                                        },
-                                    ]}
-                                />
-                            </View>
-                        </View>
-
-                        <View style={styles.categoryBreakdown}>
-                            {Object.entries(childData.milestones.byCategory).map(([category, data]) => (
-                                <View key={category} style={styles.categoryItem}>
-                                    <Text style={[styles.categoryName, { color: colorScheme.textSecondary }]}>
-                                        {category.charAt(0).toUpperCase() + category.slice(1)}
-                                    </Text>
-                                    <View style={styles.miniProgressBar}>
-                                        <View style={[styles.miniProgressBackground, { backgroundColor: colorScheme.border }]}>
-                                            <View
-                                                style={[
-                                                    styles.miniProgressFill,
-                                                    {
-                                                        backgroundColor: colorScheme.success,
-                                                        width: `${(data.completed / data.total) * 100}%`,
-                                                    },
-                                                ]}
-                                            />
-                                        </View>
-                                        <Text style={[styles.miniProgressText, { color: colorScheme.textTertiary }]}>
-                                            {data.completed}/{data.total}
+                        {loadingClinical ? (
+                            <ActivityIndicator size="small" color={colorScheme.primary} />
+                        ) : clinicalData ? (
+                            <View style={{ gap: Spacing.md }}>
+                                {/* Parent/Guardian Info */}
+                                {clinicalData.parent && (
+                                    <View style={[styles.card, { backgroundColor: colorScheme.surface }]}>
+                                        <Text style={[styles.cardTitle, { color: colorScheme.textPrimary, marginBottom: Spacing.md, fontWeight: '600' }]}>
+                                            Parent / Guardian
                                         </Text>
+                                        <View style={styles.clinicalItem}>
+                                            <View style={[styles.clinicalIcon, { backgroundColor: `${colorScheme.primary}15` }]}>
+                                                <MaterialIcons name="person" size={24} color={colorScheme.primary} />
+                                            </View>
+                                            <View style={styles.clinicalContent}>
+                                                <Text style={[styles.clinicalLabel, { color: colorScheme.textSecondary }]}>Name</Text>
+                                                <Text style={[styles.clinicalValue, { color: colorScheme.textPrimary }]}>
+                                                    {clinicalData.parent.displayName}
+                                                </Text>
+                                                <Text style={[styles.clinicalSubtext, { color: colorScheme.textTertiary }]}>
+                                                    {clinicalData.parent.relationship}
+                                                </Text>
+                                            </View>
+                                        </View>
+                                        <View style={[styles.divider, { backgroundColor: colorScheme.border }]} />
+                                        <View style={styles.clinicalItem}>
+                                            <View style={[styles.clinicalIcon, { backgroundColor: `${colorScheme.primary}15` }]}>
+                                                <MaterialIcons name="phone" size={24} color={colorScheme.primary} />
+                                            </View>
+                                            <View style={styles.clinicalContent}>
+                                                <Text style={[styles.clinicalLabel, { color: colorScheme.textSecondary }]}>Contact</Text>
+                                                <Text style={[styles.clinicalValue, { color: colorScheme.textPrimary }]}>
+                                                    {clinicalData.parent.telephone}
+                                                </Text>
+                                            </View>
+                                        </View>
                                     </View>
-                                </View>
-                            ))}
-                        </View>
-                    </View>
-                </View>
+                                )}
 
-                {/* Vaccination Progress */}
-                <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
-                            Vaccination Progress
-                        </Text>
-                        <TouchableOpacity onPress={() => router.push('/vaccinations')}>
-                            <Text style={[styles.viewAllText, { color: colorScheme.primary }]}>View Schedule</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    <View style={[styles.card, { backgroundColor: colorScheme.surface }]}>
-                        <View style={styles.vaccinationSummary}>
-                            <View style={styles.circularProgress}>
-                                <Text style={[styles.percentageText, { color: colorScheme.primary }]}>
-                                    {Math.round((childData.vaccinations.completed / childData.vaccinations.total) * 100)}%
-                                </Text>
-                                <Text style={[styles.percentageLabel, { color: colorScheme.textSecondary }]}>
-                                    Complete
-                                </Text>
-                            </View>
-
-                            <View style={styles.vaccinationDetails}>
-                                <Text style={[styles.vaccineCount, { color: colorScheme.textPrimary }]}>
-                                    {childData.vaccinations.completed} of {childData.vaccinations.total} vaccines
-                                </Text>
-                                <View style={[styles.nextVaccineCard, { backgroundColor: colorScheme.primaryLight }]}>
-                                    <MaterialIcons name="event" size={16} color={colorScheme.primary} />
-                                    <Text style={[styles.nextVaccineText, { color: colorScheme.primary }]}>
-                                        Next: {childData.vaccinations.nextDue.name} on {childData.vaccinations.nextDue.date}
+                                {/* Last Visit & Vitals */}
+                                <View style={[styles.card, { backgroundColor: colorScheme.surface }]}>
+                                    <Text style={[styles.cardTitle, { color: colorScheme.textPrimary, marginBottom: Spacing.md, fontWeight: '600' }]}>
+                                        Recent Visit & Vitals
                                     </Text>
+
+                                    {/* Last Visit */}
+                                    <View style={styles.clinicalItem}>
+                                        <View style={[styles.clinicalIcon, { backgroundColor: `${colorScheme.primary}15` }]}>
+                                            <MaterialIcons name="event-available" size={24} color={colorScheme.primary} />
+                                        </View>
+                                        <View style={styles.clinicalContent}>
+                                            <Text style={[styles.clinicalLabel, { color: colorScheme.textSecondary }]}>Last Visit</Text>
+                                            <Text style={[styles.clinicalValue, { color: colorScheme.textPrimary }]}>
+                                                {clinicalData.lastVisit ? formatDate(clinicalData.lastVisit.visitDate) : 'No recorded visits'}
+                                            </Text>
+                                            {clinicalData.lastVisit?.visitType && (
+                                                <Text style={[styles.clinicalSubtext, { color: colorScheme.textTertiary }]}>
+                                                    {clinicalData.lastVisit.visitType}
+                                                </Text>
+                                            )}
+                                        </View>
+                                    </View>
+
+                                    <View style={[styles.divider, { backgroundColor: colorScheme.border }]} />
+
+                                    {/* Doctor */}
+                                    <View style={styles.clinicalItem}>
+                                        <View style={[styles.clinicalIcon, { backgroundColor: `${colorScheme.primary}15` }]}>
+                                            <MaterialIcons name="medical-services" size={24} color={colorScheme.primary} />
+                                        </View>
+                                        <View style={styles.clinicalContent}>
+                                            <Text style={[styles.clinicalLabel, { color: colorScheme.textSecondary }]}>Doctor Seen</Text>
+                                            <Text style={[styles.clinicalValue, { color: colorScheme.textPrimary }]}>
+                                                {clinicalData.lastVisit?.doctorName || 'N/A'}
+                                            </Text>
+                                            {clinicalData.lastVisit?.doctorSpecialization && (
+                                                <Text style={[styles.clinicalSubtext, { color: colorScheme.textTertiary }]}>
+                                                    {clinicalData.lastVisit.doctorSpecialization}
+                                                </Text>
+                                            )}
+                                        </View>
+                                    </View>
+
+                                    {/* Latest Triage (Vitals) */}
+                                    {clinicalData.latestTriage && clinicalData.latestTriage.data && (
+                                        <>
+                                            <View style={[styles.divider, { backgroundColor: colorScheme.border, marginVertical: Spacing.md }]} />
+                                            <Text style={[styles.cardSubtitle, { color: colorScheme.textSecondary, marginBottom: Spacing.sm }]}>
+                                                Latest Vitals ({formatDate(clinicalData.latestTriage.createdAt)})
+                                            </Text>
+
+                                            <View style={styles.vitalsGrid}>
+                                                {Object.entries(clinicalData.latestTriage.data).map(([key, value], index) => (
+                                                    <View key={index} style={[styles.vitalItem, { backgroundColor: `${colorScheme.primary}10` }]}>
+                                                        <Text style={[styles.vitalLabel, { color: colorScheme.textSecondary }]}>
+                                                            {key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}
+                                                        </Text>
+                                                        <Text style={[styles.vitalValue, { color: colorScheme.primary }]}>
+                                                            {String(value)}
+                                                        </Text>
+                                                    </View>
+                                                ))}
+                                            </View>
+                                        </>
+                                    )}
                                 </View>
                             </View>
-                        </View>
+                        ) : (
+                            <Text style={{ color: colorScheme.textSecondary, fontStyle: 'italic', textAlign: 'center' }}>
+                                Could not load clinic details.
+                            </Text>
+                        )}
                     </View>
-                </View>
+                )}
+
+                {/* Medical Reports Section */}
+                {selectedChild.registration_number && (
+                    <View style={styles.section}>
+                        <View style={styles.sectionHeader}>
+                            <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
+                                Medical Reports
+                            </Text>
+                        </View>
+
+                        {loadingMedia ? (
+                            <ActivityIndicator size="small" color={colorScheme.primary} />
+                        ) : mediaList.length > 0 ? (
+                            <View style={{ gap: Spacing.sm }}>
+                                {mediaList.map((media, index) => (
+                                    <TouchableOpacity
+                                        key={media.id || index}
+                                        style={[styles.card, { backgroundColor: colorScheme.surface }]}
+                                        onPress={() => handleOpenReport(media)}
+                                    >
+                                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                            <View style={[styles.clinicalIcon, { backgroundColor: `${colorScheme.primary}15` }]}>
+                                                <MaterialIcons
+                                                    name={media.mimeType?.includes('pdf') ? 'picture-as-pdf' : 'insert-drive-file'}
+                                                    size={24}
+                                                    color={colorScheme.primary}
+                                                />
+                                            </View>
+                                            <View style={styles.clinicalContent}>
+                                                <Text
+                                                    style={[styles.clinicalValue, { color: colorScheme.textPrimary }]}
+                                                    numberOfLines={1}
+                                                >
+                                                    {media.name}
+                                                </Text>
+                                                <Text style={[styles.clinicalSubtext, { color: colorScheme.textTertiary }]}>
+                                                    {media.collection} • {media.sizeFormatted}
+                                                </Text>
+                                                <Text style={[styles.clinicalSubtext, { color: colorScheme.textTertiary }]}>
+                                                    {new Date(media.uploadedAt).toLocaleDateString()}
+                                                </Text>
+                                            </View>
+                                            <MaterialIcons name="open-in-new" size={20} color={colorScheme.textTertiary} />
+                                        </View>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        ) : (
+                            <Text style={{ color: colorScheme.textSecondary, fontStyle: 'italic', textAlign: 'center' }}>
+                                No medical reports available.
+                            </Text>
+                        )}
+                    </View>
+                )}
 
                 {/* Quick Actions */}
                 <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
+                    <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, marginBottom: Spacing.md }]}>
                         Quick Actions
                     </Text>
 
@@ -297,7 +399,7 @@ export default function ChildProfileScreen() {
                         >
                             <MaterialIcons name="straighten" size={24} color={colorScheme.primary} />
                             <Text style={[styles.quickActionLabel, { color: colorScheme.textPrimary }]}>
-                                Add Measurement
+                                Growth Chart
                             </Text>
                         </TouchableOpacity>
 
@@ -307,50 +409,10 @@ export default function ChildProfileScreen() {
                         >
                             <MaterialIcons name="check-circle" size={24} color={colorScheme.primary} />
                             <Text style={[styles.quickActionLabel, { color: colorScheme.textPrimary }]}>
-                                Log Milestone
+                                Milestones
                             </Text>
                         </TouchableOpacity>
                     </View>
-                </View>
-
-                {/* Recent Activity */}
-                <View style={styles.section}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
-                            Recent Activity
-                        </Text>
-                    </View>
-
-                    {childData.recentActivity.map((activity, index) => (
-                        <View
-                            key={index}
-                            style={[styles.activityItem, { backgroundColor: colorScheme.surface }]}
-                        >
-                            <View style={[styles.activityIconContainer, {
-                                backgroundColor: `${getActivityColor(activity.type)}20`,
-                            }]}>
-                                <MaterialIcons
-                                    name={getActivityIcon(activity.type)}
-                                    size={20}
-                                    color={getActivityColor(activity.type)}
-                                />
-                            </View>
-
-                            <View style={styles.activityContent}>
-                                <Text style={[styles.activityTitle, { color: colorScheme.textPrimary }]}>
-                                    {activity.title}
-                                </Text>
-                                {activity.value && (
-                                    <Text style={[styles.activityValue, { color: colorScheme.textSecondary }]}>
-                                        {activity.value}
-                                    </Text>
-                                )}
-                                <Text style={[styles.activityDate, { color: colorScheme.textTertiary }]}>
-                                    {activity.date}
-                                </Text>
-                            </View>
-                        </View>
-                    ))}
                 </View>
             </ScrollView>
         </View>
@@ -375,12 +437,14 @@ const styles = StyleSheet.create({
         position: 'relative',
         marginBottom: Spacing.lg,
     },
-    profilePhoto: {
+    profilePhotoPlaceholder: {
         width: 120,
         height: 120,
         borderRadius: 60,
         borderWidth: 4,
         borderColor: '#FFFFFF',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     editPhotoButton: {
         position: 'absolute',
@@ -405,6 +469,15 @@ const styles = StyleSheet.create({
     },
     dateOfBirth: {
         fontSize: Typography.fontSize.sm,
+        marginBottom: Spacing.sm,
+    },
+    regNumber: {
+        fontSize: Typography.fontSize.sm,
+        fontWeight: '600',
+        paddingHorizontal: Spacing.sm,
+        paddingVertical: Spacing.xs,
+        borderRadius: BorderRadius.sm,
+        overflow: 'hidden',
         marginBottom: Spacing.lg,
     },
     editProfileButton: {
@@ -434,144 +507,42 @@ const styles = StyleSheet.create({
         fontSize: Typography.fontSize.lg,
         fontWeight: Typography.fontWeight.semibold,
     },
-    viewAllText: {
-        fontSize: Typography.fontSize.sm,
-        fontWeight: Typography.fontWeight.medium,
-    },
     card: {
         padding: Spacing.lg,
         borderRadius: BorderRadius.lg,
         ...Shadow.md,
     },
-    growthCard: {
-        padding: Spacing.lg,
-        borderRadius: BorderRadius.lg,
-        ...Shadow.md,
-    },
-    growthRow: {
+    clinicalItem: {
         flexDirection: 'row',
-        justifyContent: 'space-around',
-        marginBottom: Spacing.md,
-    },
-    growthItem: {
         alignItems: 'center',
+        paddingVertical: Spacing.sm,
+    },
+    clinicalIcon: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: Spacing.md,
+    },
+    clinicalContent: {
         flex: 1,
     },
-    growthLabel: {
+    clinicalLabel: {
         fontSize: Typography.fontSize.sm,
-        marginTop: Spacing.xs,
+        marginBottom: 2,
     },
-    growthValue: {
-        fontSize: Typography.fontSize.lg,
-        fontWeight: Typography.fontWeight.bold,
-        marginTop: Spacing.xs,
+    clinicalValue: {
+        fontSize: Typography.fontSize.md,
+        fontWeight: '600',
     },
-    percentile: {
+    clinicalSubtext: {
         fontSize: Typography.fontSize.xs,
-        fontWeight: Typography.fontWeight.medium,
         marginTop: 2,
     },
-    lastUpdated: {
-        fontSize: Typography.fontSize.xs,
-        textAlign: 'center',
-    },
-    progressHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: Spacing.sm,
-    },
-    progressText: {
-        fontSize: Typography.fontSize.md,
-        fontWeight: Typography.fontWeight.medium,
-    },
-    progressPercentage: {
-        fontSize: Typography.fontSize.xl,
-        fontWeight: Typography.fontWeight.bold,
-    },
-    progressBarContainer: {
-        marginBottom: Spacing.lg,
-    },
-    progressBarBackground: {
-        height: 12,
-        borderRadius: BorderRadius.md,
-        overflow: 'hidden',
-    },
-    progressBarFill: {
-        height: '100%',
-        borderRadius: BorderRadius.md,
-    },
-    categoryBreakdown: {
-        gap: Spacing.md,
-    },
-    categoryItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    categoryName: {
-        fontSize: Typography.fontSize.sm,
-        fontWeight: Typography.fontWeight.medium,
-        flex: 1,
-    },
-    miniProgressBar: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: Spacing.sm,
-        flex: 2,
-    },
-    miniProgressBackground: {
-        flex: 1,
-        height: 6,
-        borderRadius: BorderRadius.sm,
-        overflow: 'hidden',
-    },
-    miniProgressFill: {
-        height: '100%',
-    },
-    miniProgressText: {
-        fontSize: Typography.fontSize.xs,
-        width: 30,
-    },
-    vaccinationSummary: {
-        flexDirection: 'row',
-        gap: Spacing.lg,
-    },
-    circularProgress: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        borderWidth: 8,
-        borderColor: '#E0E0E0',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    percentageText: {
-        fontSize: Typography.fontSize.xl,
-        fontWeight: Typography.fontWeight.bold,
-    },
-    percentageLabel: {
-        fontSize: Typography.fontSize.xs,
-    },
-    vaccinationDetails: {
-        flex: 1,
-        justifyContent: 'center',
-        gap: Spacing.sm,
-    },
-    vaccineCount: {
-        fontSize: Typography.fontSize.md,
-        fontWeight: Typography.fontWeight.semibold,
-    },
-    nextVaccineCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: Spacing.xs,
-        padding: Spacing.sm,
-        borderRadius: BorderRadius.sm,
-    },
-    nextVaccineText: {
-        fontSize: Typography.fontSize.xs,
-        flex: 1,
+    divider: {
+        height: 1,
+        marginVertical: Spacing.sm,
     },
     quickActionsGrid: {
         flexDirection: 'row',
@@ -592,34 +563,31 @@ const styles = StyleSheet.create({
         fontWeight: Typography.fontWeight.medium,
         textAlign: 'center',
     },
-    activityItem: {
-        flexDirection: 'row',
-        padding: Spacing.md,
-        borderRadius: BorderRadius.md,
-        marginBottom: Spacing.sm,
-        gap: Spacing.md,
-        ...Shadow.sm,
+    cardTitle: {
+        fontSize: Typography.fontSize.md,
+        fontWeight: Typography.fontWeight.semibold,
     },
-    activityIconContainer: {
-        width: 40,
-        height: 40,
-        borderRadius: BorderRadius.md,
-        justifyContent: 'center',
+    cardSubtitle: {
+        fontSize: Typography.fontSize.sm,
+        fontStyle: 'italic',
+    },
+    vitalsGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: Spacing.sm,
+    },
+    vitalItem: {
+        width: '48%',
+        padding: Spacing.sm,
+        borderRadius: BorderRadius.sm,
         alignItems: 'center',
     },
-    activityContent: {
-        flex: 1,
-    },
-    activityTitle: {
-        fontSize: Typography.fontSize.base,
-        fontWeight: Typography.fontWeight.medium,
-        marginBottom: 2,
-    },
-    activityValue: {
-        fontSize: Typography.fontSize.sm,
-        marginBottom: 2,
-    },
-    activityDate: {
+    vitalLabel: {
         fontSize: Typography.fontSize.xs,
+        marginBottom: 2,
+    },
+    vitalValue: {
+        fontSize: Typography.fontSize.md,
+        fontWeight: '700',
     },
 });

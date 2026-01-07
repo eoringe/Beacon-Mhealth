@@ -1,13 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
-import { MILESTONE_CATEGORIES, MILESTONE_DATA } from '../../constants/milestones';
+import {
+  MILESTONE_CATEGORIES,
+  MILESTONE_AGES,
+  getMilestonesForAge,
+  calculateAgeInMonths as calculateAgeHelper
+} from '../../constants/milestones';
 import { SafeHeader } from '@/components/SafeHeader';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useChild } from '@/contexts/ChildContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 import { milestoneService } from '@/services/milestoneService';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 
@@ -23,14 +29,7 @@ Notifications.setNotificationHandler({
 // Helper function to calculate age in months
 const calculateAgeInMonths = (dateOfBirth) => {
   if (!dateOfBirth) return 12; // Default to 12 months
-  const birthDate = new Date(dateOfBirth);
-  const today = new Date();
-  const months = (today.getFullYear() - birthDate.getFullYear()) * 12 + (today.getMonth() - birthDate.getMonth());
-  // Round to nearest milestone age: 2, 3, 5, 6, 10, 12, 15
-  const milestoneAges = [2, 3, 5, 6, 10, 12, 15];
-  return milestoneAges.reduce((prev, curr) =>
-    Math.abs(curr - months) < Math.abs(prev - months) ? curr : prev
-  );
+  return calculateAgeHelper(dateOfBirth);
 };
 
 // Function to schedule a reminder notification
@@ -43,7 +42,7 @@ const scheduleReminder = async (ageMonths) => {
       return;
     }
 
-    // Schedule notification for 5 seconds from now
+    // Schedule notification for 2 days from now
     await Notifications.scheduleNotificationAsync({
       content: {
         title: '⚠️ Milestone Reminder',
@@ -53,11 +52,11 @@ const scheduleReminder = async (ageMonths) => {
       },
       trigger: {
         type: 'timeInterval',
-        seconds: 5,
+        seconds: 172800, // 2 days = 2 * 24 * 60 * 60 seconds
       },
     });
 
-    console.log('Reminder notification scheduled for 5 seconds from now');
+    console.log('Reminder notification scheduled for 2 days from now');
   } catch (error) {
     console.error('Error scheduling notification:', error);
   }
@@ -68,10 +67,26 @@ export default function MilestoneCategory() {
   const insets = useSafeAreaInsets();
   const { colorScheme } = useTheme();
   const { selectedChild } = useChild();
+  const { addNotification } = useNotifications();
   const { category, age } = useLocalSearchParams();
 
+  // Get all available ages from the constants
+  const allAges = useMemo(() => MILESTONE_AGES.map(a => a.value), []);
+
   // Calculate default age from child's date of birth or use provided age
-  const defaultAge = age ? parseInt(age) : (selectedChild?.date_of_birth ? calculateAgeInMonths(selectedChild.date_of_birth) : 12);
+  const defaultAge = useMemo(() => {
+    if (age) return parseInt(age);
+    if (!selectedChild?.date_of_birth) return 12;
+
+    // Find closest age group to child's actual age
+    const childAge = calculateAgeHelper(selectedChild.date_of_birth);
+    let closest = allAges[0];
+    for (const a of allAges) {
+      if (childAge >= a) closest = a;
+      else break;
+    }
+    return closest;
+  }, [age, selectedChild?.date_of_birth, allAges]);
 
   const [selectedAge, setSelectedAge] = useState(defaultAge);
   const [milestoneResponses, setMilestoneResponses] = useState({});
@@ -83,10 +98,16 @@ export default function MilestoneCategory() {
   const [contentWidth, setContentWidth] = useState(0);
   const [containerWidth, setContainerWidth] = useState(0);
   const scrollViewPadding = 16;
-  const allAges = [2, 3, 5, 6, 10, 12, 15];
 
   const categoryInfo = MILESTONE_CATEGORIES.find(cat => cat.id === category);
-  const milestones = MILESTONE_DATA[selectedAge]?.[category] || [];
+
+  // Get milestones using the helper function and map to string array if objects
+  const milestones = useMemo(() => {
+    const data = getMilestonesForAge(selectedAge);
+    const categoryData = data?.[category] || [];
+    // Handle both string arrays (legacy) and object arrays (new WHO)
+    return categoryData.map(m => typeof m === 'string' ? m : m.milestone);
+  }, [selectedAge, category]);
 
   // Load saved milestone responses when component mounts or age/category changes
   useEffect(() => {
@@ -176,13 +197,20 @@ export default function MilestoneCategory() {
 
   const handleResponse = (milestoneIndex, response) => {
     const updatedResponses = {
-
-
       ...milestoneResponses,
       [milestoneIndex]: response
     };
 
     setMilestoneResponses(updatedResponses);
+
+    // Check if all milestones are answered
+    if (Object.keys(updatedResponses).length === milestones.length && Object.keys(milestoneResponses).length < milestones.length) {
+      addNotification({
+        category: 'milestones',
+        title: 'Checklist Completed',
+        message: `You've completed the ${selectedAge}-month milestone checklist for ${categoryInfo?.title || 'this category'}.`,
+      });
+    }
 
     // Check immediately if we should show the alert
     const responseValues = Object.values(updatedResponses);

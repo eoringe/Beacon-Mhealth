@@ -1,109 +1,131 @@
-import { StyleSheet, Image, Platform } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { MaterialIcons } from '@expo/vector-icons';
+import { MILESTONE_CATEGORIES, calculateAgeInMonths as calculateAgeHelper } from '../../constants/milestones';
+import { useTheme } from '@/contexts/ThemeContext';
+import { useChild } from '@/contexts/ChildContext';
+import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 
-import { Collapsible } from '@/components/Collapsible';
-import { ExternalLink } from '@/components/ExternalLink';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
-import { IconSymbol } from '@/components/ui/IconSymbol';
+export default function MilestonesTab() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { colorScheme } = useTheme();
+  const { selectedChild } = useChild();
 
-export default function TabTwoScreen() {
+  const selectedAge = selectedChild?.date_of_birth
+    ? calculateAgeHelper(selectedChild.date_of_birth)
+    : 12;
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Explore</ThemedText>
-      </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image source={require('@/assets/images/react-logo.png')} style={{ alignSelf: 'center' }} />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Custom fonts">
-        <ThemedText>
-          Open <ThemedText type="defaultSemiBold">app/_layout.tsx</ThemedText> to see how to load{' '}
-          <ThemedText style={{ fontFamily: 'SpaceMono' }}>
-            custom fonts such as this one.
-          </ThemedText>
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/versions/latest/sdk/font">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user's current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful <ThemedText type="defaultSemiBold">react-native-reanimated</ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
-    </ParallaxScrollView>
+    <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
+      {/* Header */}
+      <View style={[styles.header, {
+        paddingTop: insets.top + Spacing.lg,
+        backgroundColor: colorScheme.surface,
+        borderBottomColor: colorScheme.border,
+      }]}>
+        <Text style={[styles.headerTitle, { color: colorScheme.textPrimary }]}>
+          Milestones
+        </Text>
+      </View>
+
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.lg }}
+      >
+        {selectedChild ? (
+          <View style={[styles.ageSelector, { backgroundColor: colorScheme.primaryLight }]}>
+            <Text style={[styles.ageLabel, { color: colorScheme.primary }]}>
+              {selectedChild.first_name}'s Age: {selectedAge} months
+            </Text>
+          </View>
+        ) : (
+          <View style={[styles.ageSelector, { backgroundColor: colorScheme.primaryLight }]}>
+            <Text style={[styles.ageLabel, { color: colorScheme.primary }]}>
+              Select a child to view personalized milestones
+            </Text>
+          </View>
+        )}
+
+        {MILESTONE_CATEGORIES.map((category) => (
+          <TouchableOpacity
+            key={category.id}
+            style={[styles.categoryCard, { backgroundColor: colorScheme.surface }]}
+            onPress={() => router.push(`/milestone-overview/${category.id}?age=${selectedAge}`)}
+          >
+            <View style={[styles.categoryIcon, { backgroundColor: `${colorScheme.primary}15` }]}>
+              <MaterialIcons name={category.icon as any} size={28} color={colorScheme.primary} />
+            </View>
+            <View style={styles.categoryInfo}>
+              <Text style={[styles.categoryTitle, { color: colorScheme.textPrimary }]}>
+                {category.title}
+              </Text>
+              <Text style={[styles.milestoneCount, { color: colorScheme.textSecondary }]}>
+                View developmental milestones
+              </Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={24} color={colorScheme.textTertiary} />
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
+  container: {
+    flex: 1,
   },
-  titleContainer: {
+  header: {
+    paddingHorizontal: Spacing.lg,
+    paddingBottom: Spacing.lg,
+    borderBottomWidth: 1,
+  },
+  headerTitle: {
+    fontSize: Typography.fontSize.xl,
+    fontWeight: '700',
+  },
+  content: {
+    flex: 1,
+    padding: Spacing.lg,
+  },
+  ageSelector: {
+    marginBottom: Spacing.xl,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    ...Shadow.md,
+  },
+  ageLabel: {
+    fontSize: Typography.fontSize.md,
+    fontWeight: '500',
+  },
+  categoryCard: {
     flexDirection: 'row',
-    gap: 8,
+    alignItems: 'center',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    ...Shadow.md,
+  },
+  categoryIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.xxl,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.lg,
+  },
+  categoryInfo: {
+    flex: 1,
+  },
+  categoryTitle: {
+    fontSize: Typography.fontSize.md,
+    fontWeight: '600',
+    marginBottom: Spacing.xs,
+  },
+  milestoneCount: {
+    fontSize: Typography.fontSize.base,
   },
 });

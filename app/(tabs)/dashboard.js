@@ -11,6 +11,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+import { formatDistanceToNow } from 'date-fns';
+import { useNotifications } from '@/contexts/NotificationContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChild } from '@/contexts/ChildContext';
@@ -25,6 +27,10 @@ export default function DashboardScreen() {
     const { colorScheme } = useTheme();
     const { logout, user } = useAuth();
     const { selectedChild } = useChild();
+    const { notifications } = useNotifications();
+
+    // Get latest 3 notifications
+    const recentActivity = notifications.slice(0, 3);
 
     useEffect(() => {
         if (user) {
@@ -78,8 +84,8 @@ export default function DashboardScreen() {
         },
         {
             id: 'milestones',
-            title: 'Milestones',
-            icon: 'flag',
+            title: 'Checklist',
+            icon: 'checklist',
             color: '#FF9800',
             route: '/milestone-checklist',
         },
@@ -95,7 +101,21 @@ export default function DashboardScreen() {
             title: 'Teleconsult',
             icon: 'videocam',
             color: colorScheme.info,
-            route: '/teleconsult',
+            route: '/teleconsultation',
+        },
+        {
+            id: 'prescriptions',
+            title: 'Prescriptions',
+            icon: 'medication',
+            color: '#E91E63',
+            route: '/prescriptions',
+        },
+        {
+            id: 'medical_reports',
+            title: 'Reports',
+            icon: 'folder-open',
+            color: '#9C27B0',
+            route: '/medical-reports',
         },
         {
             id: 'notifications',
@@ -119,6 +139,9 @@ export default function DashboardScreen() {
                     <Text style={[styles.userName, { color: colorScheme.textPrimary }]}>{user?.displayName || 'Parent'}</Text>
                 </View>
                 <View style={styles.headerButtons}>
+                    <TouchableOpacity style={styles.notificationButton} onPress={() => router.push('/notifications')}>
+                        <MaterialIcons name="notifications-none" size={24} color={colorScheme.textPrimary} />
+                    </TouchableOpacity>
                     <ThemeToggle />
                     <TouchableOpacity style={styles.notificationButton} onPress={handleLogout}>
                         <MaterialIcons name="logout" size={24} color={colorScheme.error || '#FF5252'} />
@@ -213,15 +236,56 @@ export default function DashboardScreen() {
                 {/* Recent Activity */}
                 <View style={styles.section}>
                     <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>Recent Activity</Text>
-                    <View style={[styles.card, { backgroundColor: colorScheme.surface }]}>
-                        <View style={styles.emptyState}>
-                            <MaterialIcons name="inbox" size={48} color={colorScheme.textTertiary} />
-                            <Text style={[styles.emptyStateText, { color: colorScheme.textPrimary }]}>No recent activity</Text>
-                            <Text style={[styles.emptyStateSubtext, { color: colorScheme.textSecondary }]}>
-                                Your child's milestones and appointments will appear here
-                            </Text>
+                    {recentActivity.length > 0 ? (
+                        <View style={[styles.card, { backgroundColor: colorScheme.surface, padding: 0 }]}>
+                            {recentActivity.map((activity, index) => (
+                                <TouchableOpacity
+                                    key={activity.id}
+                                    style={[
+                                        styles.activityItem,
+                                        index !== recentActivity.length - 1 && { borderBottomWidth: 1, borderBottomColor: colorScheme.border }
+                                    ]}
+                                    onPress={() => router.push('/notifications')}
+                                >
+                                    <View style={[styles.activityIcon, { backgroundColor: `${activity.category === 'appointments' ? colorScheme.appointmentScheduled : '#FF9800'}15` }]}>
+                                        <MaterialIcons
+                                            name={activity.category === 'appointments' ? 'event' : 'flag'}
+                                            size={20}
+                                            color={activity.category === 'appointments' ? colorScheme.appointmentScheduled : '#FF9800'}
+                                        />
+                                    </View>
+                                    <View style={styles.activityContent}>
+                                        <Text style={[styles.activityTitle, { color: colorScheme.textPrimary }]} numberOfLines={1}>
+                                            {activity.title}
+                                        </Text>
+                                        <Text style={[styles.activityTime, { color: colorScheme.textSecondary }]}>
+                                            {(() => {
+                                                try {
+                                                    const date = new Date(activity.time);
+                                                    return !isNaN(date.getTime())
+                                                        ? formatDistanceToNow(date, { addSuffix: true })
+                                                        : 'Just now';
+                                                } catch (e) {
+                                                    return 'Just now';
+                                                }
+                                            })()}
+                                        </Text>
+                                    </View>
+                                    <MaterialIcons name="chevron-right" size={20} color={colorScheme.textTertiary} />
+                                </TouchableOpacity>
+                            ))}
                         </View>
-                    </View>
+                    ) : (
+                        <View style={[styles.card, { backgroundColor: colorScheme.surface }]}>
+                            <View style={styles.emptyState}>
+                                <MaterialIcons name="inbox" size={48} color={colorScheme.textTertiary} />
+                                <Text style={[styles.emptyStateText, { color: colorScheme.textPrimary }]}>No recent activity</Text>
+                                <Text style={[styles.emptyStateSubtext, { color: colorScheme.textSecondary }]}>
+                                    Your child's milestones and appointments will appear here
+                                </Text>
+                            </View>
+                        </View>
+                    )}
                 </View>
             </ScrollView>
         </View>
@@ -365,5 +429,30 @@ const styles = StyleSheet.create({
         fontSize: Typography.fontSize.sm,
         textAlign: 'center',
         maxWidth: 250,
+    },
+    activityItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: Spacing.md,
+    },
+    activityIcon: {
+        width: 40,
+        height: 40,
+        borderRadius: BorderRadius.round,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: Spacing.md,
+    },
+    activityContent: {
+        flex: 1,
+        marginRight: Spacing.sm,
+    },
+    activityTitle: {
+        fontSize: Typography.fontSize.sm,
+        fontWeight: Typography.fontWeight.medium,
+        marginBottom: 2,
+    },
+    activityTime: {
+        fontSize: Typography.fontSize.xs,
     },
 });

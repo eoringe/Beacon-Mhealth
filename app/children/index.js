@@ -9,12 +9,16 @@ import {
     Alert
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { useChild } from '@/contexts/ChildContext';
-import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
+import { Spacing, Typography, BorderRadius } from '@/constants/theme';
 
 export default function ChildrenListScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
+    const { colorScheme } = useTheme();
     const { children, loading, selectChild, selectedChild, refreshChildren, deleteChild } = useChild();
 
     useEffect(() => {
@@ -23,7 +27,7 @@ export default function ChildrenListScreen() {
 
     const handleSelectChild = async (child) => {
         await selectChild(child);
-        router.back();
+        router.push('/child-profile');
     };
 
     const handleDelete = (child) => {
@@ -67,83 +71,104 @@ export default function ChildrenListScreen() {
     const renderChildItem = ({ item }) => (
         <View style={[
             styles.childCard,
-            selectedChild?.id === item.id && styles.selectedCard
+            { backgroundColor: colorScheme.surface, borderColor: 'transparent' },
+            selectedChild?.id === item.id && { borderColor: colorScheme.primary }
         ]}>
             <TouchableOpacity
                 style={styles.childContent}
                 onPress={() => handleSelectChild(item)}
             >
-                <View style={[styles.avatarContainer, { backgroundColor: `${Colors.primary}20` }]}>
+                <View style={[styles.avatarContainer, { backgroundColor: `${colorScheme.primary}20` }]}>
                     <FontAwesome5
                         name="baby"
                         size={24}
-                        color={Colors.primary}
+                        color={colorScheme.primary}
                     />
                 </View>
                 <View style={styles.childInfo}>
                     <Text style={[
                         styles.childName,
-                        selectedChild?.id === item.id && styles.selectedText
+                        { color: colorScheme.textPrimary }
                     ]}>
                         {item.first_name} {item.last_name}
                     </Text>
                     <Text style={[
                         styles.childDetails,
-                        selectedChild?.id === item.id && styles.selectedText
+                        { color: colorScheme.textSecondary }
                     ]}>
                         {calculateAge(item.date_of_birth)} • {item.gender}
                     </Text>
                 </View>
                 {selectedChild?.id === item.id && (
-                    <MaterialIcons name="check-circle" size={24} color={Colors.primary} />
+                    <MaterialIcons name="check-circle" size={24} color={colorScheme.primary} />
                 )}
             </TouchableOpacity>
 
-            <View style={styles.actionButtons}>
+            <View style={[styles.actionButtons, { borderTopColor: colorScheme.border }]}>
                 <TouchableOpacity
                     style={styles.actionButton}
                     onPress={() => router.push({ pathname: '/children/edit', params: { id: item.id } })}
                 >
-                    <MaterialIcons name="edit" size={20} color={Colors.textSecondary} />
-                    <Text style={styles.actionText}>Edit</Text>
+                    <MaterialIcons name="edit" size={20} color={colorScheme.textSecondary} />
+                    <Text style={[styles.actionText, { color: colorScheme.textSecondary }]}>Edit</Text>
                 </TouchableOpacity>
-                <View style={styles.actionDivider} />
+                <View style={[styles.actionDivider, { backgroundColor: colorScheme.border }]} />
                 <TouchableOpacity
                     style={styles.actionButton}
                     onPress={() => handleDelete(item)}
                 >
-                    <MaterialIcons name="delete" size={20} color={Colors.error} />
-                    <Text style={[styles.actionText, { color: Colors.error }]}>Delete</Text>
+                    <MaterialIcons name="delete" size={20} color={colorScheme.error} />
+                    <Text style={[styles.actionText, { color: colorScheme.error }]}>Delete</Text>
                 </TouchableOpacity>
             </View>
         </View>
     );
 
     return (
-        <View style={styles.container}>
-            <View style={styles.header}>
+        <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
+            <View style={[styles.header, {
+                backgroundColor: colorScheme.surface,
+                borderBottomColor: colorScheme.border,
+                paddingTop: insets.top + Spacing.md
+            }]}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <MaterialIcons name="arrow-back" size={24} color={Colors.textPrimary} />
+                    <MaterialIcons name="arrow-back" size={24} color={colorScheme.textPrimary} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>My Children</Text>
-                <TouchableOpacity onPress={() => router.push('/children/add')}>
-                    <MaterialIcons name="add" size={28} color={Colors.primary} />
-                </TouchableOpacity>
+                <Text style={[styles.headerTitle, { color: colorScheme.textPrimary }]}>My Children</Text>
+                <View style={styles.headerActions}>
+                    <TouchableOpacity onPress={() => router.push('/children/lookup')} style={styles.headerButton}>
+                        <MaterialIcons name="search" size={24} color={colorScheme.primary} />
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => router.push('/children/add')} style={styles.headerButton}>
+                        <MaterialIcons name="add" size={28} color={colorScheme.primary} />
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {loading && children.length === 0 ? (
                 <View style={styles.centerContainer}>
-                    <ActivityIndicator size="large" color={Colors.primary} />
+                    <ActivityIndicator size="large" color={colorScheme.primary} />
                 </View>
             ) : children.length === 0 ? (
                 <View style={styles.emptyContainer}>
-                    <FontAwesome5 name="baby-carriage" size={64} color={Colors.textSecondary} />
-                    <Text style={styles.emptyText}>No children added yet</Text>
+                    <FontAwesome5 name="baby-carriage" size={64} color={colorScheme.textSecondary} />
+                    <Text style={[styles.emptyText, { color: colorScheme.textSecondary }]}>No children added yet</Text>
+                    <Text style={[styles.emptySubtext, { color: colorScheme.textTertiary }]}>
+                        Find your child from Beacon Children Center or add manually
+                    </Text>
                     <TouchableOpacity
-                        style={styles.addButton}
+                        style={[styles.addButton, { backgroundColor: colorScheme.primary }]}
+                        onPress={() => router.push('/children/lookup')}
+                    >
+                        <MaterialIcons name="search" size={20} color="#FFFFFF" />
+                        <Text style={styles.addButtonText}>Find Patient from Clinic</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.secondaryButton, { borderColor: colorScheme.primary }]}
                         onPress={() => router.push('/children/add')}
                     >
-                        <Text style={styles.addButtonText}>Add Your First Child</Text>
+                        <MaterialIcons name="edit" size={20} color={colorScheme.primary} />
+                        <Text style={[styles.secondaryButtonText, { color: colorScheme.primary }]}>Add Manually</Text>
                     </TouchableOpacity>
                 </View>
             ) : (
@@ -163,49 +188,40 @@ export default function ChildrenListScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.background,
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: Spacing.lg,
-        paddingTop: Spacing.xl + 20,
         paddingBottom: Spacing.md,
-        backgroundColor: Colors.white,
         borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
     },
     headerTitle: {
         fontSize: Typography.fontSize.lg,
-        fontWeight: Typography.fontWeight.bold,
-        color: Colors.textPrimary,
+        fontWeight: '700',
+    },
+    backButton: {
+        padding: Spacing.xs,
     },
     listContent: {
         padding: Spacing.md,
     },
     childCard: {
-        backgroundColor: Colors.white,
         borderRadius: BorderRadius.md,
         marginBottom: Spacing.md,
         borderWidth: 1,
-        borderColor: 'transparent', // Invisible border by default to prevent layout shift
-    },
-    selectedCard: {
-        borderColor: Colors.primary, // Only change color when selected
-        backgroundColor: Colors.white,
+        overflow: 'hidden',
     },
     childContent: {
         flexDirection: 'row',
         alignItems: 'center',
         padding: Spacing.md,
-        // backgroundColor: Colors.white, // Removed to fix corner clipping
     },
     avatarContainer: {
         width: 48,
         height: 48,
         borderRadius: 24,
-        // backgroundColor: Colors.background, // Removed in favor of inline style
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: Spacing.md,
@@ -215,13 +231,15 @@ const styles = StyleSheet.create({
     },
     childName: {
         fontSize: Typography.fontSize.md,
-        fontWeight: Typography.fontWeight.bold,
-        color: Colors.textPrimary,
+        fontWeight: '700',
+    },
+    childDetails: {
+        fontSize: Typography.fontSize.sm,
+        marginTop: 2,
     },
     actionButtons: {
         flexDirection: 'row',
         borderTopWidth: 1,
-        borderTopColor: Colors.border,
     },
     actionButton: {
         flex: 1,
@@ -233,12 +251,10 @@ const styles = StyleSheet.create({
     },
     actionText: {
         fontSize: Typography.fontSize.sm,
-        fontWeight: Typography.fontWeight.medium,
-        color: Colors.textSecondary,
+        fontWeight: '500',
     },
     actionDivider: {
         width: 1,
-        backgroundColor: Colors.border,
     },
     centerContainer: {
         flex: 1,
@@ -253,19 +269,48 @@ const styles = StyleSheet.create({
     },
     emptyText: {
         fontSize: Typography.fontSize.lg,
-        color: Colors.textSecondary,
         marginTop: Spacing.lg,
         marginBottom: Spacing.xl,
     },
     addButton: {
-        backgroundColor: Colors.primary,
+        flexDirection: 'row',
+        alignItems: 'center',
         paddingHorizontal: Spacing.xl,
         paddingVertical: Spacing.md,
         borderRadius: BorderRadius.md,
+        gap: Spacing.sm,
     },
     addButtonText: {
-        color: Colors.white,
+        color: '#FFFFFF',
         fontSize: Typography.fontSize.md,
-        fontWeight: Typography.fontWeight.bold,
+        fontWeight: '700',
+    },
+    secondaryButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: Spacing.xl,
+        paddingVertical: Spacing.md,
+        borderRadius: BorderRadius.md,
+        borderWidth: 2,
+        marginTop: Spacing.md,
+        gap: Spacing.sm,
+    },
+    secondaryButtonText: {
+        fontSize: Typography.fontSize.md,
+        fontWeight: '600',
+    },
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.sm,
+    },
+    headerButton: {
+        padding: Spacing.xs,
+    },
+    emptySubtext: {
+        fontSize: Typography.fontSize.sm,
+        textAlign: 'center',
+        marginBottom: Spacing.lg,
+        paddingHorizontal: Spacing.lg,
     },
 });

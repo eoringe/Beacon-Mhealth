@@ -10,13 +10,23 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 import { SafeHeader } from '@/components/SafeHeader';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
+import { formatDistanceToNow } from 'date-fns';
 
 export default function NotificationsScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { colorScheme } = useTheme();
+    const {
+        notifications,
+        unreadCount,
+        markRead,
+        markAllRead,
+        deleteNotification
+    } = useNotifications();
+
     const [selectedCategory, setSelectedCategory] = useState('all');
 
     const categories = [
@@ -25,49 +35,6 @@ export default function NotificationsScreen() {
         { id: 'vaccinations', label: 'Vaccinations', icon: 'vaccines' },
         { id: 'milestones', label: 'Milestones', icon: 'child-care' },
         { id: 'system', label: 'System', icon: 'settings' },
-    ];
-
-    const notifications = [
-        {
-            id: 1,
-            category: 'appointments',
-            title: 'Appointment Reminder',
-            message: 'Your appointment with Dr. Sarah Johnson is tomorrow at 10:00 AM',
-            time: '2 hours ago',
-            isRead: false,
-        },
-        {
-            id: 2,
-            category: 'vaccinations',
-            title: 'Vaccination Due',
-            message: 'MMR vaccine is due for Emma. Schedule an appointment today.',
-            time: '1 day ago',
-            isRead: false,
-        },
-        {
-            id: 3,
-            category: 'milestones',
-            title: 'Milestone Achieved!',
-            message: 'Emma has achieved a new milestone: First Words',
-            time: '2 days ago',
-            isRead: true,
-        },
-        {
-            id: 4,
-            category: 'appointments',
-            title: 'Appointment Confirmed',
-            message: 'Your teleconsultation with Dr. Michael Chen is confirmed',
-            time: '3 days ago',
-            isRead: true,
-        },
-        {
-            id: 5,
-            category: 'system',
-            title: 'App Update Available',
-            message: 'Version 2.0 is now available with new features',
-            time: '4 days ago',
-            isRead: true,
-        },
     ];
 
     const getCategoryIcon = (category) => {
@@ -94,7 +61,13 @@ export default function NotificationsScreen() {
         (notif) => selectedCategory === 'all' || notif.category === selectedCategory
     );
 
-    const unreadCount = notifications.filter((n) => !n.isRead).length;
+    const formatTime = (isoString) => {
+        try {
+            return formatDistanceToNow(new Date(isoString), { addSuffix: true });
+        } catch (e) {
+            return 'Just now';
+        }
+    };
 
     return (
         <View
@@ -176,6 +149,7 @@ export default function NotificationsScreen() {
                     <TouchableOpacity
                         style={styles.clearAllButton}
                         activeOpacity={0.7}
+                        onPress={markAllRead}
                     >
                         <Text
                             style={[styles.clearAllText, { color: colorScheme.primary }]}
@@ -201,6 +175,7 @@ export default function NotificationsScreen() {
                                     },
                                 ]}
                                 activeOpacity={0.7}
+                                onPress={() => markRead(notification.id)}
                             >
                                 <View style={styles.notificationHeader}>
                                     <View
@@ -245,7 +220,7 @@ export default function NotificationsScreen() {
                                                 { color: colorScheme.textTertiary },
                                             ]}
                                         >
-                                            {notification.time}
+                                            {formatTime(notification.time)}
                                         </Text>
                                     </View>
                                     {!notification.isRead && (
@@ -266,27 +241,7 @@ export default function NotificationsScreen() {
                                             { borderColor: colorScheme.border },
                                         ]}
                                         activeOpacity={0.7}
-                                    >
-                                        <MaterialIcons
-                                            name="visibility"
-                                            size={16}
-                                            color={colorScheme.textSecondary}
-                                        />
-                                        <Text
-                                            style={[
-                                                styles.actionButtonText,
-                                                { color: colorScheme.textSecondary },
-                                            ]}
-                                        >
-                                            View
-                                        </Text>
-                                    </TouchableOpacity>
-                                    <TouchableOpacity
-                                        style={[
-                                            styles.actionButton,
-                                            { borderColor: colorScheme.border },
-                                        ]}
-                                        activeOpacity={0.7}
+                                        onPress={() => deleteNotification(notification.id)}
                                     >
                                         <MaterialIcons
                                             name="delete-outline"

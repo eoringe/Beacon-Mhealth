@@ -1,0 +1,91 @@
+=== STAFF/DOCTORS TABLE EXPLORATION ===
+
+--- ROLES ---
+  2: Doctor
+  3: Receptionist
+  1: Nurse
+  4: Admin
+  5: Therapist
+
+--- DOCTOR SPECIALIZATIONS ---
+  1: Pediatrician (role_id: 2)
+  2: Occupational Therapist (role_id: 5)
+  3: Speech Therapist (role_id: 5)
+  4: Physiotherapist (role_id: 5)
+  8: Medical Officer (role_id: 2)
+  5: Nutritionist (role_id: 5)
+  9: Psychologist (role_id: 5)
+  12: Developmental Paediatrician (role_id: 2)
+
+--- SAMPLE STAFF (doctors) ---
+Found 9 doctor(s):
+
+[1] ID: 19
+    Name: {"first_name":"Emmanuel","middle_name":"DEV","last_name":"Oringzz"}
+    Staff No: 015-2025
+    Email: emmanueloringe@gmail.com
+    Role: Doctor
+    Specialization: Developmental Paediatrician
+
+[2] ID: 3
+    Name: {"first_name":"Gift","middle_name":"Mbakku","last_name":"Lectur"}
+    Staff No: 003-2025
+    Email: giftgichuhi4138@gmail.com
+    Role: Doctor
+    Specialization: Occupational Therapist
+
+[3] ID: 16
+    Name: {"first_name":"Florence","middle_name":"Nafula","last_name":"Oringe"}
+    Staff No: 012-2025
+    Email: florenceoringe@gmail.com
+    Role: Doctor
+    Specialization: Pediatrician
+
+[4] ID: 2
+    Name: {"first_name":"Edith","middle_name":"Magunga","last_name":"Oringe"}
+    Staff No: 002-2025
+    Email: edith@gmail.com
+    Role: Doctor
+    Specialization: Pediatrician
+
+[5] ID: 13
+    Name: {"first_name":"psyc","middle_name":"psyc","last_name":"psyc"}
+    Staff No: 010-2025
+    Email: psy@gmail.com
+    Role: Therapist
+    Specialization: Psychologist
+
+[6] ID: 18
+    Name: {"first_name":"nt","middle_name":"nt","last_name":"nt"}
+    Staff No: 014-2025
+    Email: nt@gmail.com
+    Role: Therapist
+    Specialization: Nutritionist
+
+[7] ID: 6
+    Name: {"first_name":"ph","middle_name":"ph","last_name":"ph"}
+    Staff No: 006-2025
+    Email: ph@gmail.com
+    Role: Therapist
+    Specialization: Physiotherapist
+
+[8] ID: 11
+    Name: {"first_name":"st","middle_name":"st","last_name":"st"}
+    Staff No: 008-2025
+    Email: st@gmail.com
+    Role: Therapist
+    Specialization: Speech Therapist
+
+[9] ID: 10
+    Name: {"first_name":"ot","middle_name":"ot","last_name":"ot"}
+    Staff No: 007-2025
+    Email: ot@gmail.com
+    Role: Therapist
+    Specialization: Occupational Therapist
+
+--- STAFF COUNT BY ROLE ---
+  Therapist: 5
+  Admin: 2
+  Nurse: 1
+  Doctor: 4
+  Receptionist: 1

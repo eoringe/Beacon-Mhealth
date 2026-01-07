@@ -1,0 +1,61 @@
+--- TRIAGE COLUMNS ---
+id (bigint)
+visit_id (bigint)
+child_id (bigint)
+staff_id (bigint)
+updated_at (timestamp without time zone)
+assessment_id (bigint)
+created_at (timestamp without time zone)
+data (text)
+
+--- SAMPLE TRIAGE DATA (Top 5) ---
+[]
+
+--- SAMPLE CHILDREN WITH REG NUMBER ---
+[
+  {
+    "id": "2",
+    "fullname": {
+      "first_name": "Kansime",
+      "middle_name": "Juniour",
+      "last_name": "Yebo"
+    },
+    "registration_number": "002-2025"
+  },
+  {
+    "id": "3",
+    "fullname": {
+      "first_name": "Broski",
+      "middle_name": "",
+      "last_name": "Testing"
+    },
+    "registration_number": "003-2025"
+  },
+  {
+    "id": "4",
+    "fullname": {
+      "first_name": "Edith",
+      "middle_name": "Magunga",
+      "last_name": "Oringe"
+    },
+    "registration_number": "004-2025"
+  },
+  {
+    "id": "5",
+    "fullname": {
+      "first_name": "Sudan",
+      "middle_name": "Dark",
+      "last_name": "White"
+    },
+    "registration_number": "005-2025"
+  },
+  {
+    "id": "6",
+    "fullname": {
+      "first_name": "Dada",
+      "middle_name": "",
+      "last_name": ""
+    },
+    "registration_number": "006-2025"
+  }
+]

@@ -5,12 +5,13 @@ import {
     StyleSheet,
     ScrollView,
     TouchableOpacity,
-    Image,
+    Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import { SafeHeader } from '@/components/SafeHeader';
 
@@ -19,7 +20,30 @@ type IconName = ComponentProps<typeof MaterialIcons>['name'];
 export default function ProfileScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
-    const { colorScheme, isDark } = useTheme();
+    const { colorScheme, isDark, toggleTheme } = useTheme();
+    const { user, logout } = useAuth();
+
+    const handleLogout = () => {
+        Alert.alert(
+            'Logout',
+            'Are you sure you want to logout?',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Logout',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await logout();
+                        } catch (error) {
+                            console.error('Logout failed:', error);
+                            Alert.alert('Error', 'Failed to logout');
+                        }
+                    }
+                },
+            ]
+        );
+    };
 
     const profileSections: Array<{
         title: string;
@@ -40,8 +64,7 @@ export default function ProfileScreen() {
                         label: 'Edit Profile',
                         color: colorScheme.primary,
                         onPress: () => {
-                            // Navigate to edit profile
-                            console.log('Edit profile');
+                            router.push('/profile/edit');
                         },
                     },
                     {
@@ -49,7 +72,7 @@ export default function ProfileScreen() {
                         label: 'Settings',
                         color: colorScheme.info,
                         onPress: () => {
-                            console.log('Settings');
+                            router.push('/settings');
                         },
                     },
                     {
@@ -57,7 +80,7 @@ export default function ProfileScreen() {
                         label: 'Help & Support',
                         color: colorScheme.success,
                         onPress: () => {
-                            console.log('Help');
+                            router.push('/help');
                         },
                     },
                 ],
@@ -78,9 +101,10 @@ export default function ProfileScreen() {
                         icon: (isDark ? 'light-mode' : 'dark-mode') as IconName,
                         label: 'Theme',
                         color: colorScheme.textSecondary,
-                        hasArrow: true,
+                        hasArrow: false,
+                        subtitle: isDark ? 'Dark Mode' : 'Light Mode',
                         onPress: () => {
-                            console.log('Theme settings');
+                            toggleTheme();
                         },
                     },
                     {
@@ -90,7 +114,7 @@ export default function ProfileScreen() {
                         subtitle: 'English',
                         hasArrow: true,
                         onPress: () => {
-                            console.log('Language');
+                            // Language selection not yet implemented
                         },
                     },
                 ],
@@ -99,21 +123,12 @@ export default function ProfileScreen() {
                 title: 'About',
                 items: [
                     {
-                        icon: 'info' as IconName,
-                        label: 'About Beacon',
-                        color: colorScheme.info,
-                        hasArrow: true,
-                        onPress: () => {
-                            console.log('About');
-                        },
-                    },
-                    {
                         icon: 'description' as IconName,
                         label: 'Terms of Service',
                         color: colorScheme.textSecondary,
                         hasArrow: true,
                         onPress: () => {
-                            console.log('Terms');
+                            router.push('/legal/terms');
                         },
                     },
                     {
@@ -122,7 +137,7 @@ export default function ProfileScreen() {
                         color: colorScheme.textSecondary,
                         hasArrow: true,
                         onPress: () => {
-                            console.log('Privacy');
+                            router.push('/legal/privacy');
                         },
                     },
                     {
@@ -151,59 +166,11 @@ export default function ProfileScreen() {
                         <MaterialIcons name="person" size={48} color={colorScheme.primary} />
                     </View>
                     <Text style={[styles.userName, { color: colorScheme.textPrimary }]}>
-                        Parent Name
+                        {user?.displayName || 'User'}
                     </Text>
                     <Text style={[styles.userEmail, { color: colorScheme.textSecondary }]}>
-                        parent@example.com
+                        {user?.email || 'No email attached'}
                     </Text>
-                </View>
-
-                {/* Personal Info Card */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
-                        Personal Information
-                    </Text>
-                    <View style={[styles.card, { backgroundColor: colorScheme.surface }]}>
-                        <View style={styles.infoRow}>
-                            <MaterialIcons name="phone" size={20} color={colorScheme.textSecondary} />
-                            <View style={styles.infoContent}>
-                                <Text style={[styles.infoLabel, { color: colorScheme.textSecondary }]}>
-                                    Phone
-                                </Text>
-                                <Text style={[styles.infoValue, { color: colorScheme.textPrimary }]}>
-                                    +250 123 456 789
-                                </Text>
-                            </View>
-                        </View>
-
-                        <View style={[styles.divider, { backgroundColor: colorScheme.border }]} />
-
-                        <View style={styles.infoRow}>
-                            <MaterialIcons name="cake" size={20} color={colorScheme.textSecondary} />
-                            <View style={styles.infoContent}>
-                                <Text style={[styles.infoLabel, { color: colorScheme.textSecondary }]}>
-                                    Date of Birth
-                                </Text>
-                                <Text style={[styles.infoValue, { color: colorScheme.textPrimary }]}>
-                                    January 15, 1985
-                                </Text>
-                            </View>
-                        </View>
-
-                        <View style={[styles.divider, { backgroundColor: colorScheme.border }]} />
-
-                        <View style={styles.infoRow}>
-                            <MaterialIcons name="location-on" size={20} color={colorScheme.textSecondary} />
-                            <View style={styles.infoContent}>
-                                <Text style={[styles.infoLabel, { color: colorScheme.textSecondary }]}>
-                                    Location
-                                </Text>
-                                <Text style={[styles.infoValue, { color: colorScheme.textPrimary }]}>
-                                    Kigali, Rwanda
-                                </Text>
-                            </View>
-                        </View>
-                    </View>
                 </View>
 
                 {/* Profile Sections */}
@@ -259,6 +226,7 @@ export default function ProfileScreen() {
                 <TouchableOpacity
                     style={[styles.logoutButton, { backgroundColor: colorScheme.error }]}
                     activeOpacity={0.8}
+                    onPress={handleLogout}
                 >
                     <MaterialIcons name="logout" size={20} color="#FFFFFF" />
                     <Text style={styles.logoutText}>Logout</Text>
@@ -310,23 +278,6 @@ const styles = StyleSheet.create({
         borderRadius: BorderRadius.lg,
         padding: Spacing.md,
         ...Shadow.md,
-    },
-    infoRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: Spacing.md,
-    },
-    infoContent: {
-        flex: 1,
-        marginLeft: Spacing.md,
-    },
-    infoLabel: {
-        fontSize: Typography.fontSize.sm,
-        marginBottom: Spacing.xs,
-    },
-    infoValue: {
-        fontSize: Typography.fontSize.base,
-        fontWeight: Typography.fontWeight.medium,
     },
     menuItem: {
         flexDirection: 'row',

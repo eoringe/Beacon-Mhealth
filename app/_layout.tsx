@@ -12,6 +12,7 @@ import 'react-native-reanimated';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ChildProvider } from '@/contexts/ChildContext';
+import { NotificationProvider } from '@/contexts/NotificationContext';
 import { Colors } from '@/constants/theme';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -57,9 +58,11 @@ export default function RootLayout() {
     <SafeAreaProvider key={key}>
       <ThemeProvider>
         <AuthProvider>
-          <ChildProvider>
-            <NavigationWrapper />
-          </ChildProvider>
+          <NotificationProvider>
+            <ChildProvider>
+              <NavigationWrapper />
+            </ChildProvider>
+          </NotificationProvider>
         </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>
@@ -123,6 +126,7 @@ function NavigationWrapper() {
           <Stack.Screen name="children/add" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
           <Stack.Screen name="children/index" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
           <Stack.Screen name="teleconsult/index" options={{ headerShown: false, contentStyle: { backgroundColor: colorScheme.background } }} />
+          <Stack.Screen name="teleconsultation" options={{ headerShown: false, contentStyle: { backgroundColor: colorScheme.background } }} />
           <Stack.Screen name="+not-found" />
         </Stack>
       </View>

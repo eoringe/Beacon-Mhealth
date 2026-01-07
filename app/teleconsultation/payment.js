@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 import { SafeHeader } from '@/components/SafeHeader';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 
@@ -19,6 +20,7 @@ export default function PaymentScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { colorScheme } = useTheme();
+    const { addNotification } = useNotifications();
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('card');
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [cardNumber, setCardNumber] = useState('');
@@ -34,6 +36,11 @@ export default function PaymentScreen() {
     const handlePayment = () => {
         // Simulate payment processing
         setTimeout(() => {
+            addNotification({
+                category: 'appointments',
+                title: 'Appointment Confirmed',
+                message: 'Your teleconsultation with Dr. Sarah Johnson has been successfully booked.',
+            });
             setShowSuccessModal(true);
         }, 1000);
     };
