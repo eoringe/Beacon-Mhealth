@@ -55,13 +55,13 @@ export default function BookAppointmentScreen() {
         setExpandedSpecialty(expandedSpecialty === specialty ? null : specialty);
     };
 
-    // Group doctors by specialty
+    // Group doctors by specialization
     const groupedDoctors = doctors.reduce((acc, doctor) => {
-        const specialty = doctor.specialty || 'General';
-        if (!acc[specialty]) {
-            acc[specialty] = [];
+        const specialization = doctor.specialization || 'General';
+        if (!acc[specialization]) {
+            acc[specialization] = [];
         }
-        acc[specialty].push(doctor);
+        acc[specialization].push(doctor);
         return acc;
     }, {});
 

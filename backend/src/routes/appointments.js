@@ -6,10 +6,14 @@ const appointmentController = require('../controllers/appointmentController');
 // All routes require authentication
 router.use(authMiddleware);
 
-// Get all available doctors
-router.get('/doctors', appointmentController.getAvailableDoctors);
+// Get all available doctors (External DB)
+const doctorController = require('../controllers/doctorController');
+router.get('/doctors', doctorController.getDoctors);
 
-// Get doctor availability for a specific date
+// Get specializations (External DB)
+router.get('/specializations', doctorController.getSpecializations);
+
+// Get doctor availability for a specific date (Local Logic for now, but should eventually use external schedules)
 router.get('/doctors/:doctorId/availability', appointmentController.getDoctorAvailability);
 
 // Create a new appointment
@@ -23,5 +27,6 @@ router.delete('/:appointmentId', appointmentController.cancelAppointment);
 
 // Delete an appointment (hard delete)
 router.delete('/:appointmentId/delete', appointmentController.deleteAppointment);
+
 
 module.exports = router;

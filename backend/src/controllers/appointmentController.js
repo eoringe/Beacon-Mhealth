@@ -1,4 +1,5 @@
 const { pool } = require('../config/database');
+const { externalQuery } = require('../config/externalDatabase');
 
 // Helper: Check if date is weekend
 const isWeekend = (date) => {
@@ -67,8 +68,8 @@ exports.getAvailableDoctors = async (req, res) => {
 };
 
 // Get available time slots for a specific doctor on a specific date
+// Get available time slots for a specific doctor on a specific date (External DB)
 exports.getDoctorAvailability = async (req, res) => {
-    const client = await pool.connect();
     try {
         const { doctorId } = req.params;
         const { date } = req.query;
@@ -82,9 +83,9 @@ exports.getDoctorAvailability = async (req, res) => {
             return res.json({ available: false, reason: 'Weekends are not available', slots: [] });
         }
 
-        // Check if doctor exists and is available
-        const doctorCheck = await client.query(
-            'SELECT is_available FROM doctors WHERE id = $1',
+        // Check if doctor exists in external DB (using staff table)
+        const doctorCheck = await externalQuery(
+            `SELECT id, fullname FROM staff WHERE id = $1`,
             [doctorId]
         );
 
@@ -92,38 +93,34 @@ exports.getDoctorAvailability = async (req, res) => {
             return res.status(404).json({ error: 'Doctor not found' });
         }
 
-        if (!doctorCheck.rows[0].is_available) {
-            return res.json({ available: false, reason: 'Doctor is currently unavailable', slots: [] });
+        // Check doctor daily limit (max 10 appointments)
+        const dailyCountResult = await externalQuery(
+            `SELECT COUNT(*) as count FROM appointments WHERE staff_id = $1 AND appointment_date = $2`,
+            [doctorId, date]
+        );
+
+        if (parseInt(dailyCountResult.rows[0].count) >= 10) {
+            return res.json({ available: false, reason: 'Doctor has reached daily appointment limit', slots: [] });
         }
 
-        // Check doctor unavailability
-        const unavailabilityCheck = await client.query(`
-            SELECT * FROM doctor_unavailability
-            WHERE doctor_id = $1 AND unavailable_date = $2
-        `, [doctorId, date]);
-
-        if (unavailabilityCheck.rows.length > 0) {
-            return res.json({
-                available: false,
-                reason: unavailabilityCheck.rows[0].reason || 'Doctor is unavailable',
-                slots: []
-            });
-        }
-
-        // Get all booked appointments for this doctor on this date
-        const bookedSlots = await client.query(`
-            SELECT appointment_time 
+        // Get all booked appointments for this doctor on this date from External DB
+        // Note: External DB uses start_time and end_time
+        const bookedSlots = await externalQuery(`
+            SELECT start_time, end_time
             FROM appointments
-            WHERE doctor_id = $1 
+            WHERE (staff_id = $1 OR doctor_id = $1)
               AND appointment_date = $2 
               AND status != 'cancelled'
         `, [doctorId, date]);
 
-        const bookedTimes = bookedSlots.rows.map(row => row.appointment_time.substring(0, 5));
+        const bookedTimes = bookedSlots.rows.map(row => row.start_time.substring(0, 5));
 
         // Generate all possible slots and filter out booked ones
         const allSlots = generateTimeSlots();
-        let availableSlots = allSlots.filter(slot => !bookedTimes.includes(slot));
+        let availableSlots = allSlots.filter(slot => {
+            // Simple check: exact match of start time (since we currently use fixed 1hr slots)
+            return !bookedTimes.includes(slot);
+        });
 
         // Filter out past slots if date is today
         availableSlots = availableSlots.filter(slot => !isPastTime(date, slot));
@@ -136,177 +133,229 @@ exports.getDoctorAvailability = async (req, res) => {
     } catch (error) {
         console.error('Error checking availability:', error);
         res.status(500).json({ error: 'Server error checking availability' });
-    } finally {
-        client.release();
     }
 };
 
-// Create new appointment
+// Create new appointment (External DB)
 exports.createAppointment = async (req, res) => {
-    const client = await pool.connect();
+    const client = await pool.connect(); // Keep local connection for local child lookup
     try {
         const userId = req.user.id;
         const { doctorId, childId, appointmentDate, appointmentTime, reason, notes } = req.body;
 
         // Validation
-        if (!doctorId || !appointmentDate || !appointmentTime) {
+        if (!doctorId || !appointmentDate || !appointmentTime || !childId) {
             return res.status(400).json({
-                error: 'Doctor ID, appointment date, and time are required'
+                error: 'Doctor, Child, Date, and Time are required'
             });
         }
 
-        // Check if weekend
+        // 1. Resolve External Child ID
+        // Fetch local child first to get registration number
+        const localChildCheck = await client.query(
+            'SELECT registration_number, first_name, last_name FROM children WHERE id = $1 AND parent_id = $2',
+            [childId, userId]
+        );
+
+        if (localChildCheck.rows.length === 0) {
+            return res.status(404).json({ error: 'Child not found or unauthorized' });
+        }
+
+        const childRegNumber = localChildCheck.rows[0].registration_number;
+        if (!childRegNumber) {
+            return res.status(400).json({
+                error: 'Child is not linked to the clinic system. Please update child profile with Registration Number.'
+            });
+        }
+
+        // Lookup child in External DB using Registration Number to get Real External ID
+        const externalChildCheck = await externalQuery(
+            'SELECT id, fullname FROM children WHERE registration_number = $1',
+            [childRegNumber]
+        );
+
+        if (externalChildCheck.rows.length === 0) {
+            return res.status(404).json({
+                error: `Child with Registration Number ${childRegNumber} not found in clinic system`
+            });
+        }
+
+        const externalChildId = externalChildCheck.rows[0].id;
+        // Generate Title (Child's Full Name)
+        let appointmentTitle = `${localChildCheck.rows[0].first_name} ${localChildCheck.rows[0].last_name}`;
+
+        // 2. Business Logic Checks
         if (isWeekend(appointmentDate)) {
             return res.status(400).json({ error: 'Cannot book appointments on weekends' });
         }
 
-        // Check working hours
         if (!isWithinWorkingHours(appointmentTime)) {
-            return res.status(400).json({
-                error: 'Appointments are only available between 8:00 AM and 5:00 PM'
-            });
+            return res.status(400).json({ error: 'Appointments are only available between 8:00 AM and 5:00 PM' });
         }
 
-        // Check if time is in the past
         if (isPastTime(appointmentDate, appointmentTime)) {
-            return res.status(400).json({
-                error: 'Cannot book appointments in the past'
-            });
+            return res.status(400).json({ error: 'Cannot book appointments in the past' });
         }
 
-        // Check if child belongs to user (if child_id provided)
-        if (childId) {
-            const childCheck = await client.query(
-                'SELECT * FROM children WHERE id = $1 AND parent_id = $2',
-                [childId, userId]
-            );
-            if (childCheck.rows.length === 0) {
-                return res.status(404).json({ error: 'Child not found or unauthorized' });
-            }
-        }
-
-        // Check doctor availability
-        const doctorCheck = await client.query(
-            'SELECT is_available FROM doctors WHERE id = $1',
-            [doctorId]
-        );
-
-        if (doctorCheck.rows.length === 0) {
-            return res.status(404).json({ error: 'Doctor not found' });
-        }
-
-        if (!doctorCheck.rows[0].is_available) {
-            return res.status(400).json({ error: 'Doctor is currently unavailable' });
-        }
-
-        // Check for doctor unavailability on this date/time
-        const unavailabilityCheck = await client.query(`
-            SELECT * FROM doctor_unavailability
-            WHERE doctor_id = $1 AND unavailable_date = $2
-        `, [doctorId, appointmentDate]);
-
-        if (unavailabilityCheck.rows.length > 0) {
-            return res.status(400).json({
-                error: 'Doctor is unavailable on this date',
-                reason: unavailabilityCheck.rows[0].reason
-            });
-        }
-
-        // Check for conflicts (same doctor, date, time)
-        const conflictCheck = await client.query(`
+        // 3. Check Conflicts in External DB
+        const conflictCheck = await externalQuery(`
             SELECT * FROM appointments
-            WHERE doctor_id = $1 
+            WHERE (staff_id = $1 OR doctor_id = $1)
               AND appointment_date = $2 
-              AND appointment_time = $3
+              AND start_time = $3
               AND status != 'cancelled'
         `, [doctorId, appointmentDate, appointmentTime]);
 
         if (conflictCheck.rows.length > 0) {
-            return res.status(409).json({
-                error: 'This time slot is already booked. Please choose another time.'
-            });
+            return res.status(409).json({ error: 'This time slot is already booked.' });
         }
 
-        // Create appointment
+        // 4. Calculate End Time (1 hour duration)
+        const [hours, minutes] = appointmentTime.split(':').map(Number);
+        const endHour = hours + 1;
+        const endTime = `${endHour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+
+        // 5. Insert into External DB
         const insertQuery = `
             INSERT INTO appointments (
-                parent_id, child_id, doctor_id, appointment_date, 
-                appointment_time, duration_minutes, reason, notes, status
+                child_id, staff_id, doctor_id, 
+                appointment_title, appointment_date, 
+                start_time, end_time, status, 
+                created_at, updated_at
             )
-            VALUES ($1, $2, $3, $4, $5, 60, $6, $7, 'scheduled')
-            RETURNING *;
+            VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', NOW(), NOW())
+            RETURNING id, appointment_date, start_time, status
         `;
 
-        const result = await client.query(insertQuery, [
-            userId,
-            childId || null,
-            doctorId,
+        const result = await externalQuery(insertQuery, [
+            externalChildId,    // External Child ID
+            doctorId,           // Staff ID
+            doctorId,           // Doctor ID (Redundant but required)
+            appointmentTitle,   // Title
             appointmentDate,
-            appointmentTime,
-            reason || null,
-            notes || null
+            appointmentTime,    // Start Time
+            endTime             // End Time
         ]);
 
-        // Fetch complete appointment with doctor and child info
-        const completeAppointment = await client.query(`
-            SELECT 
-                a.*,
-                d.name as doctor_name,
-                d.specialty as doctor_specialty,
-                d.photo_url as doctor_photo,
-                CONCAT(c.first_name, ' ', c.last_name) as child_name
-            FROM appointments a
-            JOIN doctors d ON a.doctor_id = d.id
-            LEFT JOIN children c ON a.child_id = c.id
-            WHERE a.id = $1
-        `, [result.rows[0].id]);
+        res.status(201).json({
+            message: 'Appointment request sent successfully',
+            appointment: result.rows[0],
+            details: 'This appointment is now pending approval via the clinic system.'
+        });
 
-        res.status(201).json(completeAppointment.rows[0]);
     } catch (error) {
         console.error('Error creating appointment:', error);
-        if (error.code === '23505') { // Unique violation
-            return res.status(409).json({
-                error: 'This time slot is already booked. Please choose another time.'
-            });
-        }
         res.status(500).json({ error: 'Server error creating appointment' });
     } finally {
         client.release();
     }
 };
 
-// Get user's appointments
+// Get user's appointments (External DB)
 exports.getUserAppointments = async (req, res) => {
-    const client = await pool.connect();
+    const client = await pool.connect(); // Keep local connection for local child lookup
     try {
         const userId = req.user.id;
         const { status } = req.query;
 
+        // 1. Get all local children for this user
+        const localChildrenResult = await client.query(
+            'SELECT id, registration_number, first_name, last_name FROM children WHERE parent_id = $1',
+            [userId]
+        );
+
+        if (localChildrenResult.rows.length === 0) {
+            return res.json([]); // No children, no appointments
+        }
+
+        // Filter children with registration numbers
+        const childrenWithReg = localChildrenResult.rows.filter(c => c.registration_number);
+
+        if (childrenWithReg.length === 0) {
+            return res.json([]); // No linked children
+        }
+
+        const regNumbers = childrenWithReg.map(c => c.registration_number);
+
+        // 2. Resolve to External Child IDs
+        // Postgres ANY() expects an array
+        const externalChildrenResult = await externalQuery(
+            `SELECT id, registration_number, fullname FROM children WHERE registration_number = ANY($1)`,
+            [regNumbers]
+        );
+
+        if (externalChildrenResult.rows.length === 0) {
+            return res.json([]);
+        }
+
+        const externalChildIds = externalChildrenResult.rows.map(c => c.id);
+
+        // 3. Fetch Appointments from External DB
         let query = `
             SELECT 
-                a.*,
-                d.name as doctor_name,
-                d.specialty as doctor_specialty,
-                d.photo_url as doctor_photo,
-                d.phone as doctor_phone,
-                CONCAT(c.first_name, ' ', c.last_name) as child_name
+                a.id,
+                a.appointment_date,
+                a.start_time as appointment_time,
+                a.status,
+                a.created_at,
+                a.staff_id,
+                s.fullname as doctor_name,
+                ds.specialization as doctor_specialty,
+                s.email as doctor_email,
+                c.fullname as child_fullname,
+                c.registration_number
             FROM appointments a
-            JOIN doctors d ON a.doctor_id = d.id
-            LEFT JOIN children c ON a.child_id = c.id
-            WHERE a.parent_id = $1
+            JOIN children c ON a.child_id = c.id
+            JOIN staff s ON a.staff_id = s.id
+            LEFT JOIN doctor_specialization ds ON s.specialization_id = ds.id
+            WHERE a.child_id = ANY($1)
         `;
 
-        const params = [userId];
+        const params = [externalChildIds];
 
         if (status) {
             query += ' AND a.status = $2';
             params.push(status);
         }
 
-        query += ' ORDER BY a.appointment_date DESC, a.appointment_time DESC';
+        query += ' ORDER BY a.appointment_date DESC, a.start_time DESC';
 
-        const result = await client.query(query, params);
-        res.json(result.rows);
+        const appointmentsResult = await externalQuery(query, params);
+
+        // 4. Format Response to match frontend expectations
+        // Frontend expects: doctor_name, doctor_specialty, child_name, etc.
+        const formattedAppointments = appointmentsResult.rows.map(appt => {
+            // Helper to parsing names from JSON or String
+            const parseName = (nameField) => {
+                if (!nameField) return 'Unknown';
+                try {
+                    if (typeof nameField === 'string' && nameField.startsWith('{')) {
+                        const parsed = JSON.parse(nameField);
+                        return `${parsed.first_name || ''} ${parsed.last_name || ''}`.trim();
+                    }
+                    if (typeof nameField === 'object') {
+                        return `${nameField.first_name || ''} ${nameField.last_name || ''}`.trim();
+                    }
+                } catch (e) { }
+                return nameField;
+            };
+
+            return {
+                id: appt.id,
+                appointment_date: appt.appointment_date,
+                appointment_time: appt.appointment_time,
+                status: appt.status,
+                doctor_name: parseName(appt.doctor_name),
+                doctor_specialty: appt.doctor_specialty || 'General',
+                child_name: parseName(appt.child_fullname),
+                doctor_id: appt.staff_id, // For reference
+                // Add dummy photo since external DB doesn't have it easily accessible yet
+                doctor_photo: null
+            };
+        });
+
+        res.json(formattedAppointments);
+
     } catch (error) {
         console.error('Error fetching appointments:', error);
         res.status(500).json({ error: 'Server error fetching appointments', details: error.message });
@@ -315,19 +364,48 @@ exports.getUserAppointments = async (req, res) => {
     }
 };
 
-// Cancel appointment
+// Cancel appointment (External DB)
 exports.cancelAppointment = async (req, res) => {
     const client = await pool.connect();
     try {
         const userId = req.user.id;
         const { appointmentId } = req.params;
 
-        // Check if appointment exists and belongs to user
+        // 1. Verification: Does this appointment belong to a child owned by the user?
+        // This is complex because we need to:
+        // A. Get local children -> Reg Numbers
+        // B. Get External Child IDs -> Verify appointment.child_id is in this list.
+
+        // A. Get local children
+        const localChildrenResult = await client.query(
+            'SELECT registration_number FROM children WHERE parent_id = $1 AND registration_number IS NOT NULL',
+            [userId]
+        );
+
+        const regNumbers = localChildrenResult.rows.map(c => c.registration_number);
+
+        if (regNumbers.length === 0) {
+            return res.status(404).json({ error: 'Appointment not found or unauthorized' });
+        }
+
+        // B. Get External Child IDs
+        const externalChildrenResult = await externalQuery(
+            `SELECT id FROM children WHERE registration_number = ANY($1)`,
+            [regNumbers]
+        );
+
+        const externalChildIds = externalChildrenResult.rows.map(c => c.id);
+
+        if (externalChildIds.length === 0) {
+            return res.status(404).json({ error: 'Appointment not found or unauthorized' });
+        }
+
+        // C. Check Appointment Ownership
         const checkQuery = `
             SELECT * FROM appointments 
-            WHERE id = $1 AND parent_id = $2
+            WHERE id = $1 AND child_id = ANY($2)
         `;
-        const checkResult = await client.query(checkQuery, [appointmentId, userId]);
+        const checkResult = await externalQuery(checkQuery, [appointmentId, externalChildIds]);
 
         if (checkResult.rows.length === 0) {
             return res.status(404).json({ error: 'Appointment not found or unauthorized' });
@@ -337,16 +415,17 @@ exports.cancelAppointment = async (req, res) => {
             return res.status(400).json({ error: 'Appointment is already cancelled' });
         }
 
-        // Update appointment status
+        // 2. Cancel Appointment in External DB
         const updateQuery = `
             UPDATE appointments 
             SET status = 'cancelled', updated_at = NOW()
             WHERE id = $1
             RETURNING *;
         `;
-        const result = await client.query(updateQuery, [appointmentId]);
+        const result = await externalQuery(updateQuery, [appointmentId]);
 
         res.json({ message: 'Appointment cancelled successfully', appointment: result.rows[0] });
+
     } catch (error) {
         console.error('Error cancelling appointment:', error);
         res.status(500).json({ error: 'Server error cancelling appointment' });
@@ -355,27 +434,10 @@ exports.cancelAppointment = async (req, res) => {
     }
 };
 
-// Delete appointment (hard delete)
+// Delete appointment (Blocked for External Data integrity, or implement soft delete)
 exports.deleteAppointment = async (req, res) => {
-    const client = await pool.connect();
-    try {
-        const userId = req.user.id;
-        const { appointmentId } = req.params;
-
-        const result = await client.query(
-            'DELETE FROM appointments WHERE id = $1 AND parent_id = $2 RETURNING *',
-            [appointmentId, userId]
-        );
-
-        if (result.rowCount === 0) {
-            return res.status(404).json({ error: 'Appointment not found or unauthorized' });
-        }
-
-        res.json({ message: 'Appointment deleted successfully' });
-    } catch (error) {
-        console.error('Error deleting appointment:', error);
-        res.status(500).json({ error: 'Server error deleting appointment' });
-    } finally {
-        client.release();
-    }
+    // Generally better to just allow cancellation. 
+    // For now, we'll map delete to cancel or forbid it.
+    // Let's forbid Hard Delete on external DB from mobile app for safety.
+    res.status(403).json({ error: 'Permanently deleting appointments is not allowed. Please cancel instead.' });
 };

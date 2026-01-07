@@ -89,13 +89,7 @@ export default function DashboardScreen() {
             color: '#FF9800',
             route: '/milestone-checklist',
         },
-        {
-            id: 'appointments',
-            title: 'Appointments',
-            icon: 'event',
-            color: colorScheme.appointmentScheduled,
-            route: '/appointments',
-        },
+        // Appointments moved to Tab Bar
         {
             id: 'teleconsult',
             title: 'Teleconsult',
@@ -117,13 +111,7 @@ export default function DashboardScreen() {
             color: '#9C27B0',
             route: '/medical-reports',
         },
-        {
-            id: 'notifications',
-            title: 'Notifications',
-            icon: 'notifications',
-            color: colorScheme.warning,
-            route: '/notifications',
-        },
+        // Notifications moved to Tab Bar
     ];
 
     return (

@@ -9,12 +9,22 @@ import {
     Alert,
     Image,
     RefreshControl,
+    LayoutAnimation,
+    Platform,
+    UIManager,
 } from 'react-native';
+
+if (Platform.OS === 'android') {
+    if (UIManager.setLayoutAnimationEnabledExperimental) {
+        UIManager.setLayoutAnimationEnabledExperimental(true);
+    }
+}
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { SafeHeader } from '@/components/SafeHeader';
+import { CustomLoading } from '@/components/CustomLoading';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import appointmentService from '@/services/appointmentService';
 
@@ -100,6 +110,8 @@ export default function AppointmentsScreen() {
         switch (status) {
             case 'scheduled':
                 return colorScheme.success;
+            case 'pending':
+                return colorScheme.warning || '#F59E0B'; // Use warning color or amber
             case 'completed':
                 return colorScheme.primary;
             case 'cancelled':
@@ -113,6 +125,8 @@ export default function AppointmentsScreen() {
         switch (status) {
             case 'scheduled':
                 return 'schedule';
+            case 'pending':
+                return 'hourglass-empty';
             case 'completed':
                 return 'check-circle';
             case 'cancelled':
@@ -140,168 +154,229 @@ export default function AppointmentsScreen() {
         return `${hour12}:${minutes} ${ampm}`;
     };
 
-    const isUpcoming = (date) => {
-        return new Date(date) >= new Date();
+    const isUpcoming = (dateStr, timeStr) => {
+        if (!dateStr) return false;
+
+        // Use provided time or default to end of day if checking just date
+        const time = timeStr || '23:59';
+        const [hours, minutes] = time.split(':').map(Number);
+
+        const date = new Date(dateStr);
+        date.setHours(hours, minutes, 0, 0);
+
+        return date >= new Date();
     };
 
     const filteredAppointments = appointments.filter((apt) => {
         if (selectedFilter === 'all') return true;
-        if (selectedFilter === 'upcoming') return apt.status === 'scheduled' && isUpcoming(apt.appointment_date);
+        if (selectedFilter === 'upcoming') return (apt.status === 'scheduled' || apt.status === 'pending') && isUpcoming(apt.appointment_date, apt.appointment_time);
         if (selectedFilter === 'completed') return apt.status === 'completed';
         if (selectedFilter === 'cancelled') return apt.status === 'cancelled';
         return true;
     });
 
     const upcomingAppointments = filteredAppointments.filter(
-        (apt) => apt.status === 'scheduled' && isUpcoming(apt.appointment_date)
+        (apt) => (apt.status === 'scheduled' || apt.status === 'pending') && isUpcoming(apt.appointment_date, apt.appointment_time)
     );
     const pastAppointments = filteredAppointments.filter(
-        (apt) => apt.status !== 'scheduled' || !isUpcoming(apt.appointment_date)
+        (apt) => (apt.status !== 'scheduled' && apt.status !== 'pending') || !isUpcoming(apt.appointment_date, apt.appointment_time)
     );
 
-    const renderAppointmentCard = (appointment) => (
-        <View
-            key={appointment.id}
-            style={[styles.appointmentCard, { backgroundColor: colorScheme.surface }]}
-        >
-            <View style={styles.cardHeader}>
-                <View style={styles.doctorInfo}>
-                    {appointment.doctor_photo ? (
-                        <Image
-                            source={{ uri: appointment.doctor_photo }}
-                            style={styles.doctorPhoto}
-                        />
-                    ) : (
+    const AppointmentCard = ({ appointment, isPast, colorScheme, onCancel, onDelete }) => {
+        const [expanded, setExpanded] = useState(!isPast); // Default expanded if upcoming, collapsed if past
+
+        const toggleExpand = () => {
+            // Simple LayoutAnimation for smooth transition
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+            setExpanded(!expanded);
+        };
+
+        const getStatusIcon = (status, isPastItem) => {
+            // if (isPastItem && status === 'scheduled') return 'history'; // Logic removed as badge is now hidden
+            switch (status) {
+                case 'scheduled':
+                    return 'event';
+                case 'pending':
+                    return 'hourglass-empty';
+                case 'completed':
+                    return 'check-circle';
+                case 'cancelled':
+                    return 'cancel';
+                default:
+                    return 'event';
+            }
+        };
+
+        const getStatusColor = (status) => {
+            switch (status) {
+                case 'scheduled':
+                    return colorScheme.success;
+                case 'pending':
+                    return colorScheme.warning || '#F59E0B';
+                case 'completed':
+                    return colorScheme.primary;
+                case 'cancelled':
+                    return colorScheme.error;
+                default:
+                    return colorScheme.textSecondary;
+            }
+        };
+
+        const isUpcomingItem = !isPast;
+
+        return (
+            <TouchableOpacity
+                activeOpacity={isPast ? 0.7 : 1}
+                onPress={isPast ? toggleExpand : undefined}
+                style={[styles.appointmentCard, { backgroundColor: colorScheme.surface }]}
+            >
+                <View style={styles.cardHeader}>
+                    <View style={styles.doctorInfo}>
+                        {appointment.doctor_photo ? (
+                            <Image
+                                source={{ uri: appointment.doctor_photo }}
+                                style={styles.doctorPhoto}
+                            />
+                        ) : (
+                            <View
+                                style={[
+                                    styles.doctorAvatar,
+                                    { backgroundColor: colorScheme.primaryLight },
+                                ]}
+                            >
+                                <MaterialIcons
+                                    name="person"
+                                    size={24}
+                                    color={colorScheme.primary}
+                                />
+                            </View>
+                        )}
+                        <View style={styles.doctorDetails}>
+                            <Text style={[styles.doctorName, { color: colorScheme.textPrimary }]}>
+                                {appointment.doctor_name}
+                            </Text>
+                            <Text style={[styles.specialty, { color: colorScheme.textSecondary }]}>
+                                {appointment.doctor_specialty}
+                            </Text>
+                        </View>
+                    </View>
+
+                    {/* Status Badge - Show only for upcoming items */}
+                    {!isPast && (
                         <View
                             style={[
-                                styles.doctorAvatar,
-                                { backgroundColor: colorScheme.primaryLight },
+                                styles.statusBadge,
+                                { backgroundColor: `${getStatusColor(appointment.status)}20` },
                             ]}
                         >
                             <MaterialIcons
-                                name="person"
-                                size={24}
-                                color={colorScheme.primary}
+                                name={getStatusIcon(appointment.status, isPast)}
+                                size={16}
+                                color={getStatusColor(appointment.status)}
                             />
                         </View>
                     )}
-                    <View style={styles.doctorDetails}>
-                        <Text style={[styles.doctorName, { color: colorScheme.textPrimary }]}>
-                            {appointment.doctor_name}
-                        </Text>
-                        <Text style={[styles.specialty, { color: colorScheme.textSecondary }]}>
-                            {appointment.doctor_specialty}
-                        </Text>
-                    </View>
-                </View>
-                <View
-                    style={[
-                        styles.statusBadge,
-                        { backgroundColor: `${getStatusColor(appointment.status)}20` },
-                    ]}
-                >
-                    <MaterialIcons
-                        name={getStatusIcon(appointment.status)}
-                        size={16}
-                        color={getStatusColor(appointment.status)}
-                    />
-                </View>
-            </View>
 
-            <View style={[styles.divider, { backgroundColor: colorScheme.border }]} />
-
-            <View style={styles.appointmentDetails}>
-                <View style={styles.detailRow}>
-                    <MaterialIcons
-                        name="calendar-today"
-                        size={18}
-                        color={colorScheme.textSecondary}
-                    />
-                    <Text style={[styles.detailText, { color: colorScheme.textPrimary }]}>
-                        {formatDate(appointment.appointment_date)}
-                    </Text>
-                </View>
-                <View style={styles.detailRow}>
-                    <MaterialIcons
-                        name="access-time"
-                        size={18}
-                        color={colorScheme.textSecondary}
-                    />
-                    <Text style={[styles.detailText, { color: colorScheme.textPrimary }]}>
-                        {formatTime(appointment.appointment_time)}
-                    </Text>
-                </View>
-                {appointment.child_name && (
-                    <View style={styles.detailRow}>
+                    {/* Expand Icon for Past Appointments */}
+                    {isPast && (
                         <MaterialIcons
-                            name="child-care"
-                            size={18}
+                            name={expanded ? "keyboard-arrow-up" : "keyboard-arrow-down"}
+                            size={24}
                             color={colorScheme.textSecondary}
+                            style={{ marginLeft: 8 }}
                         />
-                        <Text style={[styles.detailText, { color: colorScheme.textPrimary }]}>
-                            {appointment.child_name}
-                        </Text>
-                    </View>
-                )}
-                {appointment.reason && (
-                    <View style={styles.detailRow}>
-                        <MaterialIcons
-                            name="description"
-                            size={18}
-                            color={colorScheme.textSecondary}
-                        />
-                        <Text style={[styles.detailText, { color: colorScheme.textPrimary }]}>
-                            {appointment.reason}
-                        </Text>
-                    </View>
-                )}
-            </View>
-
-            {appointment.status === 'scheduled' && isUpcoming(appointment.appointment_date) && (
-                <View style={styles.actions}>
-                    <TouchableOpacity
-                        style={[
-                            styles.actionButton,
-                            styles.cancelButton,
-                            { borderColor: colorScheme.border },
-                        ]}
-                        onPress={() => handleCancelAppointment(appointment.id, appointment.doctor_name)}
-                    >
-                        <Text style={[styles.actionButtonText, { color: colorScheme.error }]}>
-                            Cancel Appointment
-                        </Text>
-                    </TouchableOpacity>
+                    )}
                 </View>
-            )}
 
-            {/* Delete button for past/cancelled appointments */}
-            {(!isUpcoming(appointment.appointment_date) || appointment.status === 'cancelled' || appointment.status === 'completed') && (
-                <View style={styles.actions}>
-                    <TouchableOpacity
-                        style={[
-                            styles.actionButton,
-                            { borderColor: colorScheme.border },
-                        ]}
-                        onPress={() => handleDeleteAppointment(appointment.id)}
-                    >
-                        <Text style={[styles.actionButtonText, { color: colorScheme.textSecondary }]}>
-                            Remove from History
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-            )}
-        </View>
-    );
+                {/* Collapsible Content */}
+                {expanded && (
+                    <>
+                        <View style={[styles.divider, { backgroundColor: colorScheme.border }]} />
+
+                        <View style={styles.appointmentDetails}>
+                            <View style={styles.detailRow}>
+                                <MaterialIcons
+                                    name="calendar-today"
+                                    size={18}
+                                    color={colorScheme.textSecondary}
+                                />
+                                <Text style={[styles.detailText, { color: colorScheme.textPrimary }]}>
+                                    {new Date(appointment.appointment_date).toLocaleDateString(undefined, {
+                                        weekday: 'short', year: 'numeric', month: 'short', day: 'numeric'
+                                    })}
+                                </Text>
+                            </View>
+                            <View style={styles.detailRow}>
+                                <MaterialIcons
+                                    name="access-time"
+                                    size={18}
+                                    color={colorScheme.textSecondary}
+                                />
+                                <Text style={[styles.detailText, { color: colorScheme.textPrimary }]}>
+                                    {(() => {
+                                        const [hours, minutes] = appointment.appointment_time.split(':');
+                                        const h = parseInt(hours);
+                                        const ampm = h >= 12 ? 'PM' : 'AM';
+                                        const h12 = h % 12 || 12;
+                                        return `${h12}:${minutes} ${ampm}`;
+                                    })()}
+                                </Text>
+                            </View>
+                            {appointment.child_name && (
+                                <View style={styles.detailRow}>
+                                    <MaterialIcons
+                                        name="child-care"
+                                        size={18}
+                                        color={colorScheme.textSecondary}
+                                    />
+                                    <Text style={[styles.detailText, { color: colorScheme.textPrimary }]}>
+                                        {appointment.child_name}
+                                    </Text>
+                                </View>
+                            )}
+                            {appointment.reason && (
+                                <View style={styles.detailRow}>
+                                    <MaterialIcons
+                                        name="description"
+                                        size={18}
+                                        color={colorScheme.textSecondary}
+                                    />
+                                    <Text style={[styles.detailText, { color: colorScheme.textPrimary }]}>
+                                        {appointment.reason}
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+
+                        {/* Actions */}
+                        {isUpcomingItem && (appointment.status === 'scheduled' || appointment.status === 'pending') && (
+                            <View style={styles.actions}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.actionButton,
+                                        styles.cancelButton,
+                                        { borderColor: colorScheme.border },
+                                    ]}
+                                    onPress={() => onCancel(appointment.id, appointment.doctor_name)}
+                                >
+                                    <Text style={[styles.actionButtonText, { color: colorScheme.error }]}>
+                                        Cancel Appointment
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </>
+                )}
+            </TouchableOpacity>
+        );
+    };
 
     if (loading) {
         return (
             <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
                 <SafeHeader title="Appointments" showBack={true} />
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={colorScheme.primary} />
-                    <Text style={[styles.loadingText, { color: colorScheme.textSecondary }]}>
-                        Loading appointments...
-                    </Text>
+                    <CustomLoading size={50} text="Loading appointments..." />
                 </View>
             </View>
         );
@@ -350,7 +425,16 @@ export default function AppointmentsScreen() {
                                 >
                                     Upcoming Appointments
                                 </Text>
-                                {upcomingAppointments.map(renderAppointmentCard)}
+                                {upcomingAppointments.map(apt => (
+                                    <AppointmentCard
+                                        key={apt.id}
+                                        appointment={apt}
+                                        isPast={false}
+                                        colorScheme={colorScheme}
+                                        onCancel={handleCancelAppointment}
+                                        onDelete={handleDeleteAppointment}
+                                    />
+                                ))}
                             </View>
                         )}
 
@@ -362,7 +446,16 @@ export default function AppointmentsScreen() {
                                 >
                                     Past Appointments
                                 </Text>
-                                {pastAppointments.map(renderAppointmentCard)}
+                                {pastAppointments.map(apt => (
+                                    <AppointmentCard
+                                        key={apt.id}
+                                        appointment={apt}
+                                        isPast={true}
+                                        colorScheme={colorScheme}
+                                        onCancel={handleCancelAppointment}
+                                        onDelete={handleDeleteAppointment}
+                                    />
+                                ))}
                             </View>
                         )}
                     </>

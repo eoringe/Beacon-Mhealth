@@ -49,10 +49,37 @@ class AppointmentService {
                 throw new Error(`Failed to fetch doctors: ${response.status}`);
             }
 
-            return await response.json();
+            const json = await response.json();
+            // Handle both unwrapped array (legacy) and wrapped response (new)
+            return Array.isArray(json) ? json : (json.data || []);
         } catch (error) {
             console.error('Error fetching doctors:', error);
             throw error;
+        }
+    }
+
+    // Get specializations
+    async getSpecializations() {
+        try {
+            const token = await this.getToken();
+            if (!token) throw new Error('No authentication token');
+
+            const response = await fetch(`${API_URL}/appointments/specializations`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch specializations');
+            }
+
+            const json = await response.json();
+            return json.data || [];
+        } catch (error) {
+            console.error('Error fetching specializations:', error);
+            return [];
         }
     }
 
