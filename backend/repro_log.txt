@@ -1,0 +1,8 @@
+--- Reproduction Script: Cancel Bug ---
+Using Child ID: 2, Staff ID: 15
+Inserted Test Appointment ID: 25, Status: pending
+Attempting UPDATE status = 'cancelled'...
+Result 1 Status: cancelled
+Attempting UPDATE status = 'canceled'...
+Result 2 Status: canceled
+Cleaned up test row.

@@ -340,7 +340,7 @@ exports.getUserAppointments = async (req, res) => {
                 return nameField;
             };
 
-            return {
+            const formatted = {
                 id: appt.id,
                 appointment_date: appt.appointment_date,
                 appointment_time: appt.appointment_time,
@@ -352,6 +352,12 @@ exports.getUserAppointments = async (req, res) => {
                 // Add dummy photo since external DB doesn't have it easily accessible yet
                 doctor_photo: null
             };
+
+            // Normalize status to strict 'canceled' (one L) for standardization
+            if (appt.status === 'cancelled' || appt.status === 'rejected') {
+                formatted.status = 'canceled';
+            }
+            return formatted;
         });
 
         res.json(formattedAppointments);
@@ -416,15 +422,20 @@ exports.cancelAppointment = async (req, res) => {
         }
 
         // 2. Cancel Appointment in External DB
+        // Use 'canceled' (US English) for compatibility with typical Laravel/System enums, even if DB column is text.
         const updateQuery = `
             UPDATE appointments 
-            SET status = 'cancelled', updated_at = NOW()
+            SET status = 'canceled', updated_at = NOW()
             WHERE id = $1
             RETURNING *;
         `;
         const result = await externalQuery(updateQuery, [appointmentId]);
 
-        res.json({ message: 'Appointment cancelled successfully', appointment: result.rows[0] });
+        // Normalize response for frontend
+        const updatedAppointment = result.rows[0];
+        if (updatedAppointment.status === 'canceled') updatedAppointment.status = 'cancelled';
+
+        res.json({ message: 'Appointment cancelled successfully', appointment: updatedAppointment });
 
     } catch (error) {
         console.error('Error cancelling appointment:', error);

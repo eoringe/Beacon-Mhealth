@@ -114,7 +114,7 @@ export default function AppointmentsScreen() {
                 return colorScheme.warning || '#F59E0B'; // Use warning color or amber
             case 'completed':
                 return colorScheme.primary;
-            case 'cancelled':
+            case 'canceled':
                 return colorScheme.error;
             default:
                 return colorScheme.textSecondary;
@@ -129,7 +129,7 @@ export default function AppointmentsScreen() {
                 return 'hourglass-empty';
             case 'completed':
                 return 'check-circle';
-            case 'cancelled':
+            case 'canceled':
                 return 'cancel';
             default:
                 return 'event';
@@ -171,7 +171,7 @@ export default function AppointmentsScreen() {
         if (selectedFilter === 'all') return true;
         if (selectedFilter === 'upcoming') return (apt.status === 'scheduled' || apt.status === 'pending') && isUpcoming(apt.appointment_date, apt.appointment_time);
         if (selectedFilter === 'completed') return apt.status === 'completed';
-        if (selectedFilter === 'cancelled') return apt.status === 'cancelled';
+        if (selectedFilter === 'canceled') return apt.status === 'canceled';
         return true;
     });
 
@@ -179,7 +179,15 @@ export default function AppointmentsScreen() {
         (apt) => (apt.status === 'scheduled' || apt.status === 'pending') && isUpcoming(apt.appointment_date, apt.appointment_time)
     );
     const pastAppointments = filteredAppointments.filter(
-        (apt) => (apt.status !== 'scheduled' && apt.status !== 'pending') || !isUpcoming(apt.appointment_date, apt.appointment_time)
+        (apt) => {
+            // If explicitly filtering for canceled, include them
+            if (selectedFilter === 'canceled') return true;
+
+            // Otherwise, hide canceled items from general lists (All/Past)
+            if (apt.status === 'canceled') return false;
+
+            return (apt.status !== 'scheduled' && apt.status !== 'pending') || !isUpcoming(apt.appointment_date, apt.appointment_time);
+        }
     );
 
     const AppointmentCard = ({ appointment, isPast, colorScheme, onCancel, onDelete }) => {
@@ -200,7 +208,7 @@ export default function AppointmentsScreen() {
                     return 'hourglass-empty';
                 case 'completed':
                     return 'check-circle';
-                case 'cancelled':
+                case 'canceled':
                     return 'cancel';
                 default:
                     return 'event';
@@ -215,7 +223,7 @@ export default function AppointmentsScreen() {
                     return colorScheme.warning || '#F59E0B';
                 case 'completed':
                     return colorScheme.primary;
-                case 'cancelled':
+                case 'canceled':
                     return colorScheme.error;
                 default:
                     return colorScheme.textSecondary;
@@ -386,6 +394,30 @@ export default function AppointmentsScreen() {
         <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
             <SafeHeader title="Appointments" showBack={true} />
 
+            <View style={styles.filterContainer}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterContent}>
+                    {['all', 'upcoming', 'past', 'canceled'].map((filter) => (
+                        <TouchableOpacity
+                            key={filter}
+                            style={[
+                                styles.filterChip,
+                                selectedFilter === filter && { backgroundColor: colorScheme.primary },
+                                selectedFilter !== filter && { backgroundColor: colorScheme.surface, borderWidth: 1, borderColor: colorScheme.border }
+                            ]}
+                            onPress={() => setSelectedFilter(filter)}
+                        >
+                            <Text style={[
+                                styles.filterText,
+                                selectedFilter === filter && { color: '#FFFFFF' },
+                                selectedFilter !== filter && { color: colorScheme.textSecondary }
+                            ]}>
+                                {filter.charAt(0).toUpperCase() + filter.slice(1)}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            </View>
+
             <ScrollView
                 style={styles.content}
                 contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
@@ -401,7 +433,7 @@ export default function AppointmentsScreen() {
                     />
                 }
             >
-                {appointments.length === 0 ? (
+                {filteredAppointments.length === 0 ? (
                     <View style={styles.emptyContainer}>
                         <MaterialIcons
                             name="event-note"
@@ -409,20 +441,18 @@ export default function AppointmentsScreen() {
                             color={colorScheme.textTertiary}
                         />
                         <Text style={[styles.emptyText, { color: colorScheme.textSecondary }]}>
-                            No appointments yet
+                            No appointments found
                         </Text>
                         <Text style={[styles.emptySubtext, { color: colorScheme.textTertiary }]}>
-                            Book your first appointment to get started
+                            Try changing the filter or book a new one
                         </Text>
                     </View>
                 ) : (
                     <>
-                        {/* Upcoming Appointments */}
-                        {upcomingAppointments.length > 0 && (
+                        {/* Show sections based on filter to avoid redundancy */}
+                        {(selectedFilter === 'all' || selectedFilter === 'upcoming') && upcomingAppointments.length > 0 && (
                             <View style={styles.section}>
-                                <Text
-                                    style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}
-                                >
+                                <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
                                     Upcoming Appointments
                                 </Text>
                                 {upcomingAppointments.map(apt => (
@@ -438,13 +468,24 @@ export default function AppointmentsScreen() {
                             </View>
                         )}
 
-                        {/* Past Appointments */}
-                        {pastAppointments.length > 0 && (
+                        {/* Note: 'past' filter maps to pastAppointments. 'cancelled' might be in past or upcoming technically but usually past logic handles non-upcoming. 
+                            Let's rely on the filteredAppointments list for specific status filters like 'cancelled' or 'completed' if we want a flat list, 
+                            OR strictly adhere to the Upcoming/Past split. 
+                            
+                            Current logic: 
+                            - upcomingAppointments = filtered subset that matches 'upcoming' criteria
+                            - pastAppointments = filtered subset that matches 'past' criteria
+                            
+                            If filter is 'cancelled', upcomingAppointments might be empty and pastAppointments might have them.
+                        */}
+
+                        {(selectedFilter === 'all' || selectedFilter === 'past' || selectedFilter === 'canceled' || selectedFilter === 'completed') && pastAppointments.length > 0 && (
                             <View style={styles.section}>
-                                <Text
-                                    style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}
-                                >
-                                    Past Appointments
+                                <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
+                                    {selectedFilter === 'canceled'
+                                        ? 'Cancelled Appointments'
+                                        : (selectedFilter === 'all' ? 'Past Appointments' : 'History')
+                                    }
                                 </Text>
                                 {pastAppointments.map(apt => (
                                     <AppointmentCard
@@ -458,6 +499,13 @@ export default function AppointmentsScreen() {
                                 ))}
                             </View>
                         )}
+
+                        {/* Fallback: If we have filtered items but they didn't fall into up/past buckets easily (edge cases), render them. 
+                             Actually, the definitions of upcoming/past cover the whole set. 
+                             upcoming = status is scheduled/pending AND is future.
+                             past = status is NOT (scheduled/pending) OR is past.
+                             So everything is covered.
+                         */}
                     </>
                 )}
             </ScrollView>
@@ -601,5 +649,25 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         ...Shadow.lg,
+    },
+    filterContainer: {
+        marginBottom: Spacing.sm,
+    },
+    filterContent: {
+        paddingHorizontal: Spacing.lg,
+        paddingVertical: Spacing.sm,
+        gap: Spacing.sm,
+    },
+    filterChip: {
+        paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.xs,
+        borderRadius: BorderRadius.round,
+        minWidth: 80,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    filterText: {
+        fontSize: Typography.fontSize.sm,
+        fontWeight: Typography.fontWeight.medium,
     },
 });
