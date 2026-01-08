@@ -5,6 +5,8 @@ import {
     StyleSheet,
     ScrollView,
     TouchableOpacity,
+    Linking,
+    Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -19,7 +21,19 @@ export default function AppointmentConfirmationScreen() {
     const params = useLocalSearchParams();
     const { colorScheme } = useTheme();
 
-    const { doctorName, specialty, date, time } = params;
+    const { doctorName, specialty, date, time, appointmentType, meetLink } = params;
+
+    const isTeleconsult = appointmentType === 'TELECONSULT';
+
+    const handleOpenMeetLink = async () => {
+        if (meetLink) {
+            try {
+                await Linking.openURL(meetLink);
+            } catch (error) {
+                Alert.alert('Error', 'Could not open the Meet link. Please open it manually.');
+            }
+        }
+    };
 
     const formatDate = (dateString) => {
         if (!dateString) return '';
@@ -173,13 +187,13 @@ export default function AppointmentConfirmationScreen() {
                             <View
                                 style={[
                                     styles.iconContainer,
-                                    { backgroundColor: `${colorScheme.success}20` },
+                                    { backgroundColor: isTeleconsult ? `${colorScheme.info}20` : `${colorScheme.success}20` },
                                 ]}
                             >
                                 <MaterialIcons
-                                    name="location-on"
+                                    name={isTeleconsult ? "video-call" : "location-on"}
                                     size={24}
-                                    color={colorScheme.success}
+                                    color={isTeleconsult ? colorScheme.info : colorScheme.success}
                                 />
                             </View>
                             <View style={styles.summaryContent}>
@@ -191,24 +205,55 @@ export default function AppointmentConfirmationScreen() {
                                 <Text
                                     style={[styles.summaryValue, { color: colorScheme.textPrimary }]}
                                 >
-                                    In-Person Visit
+                                    {isTeleconsult ? 'Teleconsultation' : 'In-Person Visit'}
                                 </Text>
+                                {isTeleconsult && meetLink && (
+                                    <TouchableOpacity
+                                        onPress={handleOpenMeetLink}
+                                        style={styles.meetLinkContainer}
+                                    >
+                                        <MaterialIcons name="videocam" size={16} color={colorScheme.info} />
+                                        <Text style={[styles.meetLinkText, { color: colorScheme.info }]}>
+                                            {meetLink}
+                                        </Text>
+                                    </TouchableOpacity>
+                                )}
                             </View>
                         </View>
                     </View>
                 </View>
 
+
+
                 {/* Action Buttons */}
                 <View style={styles.actionsSection}>
+
+
+                    {/* View in Calendar Button (Always Visible) */}
                     <TouchableOpacity
                         style={[
                             styles.actionButton,
                             { backgroundColor: colorScheme.primary },
                         ]}
                         activeOpacity={0.8}
+                        onPress={() => {
+                            // Try to open specific event or just the calendar
+                            const eventUrl = params.eventId
+                                ? `https://www.google.com/calendar/event?eid=${params.eventId}`
+                                : 'content://com.android.calendar/time/'; // Fallback to general calendar
+
+                            Linking.canOpenURL(eventUrl).then(supported => {
+                                if (supported) {
+                                    Linking.openURL(eventUrl);
+                                } else {
+                                    // Fallback for when specific event link fails or not supported
+                                    Linking.openURL('https://calendar.google.com');
+                                }
+                            });
+                        }}
                     >
-                        <MaterialIcons name="event" size={20} color="#FFFFFF" />
-                        <Text style={styles.actionButtonText}>Add to Calendar</Text>
+                        <MaterialIcons name="calendar-today" size={20} color="#FFFFFF" />
+                        <Text style={styles.actionButtonText}>View in Calendar</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
@@ -259,8 +304,8 @@ export default function AppointmentConfirmationScreen() {
                         </Text>
                     </TouchableOpacity>
                 </View>
-            </ScrollView>
-        </View>
+            </ScrollView >
+        </View >
     );
 }
 
@@ -358,5 +403,16 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: Typography.fontSize.base,
         fontWeight: Typography.fontWeight.semibold,
+    },
+    meetLinkContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: Spacing.xs,
+        gap: Spacing.xs,
+    },
+    meetLinkText: {
+        fontSize: Typography.fontSize.xs,
+        textDecorationLine: 'underline',
+        flexShrink: 1,
     },
 });

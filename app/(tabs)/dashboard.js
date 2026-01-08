@@ -89,13 +89,12 @@ export default function DashboardScreen() {
             color: '#FF9800',
             route: '/milestone-checklist',
         },
-        // Appointments moved to Tab Bar
         {
-            id: 'teleconsult',
-            title: 'Teleconsult',
-            icon: 'videocam',
+            id: 'appointments',
+            title: 'Appointments',
+            icon: 'calendar-today',
             color: colorScheme.info,
-            route: '/teleconsultation',
+            route: '/appointments',
         },
         {
             id: 'prescriptions',
@@ -330,13 +329,12 @@ const styles = StyleSheet.create({
     quickActionsGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        marginHorizontal: -Spacing.sm,
+        justifyContent: 'space-between',
     },
     actionCard: {
-        width: (width - Spacing.lg * 2 - Spacing.sm * 4) / 3,
+        width: '31%',
         borderRadius: BorderRadius.lg,
-        padding: Spacing.lg,
-        marginHorizontal: Spacing.sm,
+        padding: Spacing.md,
         marginBottom: Spacing.md,
         alignItems: 'center',
         ...Shadow.md,

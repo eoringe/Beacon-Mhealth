@@ -36,6 +36,7 @@ export default function SelectSlotScreen() {
     const [reason, setReason] = useState('');
     const [notes, setNotes] = useState('');
     const [booking, setBooking] = useState(false);
+    const [appointmentType, setAppointmentType] = useState('IN_PERSON');
 
     useEffect(() => {
         if (selectedDate && doctor) {
@@ -85,9 +86,10 @@ export default function SelectSlotScreen() {
                 appointmentTime: selectedTime,
                 reason: reason || null,
                 notes: notes || null,
+                appointmentType: appointmentType,
             };
 
-            await appointmentService.createAppointment(appointmentData);
+            const response = await appointmentService.createAppointment(appointmentData);
 
             // Navigate to confirmation screen
             router.push({
@@ -97,6 +99,9 @@ export default function SelectSlotScreen() {
                     specialty: doctor.specialty,
                     date: selectedDate,
                     time: selectedTime,
+                    appointmentType: appointmentType,
+                    meetLink: response.google_meet_link || '',
+                    eventId: response.google_calendar_event_id || '',
                 }
             });
         } catch (error) {
@@ -180,6 +185,88 @@ export default function SelectSlotScreen() {
                         </View>
                     </View>
                 </View>
+
+                {/* Appointment Type Selector */}
+                <View style={styles.section}>
+                    <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
+                        Appointment Type
+                    </Text>
+                    <View style={styles.typeSelector}>
+                        <TouchableOpacity
+                            style={[
+                                styles.typeOption,
+                                {
+                                    backgroundColor: appointmentType === 'IN_PERSON'
+                                        ? colorScheme.primary
+                                        : colorScheme.surface,
+                                    borderColor: appointmentType === 'IN_PERSON'
+                                        ? colorScheme.primary
+                                        : colorScheme.border,
+                                },
+                            ]}
+                            onPress={() => setAppointmentType('IN_PERSON')}
+                            activeOpacity={0.7}
+                        >
+                            <MaterialIcons
+                                name="location-on"
+                                size={24}
+                                color={appointmentType === 'IN_PERSON' ? '#FFFFFF' : colorScheme.textSecondary}
+                            />
+                            <Text
+                                style={[
+                                    styles.typeOptionText,
+                                    {
+                                        color: appointmentType === 'IN_PERSON'
+                                            ? '#FFFFFF'
+                                            : colorScheme.textPrimary,
+                                    },
+                                ]}
+                            >
+                                In-Person
+                            </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[
+                                styles.typeOption,
+                                {
+                                    backgroundColor: appointmentType === 'TELECONSULT'
+                                        ? colorScheme.primary
+                                        : colorScheme.surface,
+                                    borderColor: appointmentType === 'TELECONSULT'
+                                        ? colorScheme.primary
+                                        : colorScheme.border,
+                                },
+                            ]}
+                            onPress={() => setAppointmentType('TELECONSULT')}
+                            activeOpacity={0.7}
+                        >
+                            <MaterialIcons
+                                name="video-call"
+                                size={24}
+                                color={appointmentType === 'TELECONSULT' ? '#FFFFFF' : colorScheme.textSecondary}
+                            />
+                            <Text
+                                style={[
+                                    styles.typeOptionText,
+                                    {
+                                        color: appointmentType === 'TELECONSULT'
+                                            ? '#FFFFFF'
+                                            : colorScheme.textPrimary,
+                                    },
+                                ]}
+                            >
+                                Teleconsult
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                    {appointmentType === 'TELECONSULT' && (
+                        <Text style={[styles.helperText, { color: colorScheme.info }]}>
+                            📹 A Google Meet link will be generated for this appointment
+                        </Text>
+                    )}
+                </View>
+
 
                 {/* Calendar */}
                 <View style={styles.section}>
@@ -508,5 +595,25 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: Typography.fontSize.md,
         fontWeight: Typography.fontWeight.semibold,
+    },
+    typeSelector: {
+        flexDirection: 'row',
+        gap: Spacing.md,
+    },
+    typeOption: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: Spacing.md,
+        paddingHorizontal: Spacing.lg,
+        borderRadius: BorderRadius.md,
+        borderWidth: 1,
+        gap: Spacing.sm,
+        ...Shadow.sm,
+    },
+    typeOptionText: {
+        fontSize: Typography.fontSize.sm,
+        fontWeight: Typography.fontWeight.medium,
     },
 });

@@ -12,12 +12,12 @@ import { auth } from '@/config/firebase';
 import authService from '@/services/authService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+// Import mock for Expo Go (switch to native module for production builds)
+// To use native Google Sign-In, run: npx expo run:android (development build)
+import { GoogleSignin, statusCodes } from '@/utils/googleSignInMock';
+const isGoogleSignInAvailable = false; // Set to true in production builds
 
-// Configure Google Sign-In
-GoogleSignin.configure({
-    webClientId: '42471785456-fh7oic285gea6fv498sf5jf44q6fm84l.apps.googleusercontent.com',
-});
+
 
 const AuthContext = createContext({});
 
@@ -160,6 +160,11 @@ export const AuthProvider = ({ children }) => {
             setLoading(true);
             console.log('AuthContext: loginWithGoogle started');
 
+            // Check if Google Sign-In is available (not in Expo Go)
+            if (!GoogleSignin) {
+                throw new Error('Google Sign-In is not available in Expo Go. Please use email/password login or create a development build.');
+            }
+
             // Check if device has Google Play Services
             console.log('AuthContext: Checking Play Services...');
             await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
@@ -217,29 +222,33 @@ export const AuthProvider = ({ children }) => {
             // 1. Firebase SignOut
             await signOut(auth);
 
-            // 2. Google SignOut & Revoke
-            try {
-                console.log('AuthContext: Attempting Google cleanup...');
-
-                // Force revoke access - this ensures the "Choose Account" prompt appears next time
+            // 2. Google SignOut & Revoke (only if Google Sign-In is available)
+            if (GoogleSignin) {
                 try {
-                    await GoogleSignin.revokeAccess();
-                    console.log('AuthContext: Google access revoked');
-                } catch (revokeError) {
-                    // It's okay if this fails (e.g. not signed in)
-                    console.log('AuthContext: Revoke skipped (likely not signed in)');
-                }
+                    console.log('AuthContext: Attempting Google cleanup...');
 
-                // Force sign out
-                try {
-                    await GoogleSignin.signOut();
-                    console.log('AuthContext: Google session cleared');
-                } catch (signOutError) {
-                    // It's okay if this fails
-                    console.log('AuthContext: Google signOut skipped');
+                    // Force revoke access - this ensures the "Choose Account" prompt appears next time
+                    try {
+                        await GoogleSignin.revokeAccess();
+                        console.log('AuthContext: Google access revoked');
+                    } catch (revokeError) {
+                        // It's okay if this fails (e.g. not signed in)
+                        console.log('AuthContext: Revoke skipped (likely not signed in)');
+                    }
+
+                    // Force sign out
+                    try {
+                        await GoogleSignin.signOut();
+                        console.log('AuthContext: Google session cleared');
+                    } catch (signOutError) {
+                        // It's okay if this fails
+                        console.log('AuthContext: Google signOut skipped');
+                    }
+                } catch (googleError) {
+                    console.log('AuthContext: Google cleanup warning:', googleError.message);
                 }
-            } catch (googleError) {
-                console.log('AuthContext: Google cleanup warning:', googleError.message);
+            } else {
+                console.log('AuthContext: Google Sign-In not available, skipping cleanup');
             }
 
             // 3. Clear App State

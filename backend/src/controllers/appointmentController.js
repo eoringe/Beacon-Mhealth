@@ -1,5 +1,6 @@
 const { pool } = require('../config/database');
 const { externalQuery } = require('../config/externalDatabase');
+const googleCalendarService = require('../services/googleCalendarService');
 
 // Helper: Check if date is weekend
 const isWeekend = (date) => {
@@ -141,12 +142,28 @@ exports.createAppointment = async (req, res) => {
     const client = await pool.connect(); // Keep local connection for local child lookup
     try {
         const userId = req.user.id;
-        const { doctorId, childId, appointmentDate, appointmentTime, reason, notes } = req.body;
+        const {
+            doctorId,
+            childId,
+            appointmentDate,
+            appointmentTime,
+            reason,
+            notes,
+            appointmentType = 'IN_PERSON' // Default to in-person
+        } = req.body;
 
         // Validation
         if (!doctorId || !appointmentDate || !appointmentTime || !childId) {
             return res.status(400).json({
                 error: 'Doctor, Child, Date, and Time are required'
+            });
+        }
+
+        // Validate appointment type
+        const validTypes = ['IN_PERSON', 'TELECONSULT'];
+        if (!validTypes.includes(appointmentType)) {
+            return res.status(400).json({
+                error: 'Invalid appointment type. Must be IN_PERSON or TELECONSULT'
             });
         }
 
@@ -181,8 +198,12 @@ exports.createAppointment = async (req, res) => {
         }
 
         const externalChildId = externalChildCheck.rows[0].id;
-        // Generate Title (Child's Full Name)
-        let appointmentTitle = `${localChildCheck.rows[0].first_name} ${localChildCheck.rows[0].last_name}`;
+        const childFullName = `${localChildCheck.rows[0].first_name} ${localChildCheck.rows[0].last_name}`;
+
+        // Generate Title based on appointment type
+        let appointmentTitle = appointmentType === 'TELECONSULT'
+            ? `Teleconsult: ${childFullName}`
+            : childFullName;
 
         // 2. Business Logic Checks
         if (isWeekend(appointmentDate)) {
@@ -215,33 +236,160 @@ exports.createAppointment = async (req, res) => {
         const endHour = hours + 1;
         const endTime = `${endHour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
 
-        // 5. Insert into External DB
+        // 5. Handle Teleconsultation - Create Google Calendar Event with Meet Link
+        let googleMeetLink = null;
+        let googleCalendarEventId = null;
+        let idempotencyKey = null;
+
+        if (appointmentType === 'TELECONSULT') {
+            try {
+                // Initialize Google Calendar service if not already done
+                googleCalendarService.initialize();
+
+                if (!googleCalendarService.isConfigured()) {
+                    return res.status(503).json({
+                        error: 'Teleconsultation service is not configured. Please contact support.'
+                    });
+                }
+
+                // Generate idempotency key to prevent duplicate calendar events
+                idempotencyKey = googleCalendarService.generateIdempotencyKey(
+                    childId, doctorId, appointmentDate, appointmentTime
+                );
+
+                // Check if event already exists (for retry scenarios)
+                const existingAppt = await externalQuery(
+                    'SELECT google_meet_link, google_calendar_event_id FROM appointments WHERE idempotency_key = $1',
+                    [idempotencyKey]
+                );
+
+                if (existingAppt.rows.length > 0 && existingAppt.rows[0].google_meet_link) {
+                    // Return existing appointment info (idempotent)
+                    return res.status(200).json({
+                        message: 'Appointment already exists',
+                        appointment: existingAppt.rows[0],
+                        google_meet_link: existingAppt.rows[0].google_meet_link,
+                        details: 'This is an existing appointment (duplicate request detected).'
+                    });
+                }
+
+                // Get doctor name and specialization for calendar event
+                const doctorResult = await externalQuery(
+                    `SELECT s.fullname, ds.specialization 
+                     FROM staff s
+                     LEFT JOIN doctor_specialization ds ON s.specialization_id = ds.id
+                     WHERE s.id = $1`,
+                    [doctorId]
+                );
+
+                let doctorName = 'Doctor';
+                const staffData = doctorResult.rows[0];
+                const rawName = staffData?.fullname;
+                const specialization = staffData?.specialization || '';
+
+                if (rawName) {
+                    try {
+                        if (typeof rawName === 'string' && rawName.startsWith('{')) {
+                            const parsed = JSON.parse(rawName);
+                            doctorName = `${parsed.first_name || ''} ${parsed.last_name || ''}`.trim();
+                        } else if (typeof rawName === 'object') {
+                            doctorName = `${rawName.first_name || ''} ${rawName.last_name || ''}`.trim();
+                        } else {
+                            doctorName = rawName;
+                        }
+                    } catch (e) {
+                        doctorName = rawName;
+                    }
+                }
+
+                // Add 'Dr.' prefix for Paediatricians if not already present
+                if (specialization && /paediatrician|pediatrician/i.test(specialization)) {
+                    // Check if name already starts with Dr (case insensitive, handling 'Dr ', 'Dr. ', etc)
+                    if (!/^dr\.?\s+/i.test(doctorName)) {
+                        doctorName = `Dr. ${doctorName}`;
+                    }
+                }
+
+                // Get parent's email to invite them to the calendar event
+                const userResult = await client.query(
+                    'SELECT email FROM users WHERE id = $1',
+                    [userId]
+                );
+                const parentEmail = userResult.rows[0]?.email;
+                console.log(`Sending calendar invite to: ${parentEmail}`);
+
+                // Create Google Calendar event with Meet link
+                const eventResult = await googleCalendarService.createCalendarEvent({
+                    summary: `Teleconsultation: ${childFullName} with ${doctorName}`,
+                    description: `Pediatric teleconsultation appointment.\n\nPatient: ${childFullName}\nReason: ${reason || 'General consultation'}\nNotes: ${notes || 'None'}`,
+                    date: appointmentDate,
+                    startTime: appointmentTime,
+                    endTime: endTime,
+                    attendees: parentEmail ? [parentEmail] : []
+                }, idempotencyKey);
+
+                googleMeetLink = eventResult.meetLink;
+                googleCalendarEventId = eventResult.eventId;
+
+                if (!googleMeetLink) {
+                    console.error('Google Meet link was not generated');
+                    return res.status(503).json({
+                        error: 'Failed to generate Google Meet link. Please try again.'
+                    });
+                }
+
+                console.log(`Teleconsult appointment created with Meet link: ${googleMeetLink}`);
+
+            } catch (calendarError) {
+                console.error('Google Calendar API error:', calendarError);
+                return res.status(503).json({
+                    error: 'Failed to create teleconsultation. Google Calendar service unavailable.',
+                    details: calendarError.message
+                });
+            }
+        }
+
+        // 6. Insert into External DB
         const insertQuery = `
             INSERT INTO appointments (
                 child_id, staff_id, doctor_id, 
                 appointment_title, appointment_date, 
-                start_time, end_time, status, 
+                start_time, end_time, status,
+                appointment_type, google_meet_link, google_calendar_event_id, idempotency_key,
                 created_at, updated_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', NOW(), NOW())
-            RETURNING id, appointment_date, start_time, status
+            VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9, $10, $11, NOW(), NOW())
+            RETURNING id, appointment_date, start_time, status, appointment_type, google_meet_link
         `;
 
         const result = await externalQuery(insertQuery, [
-            externalChildId,    // External Child ID
-            doctorId,           // Staff ID
-            doctorId,           // Doctor ID (Redundant but required)
-            appointmentTitle,   // Title
-            appointmentDate,
-            appointmentTime,    // Start Time
-            endTime             // End Time
+            externalChildId,        // $1 External Child ID
+            doctorId,               // $2 Staff ID
+            doctorId,               // $3 Doctor ID (Redundant but required)
+            appointmentTitle,       // $4 Title
+            appointmentDate,        // $5
+            appointmentTime,        // $6 Start Time
+            endTime,                // $7 End Time
+            appointmentType,        // $8 Appointment Type
+            googleMeetLink,         // $9 Google Meet Link (null for in-person)
+            googleCalendarEventId,  // $10 Calendar Event ID (null for in-person)
+            idempotencyKey          // $11 Idempotency Key (null for in-person)
         ]);
 
-        res.status(201).json({
+        const responseData = {
             message: 'Appointment request sent successfully',
             appointment: result.rows[0],
-            details: 'This appointment is now pending approval via the clinic system.'
-        });
+            details: appointmentType === 'TELECONSULT'
+                ? 'Your teleconsultation is pending approval. Join via the Google Meet link at the scheduled time.'
+                : 'This appointment is now pending approval via the clinic system.'
+        };
+
+        // Include Meet link prominently in response for teleconsult
+        if (googleMeetLink) {
+            responseData.google_meet_link = googleMeetLink;
+        }
+
+        res.status(201).json(responseData);
 
     } catch (error) {
         console.error('Error creating appointment:', error);
@@ -250,6 +398,7 @@ exports.createAppointment = async (req, res) => {
         client.release();
     }
 };
+
 
 // Get user's appointments (External DB)
 exports.getUserAppointments = async (req, res) => {
@@ -299,6 +448,8 @@ exports.getUserAppointments = async (req, res) => {
                 a.status,
                 a.created_at,
                 a.staff_id,
+                a.appointment_type,
+                a.google_meet_link,
                 s.fullname as doctor_name,
                 ds.specialization as doctor_specialty,
                 s.email as doctor_email,
@@ -350,7 +501,10 @@ exports.getUserAppointments = async (req, res) => {
                 child_name: parseName(appt.child_fullname),
                 doctor_id: appt.staff_id, // For reference
                 // Add dummy photo since external DB doesn't have it easily accessible yet
-                doctor_photo: null
+                doctor_photo: null,
+                // Teleconsultation fields
+                appointment_type: appt.appointment_type || 'IN_PERSON',
+                google_meet_link: appt.google_meet_link || null
             };
 
             // Normalize status to strict 'canceled' (one L) for standardization
@@ -406,9 +560,10 @@ exports.cancelAppointment = async (req, res) => {
             return res.status(404).json({ error: 'Appointment not found or unauthorized' });
         }
 
-        // C. Check Appointment Ownership
+        // C. Check Appointment Ownership and get calendar event ID
         const checkQuery = `
-            SELECT * FROM appointments 
+            SELECT id, status, appointment_type, google_calendar_event_id 
+            FROM appointments 
             WHERE id = $1 AND child_id = ANY($2)
         `;
         const checkResult = await externalQuery(checkQuery, [appointmentId, externalChildIds]);
@@ -417,11 +572,27 @@ exports.cancelAppointment = async (req, res) => {
             return res.status(404).json({ error: 'Appointment not found or unauthorized' });
         }
 
-        if (checkResult.rows[0].status === 'cancelled') {
+        const appointment = checkResult.rows[0];
+
+        if (appointment.status === 'cancelled' || appointment.status === 'canceled') {
             return res.status(400).json({ error: 'Appointment is already cancelled' });
         }
 
-        // 2. Cancel Appointment in External DB
+        // 2. Delete Google Calendar event if this is a teleconsult appointment
+        if (appointment.appointment_type === 'TELECONSULT' && appointment.google_calendar_event_id) {
+            try {
+                googleCalendarService.initialize();
+                if (googleCalendarService.isConfigured()) {
+                    await googleCalendarService.deleteCalendarEvent(appointment.google_calendar_event_id);
+                    console.log(`Deleted Google Calendar event: ${appointment.google_calendar_event_id}`);
+                }
+            } catch (calendarError) {
+                // Log but don't fail the cancellation - the calendar event deletion is best-effort
+                console.error('Failed to delete Google Calendar event:', calendarError.message);
+            }
+        }
+
+        // 3. Cancel Appointment in External DB
         // Use 'canceled' (US English) for compatibility with typical Laravel/System enums, even if DB column is text.
         const updateQuery = `
             UPDATE appointments 

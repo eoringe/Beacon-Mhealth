@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -12,7 +12,7 @@ import { SafeHeader } from '@/components/SafeHeader';
 import { useTheme } from '@/contexts/ThemeContext';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 
-const { width } = Dimensions.get('window');
+
 
 export default function MilestoneOverviewCategory() {
   const router = useRouter();
@@ -36,11 +36,14 @@ export default function MilestoneOverviewCategory() {
     return 12;
   });
 
-  const [activeTab, setActiveTab] = useState(0);
-  const scrollViewRef = useRef(null);
-  const scrollX = useRef(new Animated.Value(0)).current;
+  const [scrollViewRef, setScrollViewRef] = useState(null);
+  const [scrollPosition, setScrollPosition] = useState(0);
+  const [contentWidth, setContentWidth] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(0);
 
+  // Get the category title for the header
   const categoryInfo = MILESTONE_CATEGORIES.find(cat => cat.id === category);
+  const categoryTitle = categoryInfo?.title || 'Milestone Overview';
 
   const milestones = useMemo(() => {
     const data = getMilestonesForAge(selectedAge);
@@ -49,28 +52,19 @@ export default function MilestoneOverviewCategory() {
     return categoryData.map(m => typeof m === 'string' ? m : m.milestone);
   }, [selectedAge, category]);
 
-  const scrollToAge = (index) => {
-    if (scrollViewRef.current) {
-      scrollViewRef.current.scrollTo({
-        x: index * (width * 0.6),
-        animated: true,
-      });
-    }
+  const scrollToAge = (direction) => {
+    if (!scrollViewRef) return;
+
+    const scrollAmount = containerWidth * 0.6;
+    const newPosition = direction === 'next'
+      ? Math.min(scrollPosition + scrollAmount, contentWidth - containerWidth + 16)
+      : Math.max(scrollPosition - scrollAmount, 0);
+
+    scrollViewRef.scrollTo({ x: newPosition, animated: true });
+    setScrollPosition(newPosition);
   };
 
-  const handleScroll = Animated.event(
-    [{ nativeEvent: { contentOffset: { x: scrollX } } }],
-    { useNativeDriver: false }
-  );
 
-  const inputRange = allAges.map((_, i) => i * (width * 0.6));
-  const translateX = scrollX.interpolate({
-    inputRange,
-    outputRange: allAges.map((_, i) => i * (width * 0.6 / allAges.length)),
-  });
-
-  // Get the category title for the header
-  const categoryTitle = categoryInfo?.title || 'Milestone Overview';
 
   return (
     <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
@@ -79,42 +73,72 @@ export default function MilestoneOverviewCategory() {
         showBack={true}
       />
 
-      <View style={[styles.ageScrollContainer, { backgroundColor: colorScheme.background, borderBottomColor: colorScheme.border }]}>
-        <Animated.ScrollView
-          ref={scrollViewRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          onScroll={handleScroll}
-          scrollEventThrottle={16}
-          contentContainerStyle={styles.ageScrollContent}
-          snapToInterval={width * 0.6}
-          decelerationRate="fast"
+      <View style={[styles.ageSelectorContainer, { backgroundColor: colorScheme.surface, borderBottomWidth: 1, borderBottomColor: colorScheme.border }]}>
+        <TouchableOpacity
+          style={[styles.arrowButton, { backgroundColor: colorScheme.primaryLight }, !scrollPosition && styles.arrowButtonDisabled]}
+          onPress={() => scrollToAge('prev')}
+          disabled={!scrollPosition}
         >
-          {allAges.map((age) => (
-            <TouchableOpacity
-              key={age}
-              style={[
-                styles.ageButton,
-                { backgroundColor: colorScheme.surface },
-                selectedAge === age && { backgroundColor: colorScheme.primary },
-              ]}
-              onPress={() => {
-                setSelectedAge(age);
-                scrollToAge(allAges.indexOf(age));
-              }}
-            >
-              <Text
+          <MaterialIcons name="chevron-left" size={24} color={!scrollPosition ? colorScheme.textTertiary : colorScheme.primary} />
+        </TouchableOpacity>
+
+        <View
+          style={styles.ageScrollContainer}
+          onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
+        >
+          <ScrollView
+            ref={setScrollViewRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.ageScrollContent}
+            onContentSizeChange={(w) => setContentWidth(w)}
+            onScroll={(e) => setScrollPosition(e.nativeEvent.contentOffset.x)}
+            scrollEventThrottle={16}
+            decelerationRate="fast"
+            snapToInterval={containerWidth * 0.4}
+            snapToAlignment="center"
+          >
+            {allAges.map((age) => (
+              <TouchableOpacity
+                key={age}
                 style={[
-                  styles.ageButtonText,
-                  { color: colorScheme.textSecondary },
-                  selectedAge === age && { color: '#FFFFFF' },
+                  styles.agePill,
+                  { backgroundColor: colorScheme.background },
+                  selectedAge === age && { backgroundColor: colorScheme.primary },
                 ]}
+                onPress={() => {
+                  setSelectedAge(age);
+                }}
               >
-                {age} months
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </Animated.ScrollView>
+                <Text
+                  style={[
+                    styles.agePillText,
+                    { color: colorScheme.textSecondary },
+                    selectedAge === age && { color: '#FFFFFF' },
+                  ]}
+                >
+                  {age === 12 ? '1 yr' : `${age} mo`}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        <TouchableOpacity
+          style={[
+            styles.arrowButton,
+            { backgroundColor: colorScheme.primaryLight },
+            scrollPosition >= contentWidth - containerWidth - 10 && styles.arrowButtonDisabled
+          ]}
+          onPress={() => scrollToAge('next')}
+          disabled={scrollPosition >= contentWidth - containerWidth - 10}
+        >
+          <MaterialIcons
+            name="chevron-right"
+            size={24}
+            color={scrollPosition >= contentWidth - containerWidth - 10 ? colorScheme.textTertiary : colorScheme.primary}
+          />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -181,36 +205,40 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1C1C1E',
   },
+  ageSelectorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+  },
   ageScrollContainer: {
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    flex: 1,
+    marginHorizontal: Spacing.sm,
+    overflow: 'hidden',
   },
   ageScrollContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: Spacing.sm,
+    alignItems: 'center',
   },
-  ageButton: {
-    width: width * 0.55,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginRight: 12,
-    borderRadius: 8,
-    backgroundColor: '#F1F1F1',
+  agePill: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.xxl,
+    marginHorizontal: Spacing.xs,
+    minWidth: 80,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  ageButtonSelected: {
-    backgroundColor: '#2E5BFF',
+  agePillText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium,
   },
-  ageButtonText: {
-    fontSize: 16,
-    color: '#666666',
-    fontWeight: '500',
+  arrowButton: {
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.xxl,
   },
-  ageButtonTextSelected: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+  arrowButtonDisabled: {
+    opacity: 0.5,
   },
   content: {
     flex: 1,

@@ -408,6 +408,9 @@ const styles = StyleSheet.create({
     scrollContent: {
         paddingHorizontal: Spacing.xl,
         paddingTop: Spacing.md,
+        width: '100%',
+        maxWidth: 500,
+        alignSelf: 'center',
     },
     header: {
         alignItems: 'center',

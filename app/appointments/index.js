@@ -12,6 +12,7 @@ import {
     LayoutAnimation,
     Platform,
     UIManager,
+    Linking,
 } from 'react-native';
 
 if (Platform.OS === 'android') {
@@ -357,8 +358,8 @@ export default function AppointmentsScreen() {
                         </View>
 
                         {/* Actions */}
-                        {isUpcomingItem && (appointment.status === 'scheduled' || appointment.status === 'pending') && (
-                            <View style={styles.actions}>
+                        <View style={styles.actions}>
+                            {isUpcomingItem && (appointment.status === 'scheduled' || appointment.status === 'pending') && (
                                 <TouchableOpacity
                                     style={[
                                         styles.actionButton,
@@ -371,11 +372,40 @@ export default function AppointmentsScreen() {
                                         Cancel Appointment
                                     </Text>
                                 </TouchableOpacity>
+                            )}
+
+                            {/* Appointment Type Badge (Informational) */}
+                            <View style={[
+                                styles.typeBadge,
+                                { backgroundColor: appointment.appointment_type === 'TELECONSULT' ? colorScheme.primaryLight : colorScheme.surfaceVariant, marginTop: 12, alignSelf: 'flex-start' }
+                            ]}>
+                                <MaterialIcons
+                                    name={appointment.appointment_type === 'TELECONSULT' ? "videocam" : "person"}
+                                    size={14}
+                                    color={appointment.appointment_type === 'TELECONSULT' ? colorScheme.primary : colorScheme.textSecondary}
+                                />
+                                <Text style={[
+                                    styles.typeText,
+                                    { color: appointment.appointment_type === 'TELECONSULT' ? colorScheme.primary : colorScheme.textSecondary, marginLeft: 4, function: 'row' }
+                                ]}>
+                                    {appointment.appointment_type === 'TELECONSULT' ? 'Teleconsult' : 'In-Person'}
+                                </Text>
                             </View>
+                        </View>
+
+                        {/* Join Meeting Button for Teleconsult */}
+                        {isUpcomingItem && appointment.appointment_type === 'TELECONSULT' && appointment.google_meet_link && (
+                            <TouchableOpacity
+                                style={[styles.joinButton, { backgroundColor: colorScheme.primary, marginTop: 12 }]}
+                                onPress={() => Linking.openURL(appointment.google_meet_link)}
+                            >
+                                <MaterialIcons name="video-call" size={20} color="#FFFFFF" />
+                                <Text style={styles.joinButtonText}>Join Google Meet</Text>
+                            </TouchableOpacity>
                         )}
                     </>
                 )}
-            </TouchableOpacity>
+            </TouchableOpacity >
         );
     };
 
@@ -669,5 +699,31 @@ const styles = StyleSheet.create({
     filterText: {
         fontSize: Typography.fontSize.sm,
         fontWeight: Typography.fontWeight.medium,
+    },
+    typeBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: Spacing.sm,
+        paddingVertical: 4,
+        borderRadius: BorderRadius.md,
+    },
+    typeText: {
+        fontSize: Typography.fontSize.xs,
+        fontWeight: Typography.fontWeight.medium,
+        marginLeft: 4,
+    },
+    joinButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: Spacing.sm,
+        paddingHorizontal: Spacing.md,
+        borderRadius: BorderRadius.md,
+        gap: Spacing.sm,
+    },
+    joinButtonText: {
+        fontSize: Typography.fontSize.sm,
+        fontWeight: Typography.fontWeight.semibold,
+        color: '#FFFFFF',
     },
 });
