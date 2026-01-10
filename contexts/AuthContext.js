@@ -12,10 +12,10 @@ import { auth } from '@/config/firebase';
 import authService from '@/services/authService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Import mock for Expo Go (switch to native module for production builds)
-// To use native Google Sign-In, run: npx expo run:android (development build)
-import { GoogleSignin, statusCodes } from '@/utils/googleSignInMock';
-const isGoogleSignInAvailable = false; // Set to true in production builds
+// Use native Google Sign-In module (available in development and production builds)
+import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
+import cacheService from '@/services/cacheService';
+
 
 
 
@@ -27,6 +27,14 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [initializing, setInitializing] = useState(true);
+
+    // Configure Google Sign-In on mount
+    useEffect(() => {
+        GoogleSignin.configure({
+            webClientId: '42471785456-fh7oic285gea6fv498sf5jf44q6fm84l.apps.googleusercontent.com',
+            offlineAccess: true,
+        });
+    }, []);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -251,7 +259,11 @@ export const AuthProvider = ({ children }) => {
                 console.log('AuthContext: Google Sign-In not available, skipping cleanup');
             }
 
-            // 3. Clear App State
+            // 3. Clear all cached data
+            await cacheService.clearAll();
+            console.log('AuthContext: Cache cleared');
+
+            // 4. Clear App State
             await authService.logout();
         } catch (error) {
             console.error('Logout error:', error);

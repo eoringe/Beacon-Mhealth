@@ -6,13 +6,13 @@ import {
     ScrollView,
     TouchableOpacity,
     Dimensions,
-    ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { SafeHeader } from '@/components/SafeHeader';
+import { LoadingScreen } from '@/components/LoadingComponents';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import { GrowthLineChart } from '@/components/GrowthLineChart';
 import growthService from '@/services/growthService';
@@ -108,11 +108,7 @@ export default function GrowthChartScreen() {
     const latestMeasurement = currentData.length > 0 ? currentData[currentData.length - 1] : null;
 
     if (loading) {
-        return (
-            <View style={[styles.container, { backgroundColor: colorScheme.background, justifyContent: 'center', alignItems: 'center' }]}>
-                <ActivityIndicator size="large" color={colorScheme.primary} />
-            </View>
-        );
+        return <LoadingScreen text="Loading growth data..." />;
     }
 
     return (

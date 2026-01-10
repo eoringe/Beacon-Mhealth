@@ -4,9 +4,9 @@ import {
     Text,
     StyleSheet,
     ScrollView,
-    ActivityIndicator,
     TouchableOpacity
 } from 'react-native';
+import { LoadingSection } from '@/components/LoadingComponents';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -83,12 +83,7 @@ export default function PrescriptionsScreen() {
 
                 {/* Loading State */}
                 {loading && (
-                    <View style={styles.centerContent}>
-                        <ActivityIndicator size="large" color={colorScheme.primary} />
-                        <Text style={[styles.statusText, { color: colorScheme.textSecondary }]}>
-                            Loading prescriptions...
-                        </Text>
-                    </View>
+                    <LoadingSection text="Loading prescriptions..." />
                 )}
 
                 {/* Error State */}

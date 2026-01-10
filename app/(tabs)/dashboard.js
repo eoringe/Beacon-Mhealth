@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -12,10 +12,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { formatDistanceToNow } from 'date-fns';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChild } from '@/contexts/ChildContext';
+import { milestoneService } from '@/services/milestoneService';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Spacing, Typography, BorderRadius, Shadow, Colors } from '@/constants/theme';
 
@@ -29,8 +32,109 @@ export default function DashboardScreen() {
     const { selectedChild } = useChild();
     const { notifications } = useNotifications();
 
+    // Milestone concern state
+    const [milestoneConcern, setMilestoneConcern] = useState(false);
+    const [milestoneAlertDismissed, setMilestoneAlertDismissed] = useState(false);
+
     // Get latest 3 notifications
     const recentActivity = notifications.slice(0, 3);
+
+    // Schedule reminder notification
+    const scheduleReminder = async () => {
+        try {
+            const { status } = await Notifications.requestPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert('Notifications', 'Please enable notifications to receive reminders!');
+                return;
+            }
+
+            await Notifications.scheduleNotificationAsync({
+                content: {
+                    title: '⚠️ Milestone Reminder',
+                    body: `Don't forget to book an appointment to discuss your child's development milestones.`,
+                    data: { type: 'milestone_reminder' },
+                    sound: true,
+                },
+                trigger: {
+                    type: 'timeInterval',
+                    seconds: 172800, // 2 days
+                },
+            });
+
+            console.log('Reminder notification scheduled for 2 days from now');
+        } catch (error) {
+            console.error('Error scheduling notification:', error);
+        }
+    };
+
+    // Handle dismiss with reminder
+    const handleDismissWithReminder = async () => {
+        setMilestoneAlertDismissed(true);
+        // Store dismissal with timestamp to show again later
+        await AsyncStorage.setItem(
+            `milestone_alert_dismissed_${selectedChild?.id}`,
+            new Date().toISOString()
+        );
+        scheduleReminder();
+    };
+
+    // Check milestone progress for selected child
+    const checkMilestoneProgress = useCallback(async () => {
+        if (!selectedChild?.id) {
+            setMilestoneConcern(false);
+            return;
+        }
+
+        try {
+            // Check if alert was recently dismissed (within 2 days)
+            const dismissedAt = await AsyncStorage.getItem(
+                `milestone_alert_dismissed_${selectedChild.id}`
+            );
+            if (dismissedAt) {
+                const dismissedDate = new Date(dismissedAt);
+                const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+                if (dismissedDate > twoDaysAgo) {
+                    setMilestoneAlertDismissed(true);
+                    return;
+                }
+            }
+            setMilestoneAlertDismissed(false);
+
+            // Fetch all milestone responses for this child
+            const allResponses = await milestoneService.getAllMilestoneResponsesForChild(selectedChild.id);
+
+            if (!allResponses || allResponses.length === 0) {
+                setMilestoneConcern(false);
+                return;
+            }
+
+            // Check if any category has < 50% yes responses
+            let hasConcern = false;
+            for (const categoryData of allResponses) {
+                const responses = categoryData.responses;
+                const totalAnswered = Object.keys(responses).length;
+                const yesCount = Object.values(responses).filter(r => r === 'yes').length;
+
+                if (totalAnswered > 0) {
+                    const yesPercentage = (yesCount / totalAnswered) * 100;
+                    if (yesPercentage < 50) {
+                        hasConcern = true;
+                        break;
+                    }
+                }
+            }
+
+            setMilestoneConcern(hasConcern);
+        } catch (error) {
+            console.error('Error checking milestone progress:', error);
+            setMilestoneConcern(false);
+        }
+    }, [selectedChild?.id]);
+
+    // Check milestones when child changes
+    useEffect(() => {
+        checkMilestoneProgress();
+    }, [checkMilestoneProgress]);
 
     useEffect(() => {
         if (user) {
@@ -161,7 +265,7 @@ export default function DashboardScreen() {
                             onPress={() => router.push('/children')}
                         >
                             <View style={[styles.avatarContainer, { backgroundColor: `${colorScheme.primary}20` }]}>
-                                <FontAwesome5 name="baby" size={32} color={colorScheme.primary} />
+                                <MaterialIcons name="face" size={32} color={colorScheme.primary} />
                             </View>
                             <View style={styles.childInfo}>
                                 <Text style={[styles.childName, { color: colorScheme.textPrimary }]}>
@@ -185,6 +289,42 @@ export default function DashboardScreen() {
                         </TouchableOpacity>
                     )}
                 </View>
+
+                {/* Milestone Concern Warning - shows if child has < 50% milestones achieved */}
+                {milestoneConcern && !milestoneAlertDismissed && selectedChild && (
+                    <View style={[styles.milestoneWarningBanner, {
+                        backgroundColor: `${colorScheme.warning}15`,
+                        borderColor: colorScheme.warning
+                    }]}>
+                        <View style={styles.milestoneWarningContent}>
+                            <MaterialIcons name="warning" size={24} color={colorScheme.warning} />
+                            <View style={styles.milestoneWarningText}>
+                                <Text style={[styles.milestoneWarningTitle, { color: colorScheme.textPrimary }]}>
+                                    Developmental Concern
+                                </Text>
+                                <Text style={[styles.milestoneWarningMessage, { color: colorScheme.textSecondary }]}>
+                                    {selectedChild.first_name} has achieved less than half of expected milestones. Consider booking an appointment.
+                                </Text>
+                            </View>
+                        </View>
+                        <View style={styles.milestoneWarningButtons}>
+                            <TouchableOpacity
+                                style={[styles.milestoneWarningButton, { backgroundColor: colorScheme.warning }]}
+                                onPress={() => router.push('/appointments/book')}
+                            >
+                                <Text style={styles.milestoneWarningButtonText}>Book Appointment</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.milestoneWarningButtonSecondary, { borderColor: colorScheme.warning }]}
+                                onPress={handleDismissWithReminder}
+                            >
+                                <Text style={[styles.milestoneWarningButtonSecondaryText, { color: colorScheme.warning }]}>
+                                    Remind Me Later
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                )}
 
                 {/* Quick Actions */}
                 <View style={styles.section}>
@@ -440,5 +580,59 @@ const styles = StyleSheet.create({
     },
     activityTime: {
         fontSize: Typography.fontSize.xs,
+    },
+    // Milestone Warning Banner Styles
+    milestoneWarningBanner: {
+        marginBottom: Spacing.xxl,
+        padding: Spacing.md,
+        borderRadius: BorderRadius.lg,
+        borderWidth: 1,
+    },
+    milestoneWarningContent: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        marginBottom: Spacing.md,
+    },
+    milestoneWarningText: {
+        flex: 1,
+        marginLeft: Spacing.sm,
+    },
+    milestoneWarningTitle: {
+        fontSize: Typography.fontSize.md,
+        fontWeight: Typography.fontWeight.semibold,
+        marginBottom: Spacing.xs,
+    },
+    milestoneWarningMessage: {
+        fontSize: Typography.fontSize.sm,
+        lineHeight: 20,
+    },
+    milestoneWarningButtons: {
+        flexDirection: 'row',
+        gap: Spacing.sm,
+    },
+    milestoneWarningButton: {
+        flex: 1,
+        paddingVertical: Spacing.sm,
+        paddingHorizontal: Spacing.md,
+        borderRadius: BorderRadius.md,
+        alignItems: 'center',
+    },
+    milestoneWarningButtonText: {
+        color: '#FFFFFF',
+        fontSize: Typography.fontSize.sm,
+        fontWeight: Typography.fontWeight.semibold,
+    },
+    milestoneWarningButtonSecondary: {
+        flex: 1,
+        paddingVertical: Spacing.sm,
+        paddingHorizontal: Spacing.md,
+        borderRadius: BorderRadius.md,
+        borderWidth: 1,
+        alignItems: 'center',
+        backgroundColor: 'transparent',
+    },
+    milestoneWarningButtonSecondaryText: {
+        fontSize: Typography.fontSize.sm,
+        fontWeight: Typography.fontWeight.semibold,
     },
 });

@@ -5,7 +5,6 @@ import {
     StyleSheet,
     TouchableOpacity,
     FlatList,
-    ActivityIndicator,
     Alert
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -13,13 +12,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { useChild } from '@/contexts/ChildContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { LoadingScreen } from '@/components/LoadingComponents';
 import { Spacing, Typography, BorderRadius } from '@/constants/theme';
+import { useAlert } from '@/contexts/AlertContext';
 
 export default function ChildrenListScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const { colorScheme } = useTheme();
+    const { colorScheme, isDark } = useTheme();
     const { children, loading, selectChild, selectedChild, refreshChildren, deleteChild } = useChild();
+    const { showAlert } = useAlert();
 
     useEffect(() => {
         refreshChildren();
@@ -27,11 +29,26 @@ export default function ChildrenListScreen() {
 
     const handleSelectChild = async (child) => {
         await selectChild(child);
+        // Feedback is nice but optional if we see the checkmark immediately
+        // showAlert('Success', `${child.first_name} is now the active child`, [], 'success');
+        // Actually, user wants to just select. I'll add a small toast or just relying on visual checkmark is better for speed.
+        // User said "just changes the active child". Visual feedback (checkmark) is already there.
+    };
+
+    const handleViewProfile = async (child) => {
+        // Ensure it's selected first? Or just view?
+        // Usually viewing profile implies selecting or passing ID.
+        // If we want to view profile WITHOUT selecting, we need to pass ID to route.
+        // Current route /child-profile probably uses context.
+        // Let's safe-guard by selecting it first if we want consistency, or just navigating?
+        // The user said "when I press profile is when I see the child profile".
+        // Let's assume /child-profile reads from context selectChild.
+        await selectChild(child);
         router.push('/child-profile');
     };
 
     const handleDelete = (child) => {
-        Alert.alert(
+        showAlert(
             "Delete Child",
             `Are you sure you want to delete ${child.first_name}? This action cannot be undone.`,
             [
@@ -42,12 +59,14 @@ export default function ChildrenListScreen() {
                     onPress: async () => {
                         try {
                             await deleteChild(child.id);
+                            showAlert("Success", "Child deleted successfully", [], "success");
                         } catch (error) {
-                            Alert.alert("Error", error.message);
+                            showAlert("Error", error.message, [], "error");
                         }
                     }
                 }
-            ]
+            ],
+            'warning'
         );
     };
 
@@ -71,7 +90,7 @@ export default function ChildrenListScreen() {
     const renderChildItem = ({ item }) => (
         <View style={[
             styles.childCard,
-            { backgroundColor: colorScheme.surface, borderColor: 'transparent' },
+            { backgroundColor: colorScheme.surface, borderColor: isDark ? colorScheme.border : '#000000' },
             selectedChild?.id === item.id && { borderColor: colorScheme.primary }
         ]}>
             <TouchableOpacity
@@ -79,9 +98,9 @@ export default function ChildrenListScreen() {
                 onPress={() => handleSelectChild(item)}
             >
                 <View style={[styles.avatarContainer, { backgroundColor: `${colorScheme.primary}20` }]}>
-                    <FontAwesome5
-                        name="baby"
-                        size={24}
+                    <MaterialIcons
+                        name="face"
+                        size={32}
                         color={colorScheme.primary}
                     />
                 </View>
@@ -105,6 +124,14 @@ export default function ChildrenListScreen() {
             </TouchableOpacity>
 
             <View style={[styles.actionButtons, { borderTopColor: colorScheme.border }]}>
+                <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => handleViewProfile(item)}
+                >
+                    <MaterialIcons name="person" size={20} color={colorScheme.primary} />
+                    <Text style={[styles.actionText, { color: colorScheme.primary }]}>Profile</Text>
+                </TouchableOpacity>
+                <View style={[styles.actionDivider, { backgroundColor: colorScheme.border }]} />
                 <TouchableOpacity
                     style={styles.actionButton}
                     onPress={() => router.push({ pathname: '/children/edit', params: { id: item.id } })}
@@ -146,9 +173,7 @@ export default function ChildrenListScreen() {
             </View>
 
             {loading && children.length === 0 ? (
-                <View style={styles.centerContainer}>
-                    <ActivityIndicator size="large" color={colorScheme.primary} />
-                </View>
+                <LoadingScreen text="Loading children..." />
             ) : children.length === 0 ? (
                 <View style={styles.emptyContainer}>
                     <FontAwesome5 name="baby-carriage" size={64} color={colorScheme.textSecondary} />

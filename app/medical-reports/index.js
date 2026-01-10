@@ -4,10 +4,10 @@ import {
     Text,
     StyleSheet,
     ScrollView,
-    ActivityIndicator,
     TouchableOpacity,
     Linking
 } from 'react-native';
+import { LoadingSection } from '@/components/LoadingComponents';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -109,12 +109,7 @@ export default function MedicalReportsScreen() {
 
                 {/* Loading State */}
                 {loading && (
-                    <View style={styles.centerContent}>
-                        <ActivityIndicator size="large" color={colorScheme.primary} />
-                        <Text style={[styles.statusText, { color: colorScheme.textSecondary }]}>
-                            Loading reports...
-                        </Text>
-                    </View>
+                    <LoadingSection text="Loading reports..." />
                 )}
 
                 {/* Error State */}

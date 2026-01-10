@@ -4,7 +4,7 @@
     "slug": "beacon-children-center",
     "version": "1.0.0",
     "orientation": "default",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/icon_optimized.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "splash": {
@@ -29,7 +29,7 @@
       "package": "com.beaconchildrencenter.app",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/icon_optimized.png",
         "backgroundColor": "#ffffff"
       },
       "permissions": [

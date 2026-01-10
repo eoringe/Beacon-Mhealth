@@ -5,10 +5,11 @@ import {
     StyleSheet,
     ScrollView,
     TouchableOpacity,
-    ActivityIndicator,
     TextInput,
     Alert,
     Image,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -17,8 +18,10 @@ import { Calendar } from 'react-native-calendars';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useChild } from '@/contexts/ChildContext';
 import { SafeHeader } from '@/components/SafeHeader';
+import { CustomLoading } from '@/components/CustomLoading';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import appointmentService from '@/services/appointmentService';
+import mpesaService from '@/services/mpesaService';
 
 export default function SelectSlotScreen() {
     const insets = useSafeAreaInsets();
@@ -36,6 +39,8 @@ export default function SelectSlotScreen() {
     const [reason, setReason] = useState('');
     const [notes, setNotes] = useState('');
     const [booking, setBooking] = useState(false);
+    const [processingPayment, setProcessingPayment] = useState(false);
+    const [phoneNumber, setPhoneNumber] = useState('');
     const [appointmentType, setAppointmentType] = useState('IN_PERSON');
 
     useEffect(() => {
@@ -77,18 +82,73 @@ export default function SelectSlotScreen() {
             return;
         }
 
+        const appointmentData = {
+            doctorId: doctor.id,
+            childId: selectedChild?.id || null,
+            appointmentDate: selectedDate,
+            appointmentTime: selectedTime,
+            reason: reason || null,
+            notes: notes || null,
+            appointmentType: appointmentType,
+        };
+
+        // IF TELECONSULT: Payment Flow
+        if (appointmentType === 'TELECONSULT') {
+            if (!phoneNumber) {
+                Alert.alert('Phone Required', 'Please enter your M-Pesa phone number for payment.');
+                return;
+            }
+
+            try {
+                setBooking(true);
+                setProcessingPayment(true);
+
+                // 1. Initiate Payment
+                const paymentResponse = await mpesaService.initiateAppointmentPayment(
+                    phoneNumber,
+                    1.00, // Testing Amount as requested
+                    appointmentData
+                );
+
+                // 2. Poll for Status
+                mpesaService.pollPaymentStatus(
+                    paymentResponse.checkout_request_id,
+                    (receipt) => {
+                        setBooking(false);
+                        setProcessingPayment(false);
+
+                        // Navigate to confirmation
+                        router.push({
+                            pathname: '/appointments/confirmation',
+                            params: {
+                                doctorName: doctor.name,
+                                specialty: doctor.specialty,
+                                date: selectedDate,
+                                time: selectedTime,
+                                appointmentType: appointmentType,
+                                meetLink: '',
+                                eventId: '',
+                            }
+                        });
+                        Alert.alert('Payment Successful', `Receipt: ${receipt}. Your appointment is booked.`);
+                    },
+                    (error) => {
+                        setBooking(false);
+                        setProcessingPayment(false);
+                        Alert.alert('Payment Failed', error);
+                    }
+                );
+
+            } catch (error) {
+                setBooking(false);
+                setProcessingPayment(false);
+                Alert.alert('Payment Error', error.message || 'Payment initiation failed');
+            }
+            return;
+        }
+
         try {
             setBooking(true);
-            const appointmentData = {
-                doctorId: doctor.id,
-                childId: selectedChild?.id || null,
-                appointmentDate: selectedDate,
-                appointmentTime: selectedTime,
-                reason: reason || null,
-                notes: notes || null,
-                appointmentType: appointmentType,
-            };
-
             const response = await appointmentService.createAppointment(appointmentData);
 
             // Navigate to confirmation screen
@@ -148,315 +208,346 @@ export default function SelectSlotScreen() {
         <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
             <SafeHeader title="Select Date & Time" showBack={true} />
 
-            <ScrollView
-                style={styles.content}
-                contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl }}
-                showsVerticalScrollIndicator={false}
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={{ flex: 1 }}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
             >
-                {/* Doctor Summary */}
-                <View style={styles.doctorSummary}>
-                    <View style={[styles.doctorCard, { backgroundColor: colorScheme.surface }]}>
-                        {doctor.photo_url ? (
-                            <Image
-                                source={{ uri: doctor.photo_url }}
-                                style={styles.doctorPhoto}
-                            />
-                        ) : (
-                            <View
+                <ScrollView
+                    style={styles.content}
+                    contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl + 100 }}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    {/* Doctor Summary */}
+                    <View style={styles.doctorSummary}>
+                        <View style={[styles.doctorCard, { backgroundColor: colorScheme.surface }]}>
+                            {doctor.photo_url ? (
+                                <Image
+                                    source={{ uri: doctor.photo_url }}
+                                    style={styles.doctorPhoto}
+                                />
+                            ) : (
+                                <View
+                                    style={[
+                                        styles.doctorAvatar,
+                                        { backgroundColor: colorScheme.primaryLight },
+                                    ]}
+                                >
+                                    <MaterialIcons
+                                        name="person"
+                                        size={28}
+                                        color={colorScheme.primary}
+                                    />
+                                </View>
+                            )}
+                            <View style={styles.doctorInfo}>
+                                <Text style={[styles.doctorName, { color: colorScheme.textPrimary }]}>
+                                    {doctor.name}
+                                </Text>
+                                <Text style={[styles.doctorSpecialty, { color: colorScheme.textSecondary }]}>
+                                    {doctor.specialty}
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+
+                    {/* Appointment Type Selector */}
+                    <View style={styles.section}>
+                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
+                            Appointment Type
+                        </Text>
+                        <View style={styles.typeSelector}>
+                            <TouchableOpacity
                                 style={[
-                                    styles.doctorAvatar,
-                                    { backgroundColor: colorScheme.primaryLight },
+                                    styles.typeOption,
+                                    {
+                                        backgroundColor: appointmentType === 'IN_PERSON'
+                                            ? colorScheme.primary
+                                            : colorScheme.surface,
+                                        borderColor: appointmentType === 'IN_PERSON'
+                                            ? colorScheme.primary
+                                            : colorScheme.border,
+                                    },
                                 ]}
+                                onPress={() => setAppointmentType('IN_PERSON')}
+                                activeOpacity={0.7}
                             >
                                 <MaterialIcons
-                                    name="person"
-                                    size={28}
-                                    color={colorScheme.primary}
+                                    name="location-on"
+                                    size={24}
+                                    color={appointmentType === 'IN_PERSON' ? '#FFFFFF' : colorScheme.textSecondary}
+                                />
+                                <Text
+                                    style={[
+                                        styles.typeOptionText,
+                                        {
+                                            color: appointmentType === 'IN_PERSON'
+                                                ? '#FFFFFF'
+                                                : colorScheme.textPrimary,
+                                        },
+                                    ]}
+                                >
+                                    In-Person
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[
+                                    styles.typeOption,
+                                    {
+                                        backgroundColor: appointmentType === 'TELECONSULT'
+                                            ? colorScheme.primary
+                                            : colorScheme.surface,
+                                        borderColor: appointmentType === 'TELECONSULT'
+                                            ? colorScheme.primary
+                                            : colorScheme.border,
+                                    },
+                                ]}
+                                onPress={() => setAppointmentType('TELECONSULT')}
+                                activeOpacity={0.7}
+                            >
+                                <MaterialIcons
+                                    name="video-call"
+                                    size={24}
+                                    color={appointmentType === 'TELECONSULT' ? '#FFFFFF' : colorScheme.textSecondary}
+                                />
+                                <Text
+                                    style={[
+                                        styles.typeOptionText,
+                                        {
+                                            color: appointmentType === 'TELECONSULT'
+                                                ? '#FFFFFF'
+                                                : colorScheme.textPrimary,
+                                        },
+                                    ]}
+                                >
+                                    Teleconsult
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                        {appointmentType === 'TELECONSULT' && (
+                            <View>
+                                <Text style={[styles.helperText, { color: colorScheme.info, marginBottom: Spacing.sm }]}>
+                                    📹 A Google Meet link will be generated for this appointment
+                                </Text>
+                                <Text style={[styles.label, { color: colorScheme.textPrimary, marginBottom: Spacing.xs }]}>
+                                    M-Pesa Phone Number for Payment
+                                </Text>
+                                <TextInput
+                                    style={[
+                                        styles.input,
+                                        {
+                                            backgroundColor: colorScheme.surface,
+                                            color: colorScheme.textPrimary,
+                                            borderColor: colorScheme.border,
+                                        },
+                                    ]}
+                                    placeholder="e.g., 0712345678"
+                                    placeholderTextColor={colorScheme.textTertiary}
+                                    value={phoneNumber}
+                                    onChangeText={setPhoneNumber}
+                                    keyboardType="phone-pad"
                                 />
                             </View>
                         )}
-                        <View style={styles.doctorInfo}>
-                            <Text style={[styles.doctorName, { color: colorScheme.textPrimary }]}>
-                                {doctor.name}
-                            </Text>
-                            <Text style={[styles.doctorSpecialty, { color: colorScheme.textSecondary }]}>
-                                {doctor.specialty}
-                            </Text>
+                    </View>
+
+
+                    {/* Calendar */}
+                    <View style={styles.section}>
+                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
+                            Select Date
+                        </Text>
+                        <View style={[styles.calendarCard, { backgroundColor: colorScheme.surface }]}>
+                            <Calendar
+                                onDayPress={(day) => {
+                                    if (!isWeekend(day.dateString)) {
+                                        setSelectedDate(day.dateString);
+                                    }
+                                }}
+                                markedDates={{
+                                    [selectedDate]: {
+                                        selected: true,
+                                        selectedColor: colorScheme.primary,
+                                    },
+                                }}
+                                minDate={new Date().toISOString().split('T')[0]}
+                                dayComponent={({ date, state }) => {
+                                    const isDisabled = isWeekend(date.dateString) || state === 'disabled';
+                                    return (
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                if (!isDisabled) {
+                                                    setSelectedDate(date.dateString);
+                                                }
+                                            }}
+                                            disabled={isDisabled}
+                                            style={[
+                                                styles.dayContainer,
+                                                selectedDate === date.dateString && {
+                                                    backgroundColor: colorScheme.primary,
+                                                },
+                                            ]}
+                                        >
+                                            <Text
+                                                style={[
+                                                    styles.dayText,
+                                                    {
+                                                        color: isDisabled
+                                                            ? colorScheme.textTertiary
+                                                            : selectedDate === date.dateString
+                                                                ? '#FFFFFF'
+                                                                : colorScheme.textPrimary,
+                                                    },
+                                                ]}
+                                            >
+                                                {date.day}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                }}
+                                theme={{
+                                    backgroundColor: colorScheme.surface,
+                                    calendarBackground: colorScheme.surface,
+                                    textSectionTitleColor: colorScheme.textSecondary,
+                                    monthTextColor: colorScheme.textPrimary,
+                                    textMonthFontWeight: 'bold',
+                                    arrowColor: colorScheme.primary,
+                                }}
+                            />
                         </View>
-                    </View>
-                </View>
-
-                {/* Appointment Type Selector */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
-                        Appointment Type
-                    </Text>
-                    <View style={styles.typeSelector}>
-                        <TouchableOpacity
-                            style={[
-                                styles.typeOption,
-                                {
-                                    backgroundColor: appointmentType === 'IN_PERSON'
-                                        ? colorScheme.primary
-                                        : colorScheme.surface,
-                                    borderColor: appointmentType === 'IN_PERSON'
-                                        ? colorScheme.primary
-                                        : colorScheme.border,
-                                },
-                            ]}
-                            onPress={() => setAppointmentType('IN_PERSON')}
-                            activeOpacity={0.7}
-                        >
-                            <MaterialIcons
-                                name="location-on"
-                                size={24}
-                                color={appointmentType === 'IN_PERSON' ? '#FFFFFF' : colorScheme.textSecondary}
-                            />
-                            <Text
-                                style={[
-                                    styles.typeOptionText,
-                                    {
-                                        color: appointmentType === 'IN_PERSON'
-                                            ? '#FFFFFF'
-                                            : colorScheme.textPrimary,
-                                    },
-                                ]}
-                            >
-                                In-Person
-                            </Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[
-                                styles.typeOption,
-                                {
-                                    backgroundColor: appointmentType === 'TELECONSULT'
-                                        ? colorScheme.primary
-                                        : colorScheme.surface,
-                                    borderColor: appointmentType === 'TELECONSULT'
-                                        ? colorScheme.primary
-                                        : colorScheme.border,
-                                },
-                            ]}
-                            onPress={() => setAppointmentType('TELECONSULT')}
-                            activeOpacity={0.7}
-                        >
-                            <MaterialIcons
-                                name="video-call"
-                                size={24}
-                                color={appointmentType === 'TELECONSULT' ? '#FFFFFF' : colorScheme.textSecondary}
-                            />
-                            <Text
-                                style={[
-                                    styles.typeOptionText,
-                                    {
-                                        color: appointmentType === 'TELECONSULT'
-                                            ? '#FFFFFF'
-                                            : colorScheme.textPrimary,
-                                    },
-                                ]}
-                            >
-                                Teleconsult
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-                    {appointmentType === 'TELECONSULT' && (
-                        <Text style={[styles.helperText, { color: colorScheme.info }]}>
-                            📹 A Google Meet link will be generated for this appointment
+                        <Text style={[styles.helperText, { color: colorScheme.textTertiary }]}>
+                            * Weekends are not available for appointments
                         </Text>
-                    )}
-                </View>
-
-
-                {/* Calendar */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
-                        Select Date
-                    </Text>
-                    <View style={[styles.calendarCard, { backgroundColor: colorScheme.surface }]}>
-                        <Calendar
-                            onDayPress={(day) => {
-                                if (!isWeekend(day.dateString)) {
-                                    setSelectedDate(day.dateString);
-                                }
-                            }}
-                            markedDates={{
-                                [selectedDate]: {
-                                    selected: true,
-                                    selectedColor: colorScheme.primary,
-                                },
-                            }}
-                            minDate={new Date().toISOString().split('T')[0]}
-                            dayComponent={({ date, state }) => {
-                                const isDisabled = isWeekend(date.dateString) || state === 'disabled';
-                                return (
-                                    <TouchableOpacity
-                                        onPress={() => {
-                                            if (!isDisabled) {
-                                                setSelectedDate(date.dateString);
-                                            }
-                                        }}
-                                        disabled={isDisabled}
-                                        style={[
-                                            styles.dayContainer,
-                                            selectedDate === date.dateString && {
-                                                backgroundColor: colorScheme.primary,
-                                            },
-                                        ]}
-                                    >
-                                        <Text
-                                            style={[
-                                                styles.dayText,
-                                                {
-                                                    color: isDisabled
-                                                        ? colorScheme.textTertiary
-                                                        : selectedDate === date.dateString
-                                                            ? '#FFFFFF'
-                                                            : colorScheme.textPrimary,
-                                                },
-                                            ]}
-                                        >
-                                            {date.day}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            }}
-                            theme={{
-                                backgroundColor: colorScheme.surface,
-                                calendarBackground: colorScheme.surface,
-                                textSectionTitleColor: colorScheme.textSecondary,
-                                monthTextColor: colorScheme.textPrimary,
-                                textMonthFontWeight: 'bold',
-                                arrowColor: colorScheme.primary,
-                            }}
-                        />
                     </View>
-                    <Text style={[styles.helperText, { color: colorScheme.textTertiary }]}>
-                        * Weekends are not available for appointments
-                    </Text>
-                </View>
 
-                {/* Time Slots */}
-                {selectedDate && (
-                    <View style={styles.section}>
-                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
-                            Select Time
-                        </Text>
-                        {loadingSlots ? (
-                            <View style={styles.slotsLoading}>
-                                <ActivityIndicator size="small" color={colorScheme.primary} />
-                                <Text style={[styles.loadingText, { color: colorScheme.textSecondary }]}>
-                                    Checking availability...
-                                </Text>
-                            </View>
-                        ) : availableSlots.length > 0 ? (
-                            <View style={styles.timeGrid}>
-                                {availableSlots.map((time) => (
-                                    <TouchableOpacity
-                                        key={time}
-                                        style={[
-                                            styles.timeSlot,
-                                            {
-                                                backgroundColor:
-                                                    selectedTime === time
-                                                        ? colorScheme.primary
-                                                        : colorScheme.surface,
-                                                borderColor: colorScheme.border,
-                                            },
-                                        ]}
-                                        onPress={() => setSelectedTime(time)}
-                                        activeOpacity={0.7}
-                                    >
-                                        <Text
+                    {/* Time Slots */}
+                    {selectedDate && (
+                        <View style={styles.section}>
+                            <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
+                                Select Time
+                            </Text>
+                            {loadingSlots ? (
+                                <View style={styles.slotsLoading}>
+                                    <CustomLoading size={24} text="Checking availability..." />
+                                </View>
+                            ) : availableSlots.length > 0 ? (
+                                <View style={styles.timeGrid}>
+                                    {availableSlots.map((time) => (
+                                        <TouchableOpacity
+                                            key={time}
                                             style={[
-                                                styles.timeText,
+                                                styles.timeSlot,
                                                 {
-                                                    color:
+                                                    backgroundColor:
                                                         selectedTime === time
-                                                            ? '#FFFFFF'
-                                                            : colorScheme.textPrimary,
+                                                            ? colorScheme.primary
+                                                            : colorScheme.surface,
+                                                    borderColor: colorScheme.border,
                                                 },
                                             ]}
+                                            onPress={() => setSelectedTime(time)}
+                                            activeOpacity={0.7}
                                         >
-                                            {formatTime(time)}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-                        ) : (
-                            <View style={[styles.noSlotsContainer, { backgroundColor: colorScheme.surface }]}>
-                                <MaterialIcons name="event-busy" size={48} color={colorScheme.textTertiary} />
-                                <Text style={[styles.noSlotsText, { color: colorScheme.textSecondary }]}>
-                                    No available time slots for this date
+                                            <Text
+                                                style={[
+                                                    styles.timeText,
+                                                    {
+                                                        color:
+                                                            selectedTime === time
+                                                                ? '#FFFFFF'
+                                                                : colorScheme.textPrimary,
+                                                    },
+                                                ]}
+                                            >
+                                                {formatTime(time)}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            ) : (
+                                <View style={[styles.noSlotsContainer, { backgroundColor: colorScheme.surface }]}>
+                                    <MaterialIcons name="event-busy" size={48} color={colorScheme.textTertiary} />
+                                    <Text style={[styles.noSlotsText, { color: colorScheme.textSecondary }]}>
+                                        No available time slots for this date
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+                    )}
+
+                    {/* Reason & Notes */}
+                    {selectedTime && (
+                        <View style={styles.section}>
+                            <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
+                                Appointment Details (Optional)
+                            </Text>
+                            <TextInput
+                                style={[
+                                    styles.input,
+                                    {
+                                        backgroundColor: colorScheme.surface,
+                                        color: colorScheme.textPrimary,
+                                        borderColor: colorScheme.border,
+                                    },
+                                ]}
+                                placeholder="Reason for visit"
+                                placeholderTextColor={colorScheme.textTertiary}
+                                value={reason}
+                                onChangeText={setReason}
+                            />
+                            <TextInput
+                                style={[
+                                    styles.input,
+                                    styles.notesInput,
+                                    {
+                                        backgroundColor: colorScheme.surface,
+                                        color: colorScheme.textPrimary,
+                                        borderColor: colorScheme.border,
+                                    },
+                                ]}
+                                placeholder="Additional notes"
+                                placeholderTextColor={colorScheme.textTertiary}
+                                value={notes}
+                                onChangeText={setNotes}
+                                multiline
+                                numberOfLines={3}
+                                textAlignVertical="top"
+                            />
+                        </View>
+                    )}
+
+                    {/* Book Button */}
+                    {selectedTime && (
+                        <TouchableOpacity
+                            style={[
+                                styles.bookButton,
+                                {
+                                    backgroundColor: colorScheme.primary,
+                                    opacity: booking ? 0.7 : 1,
+                                },
+                            ]}
+                            onPress={handleBookAppointment}
+                            disabled={booking}
+                            activeOpacity={0.8}
+                        >
+                            {booking ? (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                    <CustomLoading size={20} color="#FFFFFF" />
+                                    <Text style={styles.bookButtonText}>
+                                        {processingPayment ? 'Processing Payment...' : 'Booking Appointment...'}
+                                    </Text>
+                                </View>
+                            ) : (
+                                <Text style={styles.bookButtonText}>
+                                    {appointmentType === 'TELECONSULT' ? 'Pay & Book' : 'Book Appointment'}
                                 </Text>
-                            </View>
-                        )}
-                    </View>
-                )}
-
-                {/* Reason & Notes */}
-                {selectedTime && (
-                    <View style={styles.section}>
-                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
-                            Appointment Details (Optional)
-                        </Text>
-                        <TextInput
-                            style={[
-                                styles.input,
-                                {
-                                    backgroundColor: colorScheme.surface,
-                                    color: colorScheme.textPrimary,
-                                    borderColor: colorScheme.border,
-                                },
-                            ]}
-                            placeholder="Reason for visit"
-                            placeholderTextColor={colorScheme.textTertiary}
-                            value={reason}
-                            onChangeText={setReason}
-                        />
-                        <TextInput
-                            style={[
-                                styles.input,
-                                styles.notesInput,
-                                {
-                                    backgroundColor: colorScheme.surface,
-                                    color: colorScheme.textPrimary,
-                                    borderColor: colorScheme.border,
-                                },
-                            ]}
-                            placeholder="Additional notes"
-                            placeholderTextColor={colorScheme.textTertiary}
-                            value={notes}
-                            onChangeText={setNotes}
-                            multiline
-                            numberOfLines={3}
-                            textAlignVertical="top"
-                        />
-                    </View>
-                )}
-
-                {/* Book Button */}
-                {selectedTime && (
-                    <TouchableOpacity
-                        style={[
-                            styles.bookButton,
-                            {
-                                backgroundColor: colorScheme.primary,
-                                opacity: booking ? 0.7 : 1,
-                            },
-                        ]}
-                        onPress={handleBookAppointment}
-                        disabled={booking}
-                        activeOpacity={0.8}
-                    >
-                        {booking ? (
-                            <ActivityIndicator size="small" color="#FFFFFF" />
-                        ) : (
-                            <Text style={styles.bookButtonText}>Book Appointment</Text>
-                        )}
-                    </TouchableOpacity>
-                )}
-            </ScrollView>
+                            )}
+                        </TouchableOpacity>
+                    )}
+                </ScrollView>
+            </KeyboardAvoidingView>
         </View>
     );
 }

@@ -15,6 +15,10 @@ const pool = new Pool({
     idleTimeoutMillis: 30000,       // Close idle connections after 30s
     connectionTimeoutMillis: 5000,  // Fail fast if can't connect in 5s
 
+    // Keep-alive settings to prevent connection drops
+    keepAlive: true,
+    keepAliveInitialDelayMillis: 10000,
+
     // Query Settings
     statement_timeout: 30000,       // Kill queries running longer than 30s
     query_timeout: 30000,           // Client-side timeout
@@ -37,10 +41,8 @@ pool.on('remove', () => {
 
 pool.on('error', (err) => {
     console.error('❌ Database pool error:', err.message);
-    // Don't exit in production - let the pool recover
-    if (process.env.NODE_ENV !== 'production') {
-        process.exit(-1);
-    }
+    // Log detailed error but don't crash - let the pool try to recover
+    console.error('Pool will attempt to reconnect...');
 });
 
 /**

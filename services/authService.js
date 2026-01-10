@@ -1,6 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { auth } from '@/config/firebase';
+import { jwtDecode } from "jwt-decode";
+import { decode } from "base-64";
+global.atob = decode; // Polyfill for jwt-decode
 
 const getApiUrl = () => {
     if (Platform.OS === 'web') return 'http://localhost:3000/api';
@@ -29,10 +33,55 @@ class AuthService {
         }
     }
 
-    // Get auth token
+    // Get auth token with auto-refresh logic
     async getToken() {
         try {
-            return await AsyncStorage.getItem('authToken');
+            let token = await AsyncStorage.getItem('authToken');
+
+            if (!token) {
+                // If no stored token, try to get fresh from Firebase if user is logged in
+                const user = auth.currentUser;
+                if (user) {
+                    console.log('AuthService: No stored token, fetching fresh one from Firebase');
+                    token = await user.getIdToken(true);
+                    await this.storeToken(token);
+                    return token;
+                }
+                return null;
+            }
+
+            // Check if token is expired or about to expire
+            try {
+                const decoded = jwtDecode(token);
+                const currentTime = Date.now() / 1000;
+
+                // Buffer time (e.g., refresh if expiring in next 5 minutes)
+                const BUFFER = 300;
+
+                if (decoded.exp < currentTime + BUFFER) {
+                    console.log('AuthService: Token expired or expiring soon, refreshing...');
+                    const user = auth.currentUser;
+                    if (user) {
+                        token = await user.getIdToken(true);
+                        console.log('AuthService: Token refreshed successfully');
+                        await this.storeToken(token);
+                        return token;
+                    } else {
+                        console.warn('AuthService: Token expired but no Firebase user found to refresh');
+                        // Optionally force logout here or return null
+                    }
+                }
+            } catch (decodeError) {
+                console.error('AuthService: Error validating token, fetching new one:', decodeError);
+                const user = auth.currentUser;
+                if (user) {
+                    token = await user.getIdToken(true);
+                    await this.storeToken(token);
+                    return token;
+                }
+            }
+
+            return token;
         } catch (error) {
             console.error('Error getting token:', error);
             return null;
@@ -106,7 +155,7 @@ class AuthService {
     // Get user profile from backend
     async getProfile() {
         try {
-            const token = await this.getToken();
+            const token = await this.getToken(); // Uses refreshed token
 
             if (!token) {
                 throw new Error('No authentication token');
@@ -118,6 +167,11 @@ class AuthService {
                     'Authorization': `Bearer ${token}`
                 }
             });
+
+            if (response.status === 401) {
+                // Double retry logic could go here if needed, but getToken handles mostly
+                throw new Error('Unauthorized');
+            }
 
             if (!response.ok) {
                 throw new Error('Failed to get profile');
@@ -133,7 +187,7 @@ class AuthService {
     // Update FCM token
     async updateFCMToken(fcmToken) {
         try {
-            const token = await this.getToken();
+            const token = await this.getToken(); // Uses refreshed token
 
             if (!token) {
                 throw new Error('No authentication token');
@@ -161,6 +215,14 @@ class AuthService {
 
     // Logout
     async logout() {
+        try {
+            const user = auth.currentUser;
+            if (user) {
+                await auth.signOut();
+            }
+        } catch (e) {
+            console.error('Firebase signout error:', e);
+        }
         await this.removeToken();
     }
 }

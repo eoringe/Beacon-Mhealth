@@ -5,7 +5,6 @@ import {
     StyleSheet,
     ScrollView,
     TouchableOpacity,
-    ActivityIndicator,
     Alert,
     Image,
 } from 'react-native';
@@ -15,6 +14,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
 import { SafeHeader } from '@/components/SafeHeader';
+import { LoadingScreen } from '@/components/LoadingComponents';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import appointmentService from '@/services/appointmentService';
 
@@ -71,12 +71,7 @@ export default function BookAppointmentScreen() {
         return (
             <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
                 <SafeHeader title="Select Doctor" showBack={true} />
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={colorScheme.primary} />
-                    <Text style={[styles.loadingText, { color: colorScheme.textSecondary }]}>
-                        Loading doctors...
-                    </Text>
-                </View>
+                <LoadingScreen text="Loading doctors..." />
             </View>
         );
     }

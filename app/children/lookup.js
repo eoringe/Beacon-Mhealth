@@ -9,8 +9,8 @@ import {
     KeyboardAvoidingView,
     Platform,
     Alert,
-    ActivityIndicator
 } from 'react-native';
+import { CustomLoading } from '@/components/CustomLoading';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -105,10 +105,12 @@ export default function PatientLookupScreen() {
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={{ flex: 1 }}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
             >
                 <ScrollView
-                    contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing.xl }]}
+                    contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + Spacing.xl + 100 }]}
                     showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
                 >
                     {/* Search Section */}
                     <View style={[styles.searchCard, { backgroundColor: colorScheme.surface }]}>
@@ -137,7 +139,7 @@ export default function PatientLookupScreen() {
                                 disabled={loading}
                             >
                                 {loading ? (
-                                    <ActivityIndicator color="#FFFFFF" size="small" />
+                                    <CustomLoading size={20} color="#FFFFFF" />
                                 ) : (
                                     <MaterialIcons name="search" size={24} color="#FFFFFF" />
                                 )}
@@ -314,7 +316,7 @@ export default function PatientLookupScreen() {
                                 disabled={saving}
                             >
                                 {saving ? (
-                                    <ActivityIndicator color="#FFFFFF" />
+                                    <CustomLoading size={20} color="#FFFFFF" />
                                 ) : (
                                     <>
                                         <MaterialIcons name="person-add" size={20} color="#FFFFFF" />

@@ -9,18 +9,20 @@ import {
     KeyboardAvoidingView,
     Platform,
     Alert,
-    ActivityIndicator
 } from 'react-native';
+import { CustomLoading } from '@/components/CustomLoading';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useChild } from '@/contexts/ChildContext';
 import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useAlert } from '@/contexts/AlertContext';
 
 export default function EditChildScreen() {
     const router = useRouter();
     const { id } = useLocalSearchParams();
     const { children, updateChild } = useChild();
+    const { showAlert } = useAlert();
     const [loading, setLoading] = useState(false);
 
     const [firstName, setFirstName] = useState('');
@@ -42,15 +44,15 @@ export default function EditChildScreen() {
                 setBloodType(child.blood_type || '');
                 setAllergies(child.allergies || '');
             } else {
-                Alert.alert('Error', 'Child not found');
-                router.back();
+                showAlert('Error', 'Child not found', [{ text: 'OK', onPress: () => router.back() }], 'error');
+                // Note: router.back() is called in onPress to ensure user sees error
             }
         }
     }, [id, children]);
 
     const handleSave = async () => {
         if (!firstName || !gender) {
-            Alert.alert('Error', 'First Name and Gender are required');
+            showAlert('Error', 'First Name and Gender are required', [], 'error');
             return;
         }
 
@@ -64,11 +66,11 @@ export default function EditChildScreen() {
                 bloodType,
                 allergies
             });
-            Alert.alert('Success', 'Child profile updated successfully', [
+            showAlert('Success', 'Child profile updated successfully', [
                 { text: 'OK', onPress: () => router.back() }
-            ]);
+            ], 'success');
         } catch (error) {
-            Alert.alert('Error', error.message);
+            showAlert('Error', error.message, [], 'error');
         } finally {
             setLoading(false);
         }
@@ -93,8 +95,12 @@ export default function EditChildScreen() {
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={{ flex: 1 }}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
             >
-                <ScrollView contentContainerStyle={styles.content}>
+                <ScrollView
+                    contentContainerStyle={[styles.content, { paddingBottom: 100 }]}
+                    keyboardShouldPersistTaps="handled"
+                >
                     <View style={styles.inputGroup}>
                         <Text style={styles.label}>First Name *</Text>
                         <TextInput
@@ -190,7 +196,7 @@ export default function EditChildScreen() {
                         disabled={loading}
                     >
                         {loading ? (
-                            <ActivityIndicator color={Colors.white} />
+                            <CustomLoading size={20} color="#FFFFFF" />
                         ) : (
                             <Text style={styles.saveButtonText}>Update Profile</Text>
                         )}

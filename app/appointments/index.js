@@ -5,7 +5,6 @@ import {
     StyleSheet,
     ScrollView,
     TouchableOpacity,
-    ActivityIndicator,
     Alert,
     Image,
     RefreshControl,
@@ -28,11 +27,13 @@ import { SafeHeader } from '@/components/SafeHeader';
 import { CustomLoading } from '@/components/CustomLoading';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import appointmentService from '@/services/appointmentService';
+import { useAlert } from '@/contexts/AlertContext';
 
 export default function AppointmentsScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { colorScheme } = useTheme();
+    const { showAlert } = useAlert();
 
     const [appointments, setAppointments] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -52,7 +53,7 @@ export default function AppointmentsScreen() {
             const data = await appointmentService.getAppointments();
             setAppointments(data);
         } catch (error) {
-            Alert.alert('Error', 'Failed to load appointments');
+            showAlert('Error', 'Failed to load appointments', [], 'error');
             console.error('Error fetching appointments:', error);
         } finally {
             setLoading(false);
@@ -61,7 +62,7 @@ export default function AppointmentsScreen() {
     };
 
     const handleCancelAppointment = async (appointmentId, doctorName) => {
-        Alert.alert(
+        showAlert(
             'Cancel Appointment',
             `Are you sure you want to cancel your appointment with ${doctorName}?`,
             [
@@ -72,20 +73,21 @@ export default function AppointmentsScreen() {
                     onPress: async () => {
                         try {
                             await appointmentService.cancelAppointment(appointmentId);
-                            Alert.alert('Success', 'Appointment cancelled successfully');
+                            showAlert('Success', 'Appointment cancelled successfully', [], 'success');
                             fetchAppointments();
                         } catch (error) {
-                            Alert.alert('Error', 'Failed to cancel appointment');
+                            showAlert('Error', 'Failed to cancel appointment', [], 'error');
                             console.error('Error cancelling appointment:', error);
                         }
                     },
                 },
-            ]
+            ],
+            'warning'
         );
     };
 
     const handleDeleteAppointment = async (appointmentId) => {
-        Alert.alert(
+        showAlert(
             'Delete Appointment',
             'Are you sure you want to remove this appointment from your history?',
             [
@@ -98,12 +100,13 @@ export default function AppointmentsScreen() {
                             await appointmentService.deleteAppointment(appointmentId);
                             fetchAppointments();
                         } catch (error) {
-                            Alert.alert('Error', 'Failed to delete appointment');
+                            showAlert('Error', 'Failed to delete appointment', [], 'error');
                             console.error('Error deleting appointment:', error);
                         }
                     },
                 },
-            ]
+            ],
+            'warning'
         );
     };
 

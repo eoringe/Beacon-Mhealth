@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import cacheService from './cacheService';
 
 const getApiUrl = () => {
     if (Platform.OS === 'web') return 'http://localhost:3000/api';
@@ -30,60 +31,87 @@ class AppointmentService {
         }
     }
 
-    // Get all available doctors
-    async getDoctors() {
+    // Get all available doctors (cached - doctors rarely change)
+    async getDoctors(forceRefresh = false) {
         try {
             const token = await this.getToken();
             if (!token) throw new Error('No authentication token');
 
-            const response = await fetch(`${API_URL}/appointments/doctors`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+            const cacheKey = 'doctors_list';
 
-            if (!response.ok) {
-                const text = await response.text();
-                console.error(`Fetch doctors failed: ${response.status} ${text}`);
-                throw new Error(`Failed to fetch doctors: ${response.status}`);
+            const result = await cacheService.fetchWithCache(
+                cacheKey,
+                async () => {
+                    const response = await fetch(`${API_URL}/appointments/doctors`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        const text = await response.text();
+                        console.error(`Fetch doctors failed: ${response.status} ${text}`);
+                        throw new Error(`Failed to fetch doctors: ${response.status}`);
+                    }
+
+                    const json = await response.json();
+                    return Array.isArray(json) ? json : (json.data || []);
+                },
+                { forceRefresh }
+            );
+
+            if (result.fromCache) {
+                console.log('[AppointmentService] Loaded doctors from cache');
             }
 
-            const json = await response.json();
-            // Handle both unwrapped array (legacy) and wrapped response (new)
-            return Array.isArray(json) ? json : (json.data || []);
+            return result.data;
         } catch (error) {
             console.error('Error fetching doctors:', error);
             throw error;
         }
     }
 
-    // Get specializations
-    async getSpecializations() {
+    // Get specializations (cached - rarely changes)
+    async getSpecializations(forceRefresh = false) {
         try {
             const token = await this.getToken();
             if (!token) throw new Error('No authentication token');
 
-            const response = await fetch(`${API_URL}/appointments/specializations`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
+            const cacheKey = 'specializations_list';
 
-            if (!response.ok) {
-                throw new Error('Failed to fetch specializations');
+            const result = await cacheService.fetchWithCache(
+                cacheKey,
+                async () => {
+                    const response = await fetch(`${API_URL}/appointments/specializations`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch specializations');
+                    }
+
+                    const json = await response.json();
+                    return json.data || [];
+                },
+                { forceRefresh }
+            );
+
+            if (result.fromCache) {
+                console.log('[AppointmentService] Loaded specializations from cache');
             }
 
-            const json = await response.json();
-            return json.data || [];
+            return result.data;
         } catch (error) {
             console.error('Error fetching specializations:', error);
             return [];
         }
     }
 
-    // Get available time slots for a doctor on a specific date
+    // Get available time slots for a doctor on a specific date (NOT cached - real-time availability)
     async getDoctorAvailability(doctorId, date) {
         try {
             const token = await this.getToken();
@@ -133,6 +161,9 @@ class AppointmentService {
                 throw new Error(errorData.error || `Failed to create appointment: ${response.status}`);
             }
 
+            // Invalidate appointments cache on mutation
+            await cacheService.invalidatePattern('appointments');
+
             return await response.json();
         } catch (error) {
             console.error('Error creating appointment:', error);
@@ -140,31 +171,45 @@ class AppointmentService {
         }
     }
 
-    // Get user's appointments
-    async getAppointments(status = null) {
+    // Get user's appointments (cached)
+    async getAppointments(status = null, forceRefresh = false) {
         try {
             const token = await this.getToken();
             if (!token) throw new Error('No authentication token');
 
-            let url = `${API_URL}/appointments`;
-            if (status) {
-                url += `?status=${status}`;
+            const cacheKey = status ? `appointments_${status}` : 'appointments_all';
+
+            const result = await cacheService.fetchWithCache(
+                cacheKey,
+                async () => {
+                    let url = `${API_URL}/appointments`;
+                    if (status) {
+                        url += `?status=${status}`;
+                    }
+
+                    const response = await fetch(url, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    if (!response.ok) {
+                        const text = await response.text();
+                        console.error(`Fetch appointments failed: ${response.status} ${text}`);
+                        throw new Error(`Failed to fetch appointments: ${response.status}`);
+                    }
+
+                    return await response.json();
+                },
+                { forceRefresh }
+            );
+
+            if (result.fromCache) {
+                console.log(`[AppointmentService] Loaded appointments from cache`);
             }
 
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            if (!response.ok) {
-                const text = await response.text();
-                console.error(`Fetch appointments failed: ${response.status} ${text}`);
-                throw new Error(`Failed to fetch appointments: ${response.status}`);
-            }
-
-            return await response.json();
+            return result.data;
         } catch (error) {
             console.error('Error fetching appointments:', error);
             throw error;
@@ -189,6 +234,9 @@ class AppointmentService {
                 console.error(`Cancel appointment failed: ${response.status}`, errorData);
                 throw new Error(errorData.error || `Failed to cancel appointment: ${response.status}`);
             }
+
+            // Invalidate appointments cache
+            await cacheService.invalidatePattern('appointments');
 
             return await response.json();
         } catch (error) {
@@ -216,6 +264,9 @@ class AppointmentService {
                 throw new Error(errorData.error || `Failed to delete appointment: ${response.status}`);
             }
 
+            // Invalidate appointments cache
+            await cacheService.invalidatePattern('appointments');
+
             return await response.json();
         } catch (error) {
             console.error('Error deleting appointment:', error);
@@ -225,3 +276,4 @@ class AppointmentService {
 }
 
 export default new AppointmentService();
+

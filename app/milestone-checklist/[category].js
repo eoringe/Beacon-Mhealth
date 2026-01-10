@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -92,7 +92,6 @@ export default function MilestoneCategory() {
   const [milestoneResponses, setMilestoneResponses] = useState({});
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [showAlertModal, setShowAlertModal] = useState(false);
   const [scrollViewRef, setScrollViewRef] = useState(null);
   const [scrollPosition, setScrollPosition] = useState(0);
   const [contentWidth, setContentWidth] = useState(0);
@@ -139,7 +138,23 @@ export default function MilestoneCategory() {
   // Save milestone responses to database whenever they change
   useEffect(() => {
     const saveMilestoneResponses = async () => {
-      if (!selectedChild?.id || Object.keys(milestoneResponses).length === 0) return;
+      // Validate all required parameters before attempting to save
+      if (!selectedChild?.id) {
+        console.log('[Milestone] No child selected, skipping save');
+        return;
+      }
+      if (!selectedAge && selectedAge !== 0) {
+        console.log('[Milestone] No age selected, skipping save');
+        return;
+      }
+      if (!category) {
+        console.log('[Milestone] No category selected, skipping save');
+        return;
+      }
+      if (!milestoneResponses || Object.keys(milestoneResponses).length === 0) {
+        console.log('[Milestone] No responses to save, skipping');
+        return;
+      }
 
       setSaving(true);
       try {
@@ -149,9 +164,7 @@ export default function MilestoneCategory() {
           category,
           milestoneResponses
         );
-
-        // Check milestone progress after saving
-        checkMilestoneProgress();
+        // Note: Milestone progress warning is now shown on Dashboard instead
       } catch (error) {
         console.error('Error saving milestone responses:', error);
       } finally {
@@ -164,37 +177,6 @@ export default function MilestoneCategory() {
     return () => clearTimeout(timeoutId);
   }, [milestoneResponses, selectedChild?.id, selectedAge, category]);
 
-  // Check if milestone progress is concerning and alert parent
-  const checkMilestoneProgress = async () => {
-    try {
-      // Get all responses for this age to check overall progress
-      const allResponses = await milestoneService.getAllMilestoneResponsesForChild(selectedChild.id);
-
-      // Filter for current age
-      const currentAgeResponses = allResponses.filter(r => r.age_months === selectedAge);
-
-      if (currentAgeResponses.length === 0) return;
-
-      // Count total 'yes' responses across all categories for this age
-      let totalYes = 0;
-      let totalQuestions = 0;
-
-      currentAgeResponses.forEach(categoryData => {
-        const responses = categoryData.responses;
-        const yesCount = Object.values(responses).filter(r => r === 'yes').length;
-        totalYes += yesCount;
-        totalQuestions += Object.keys(responses).length;
-      });
-
-      // Show modal if less than 3 'yes' responses across all categories
-      if (totalQuestions >= 5 && totalYes < 3) {
-        setShowAlertModal(true);
-      }
-    } catch (error) {
-      console.error('Error checking milestone progress:', error);
-    }
-  };
-
   const handleResponse = (milestoneIndex, response) => {
     const updatedResponses = {
       ...milestoneResponses,
@@ -203,24 +185,14 @@ export default function MilestoneCategory() {
 
     setMilestoneResponses(updatedResponses);
 
-    // Check if all milestones are answered
+    // Check if all milestones are answered - add completion notification (silent, no modal)
     if (Object.keys(updatedResponses).length === milestones.length && Object.keys(milestoneResponses).length < milestones.length) {
       addNotification({
         category: 'milestones',
         title: 'Checklist Completed',
         message: `You've completed the ${selectedAge}-month milestone checklist for ${categoryInfo?.title || 'this category'}.`,
       });
-    }
 
-    // Check immediately if we should show the alert
-    const responseValues = Object.values(updatedResponses);
-    const answeredCount = responseValues.length;
-    const yesCount = responseValues.filter(r => r === 'yes').length;
-
-    // Show modal immediately when 5+ questions answered with <3 yes
-    if (answeredCount >= 5 && yesCount < 3) {
-      // Small delay to ensure state is updated
-      setTimeout(() => setShowAlertModal(true), 100);
     }
   };
 
@@ -360,12 +332,12 @@ export default function MilestoneCategory() {
               </View>
             </View>
 
-            {/* Warning banner if yes responses are concerning */}
-            {answered >= 5 && yes < 3 && (
+            {/* Warning banner if yes responses are concerning - show only when all answered */}
+            {answered === total && total > 0 && (yes / total) < 0.5 && (
               <View style={[styles.warningBanner, { backgroundColor: `${colorScheme.warning}15`, borderColor: colorScheme.warning }]}>
                 <MaterialIcons name="warning" size={20} color={colorScheme.warning} />
                 <Text style={[styles.warningText, { color: colorScheme.warning }]}>
-                  Fewer than 3 "Yes" responses. Consider booking an appointment.
+                  Less than half of milestones achieved. Consider booking an appointment.
                 </Text>
               </View>
             )}
@@ -445,67 +417,6 @@ export default function MilestoneCategory() {
           );
         })}
       </ScrollView>
-
-      {/* Custom Alert Modal */}
-      <Modal
-        visible={showAlertModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowAlertModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContainer, { backgroundColor: colorScheme.surface }]}>
-            {/* Warning Icon */}
-            <View style={[styles.modalIconContainer, { backgroundColor: `${colorScheme.warning}15` }]}>
-              <MaterialIcons name="warning" size={48} color={colorScheme.warning} />
-            </View>
-
-            {/* Title */}
-            <Text style={[styles.modalTitle, { color: colorScheme.textPrimary }]}>
-              Developmental Concern
-            </Text>
-
-            {/* Message */}
-            <Text style={[styles.modalMessage, { color: colorScheme.textSecondary }]}>
-              Your child has fewer than 3 "Yes" responses for {selectedAge}-month milestones.
-              {'\n\n'}
-              We recommend booking an appointment with your healthcare provider to discuss your child's development.
-            </Text>
-
-            {/* Buttons */}
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonSecondary, {
-                  backgroundColor: colorScheme.background,
-                  borderColor: colorScheme.border
-                }]}
-                onPress={() => {
-                  setShowAlertModal(false);
-                  scheduleReminder(selectedAge);
-                }}
-              >
-                <Text style={[styles.modalButtonText, { color: colorScheme.textSecondary }]}>
-                  Remind Me Later
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonPrimary, {
-                  backgroundColor: colorScheme.primary
-                }]}
-                onPress={() => {
-                  setShowAlertModal(false);
-                  router.push('/appointments/book');
-                }}
-              >
-                <Text style={[styles.modalButtonText, { color: '#FFFFFF' }]}>
-                  Book Appointment
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -636,60 +547,4 @@ const styles = StyleSheet.create({
     fontWeight: Typography.fontWeight.medium,
   },
   // Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: Spacing.xl,
-  },
-  modalContainer: {
-    width: '100%',
-    maxWidth: 400,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.xl,
-    ...Shadow.lg,
-  },
-  modalIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: BorderRadius.xxl,
-    justifyContent: 'center',
-    alignItems: 'center',
-    alignSelf: 'center',
-    marginBottom: Spacing.lg,
-  },
-  modalTitle: {
-    fontSize: Typography.fontSize.xl,
-    fontWeight: Typography.fontWeight.bold,
-    textAlign: 'center',
-    marginBottom: Spacing.md,
-  },
-  modalMessage: {
-    fontSize: Typography.fontSize.base,
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: Spacing.xl,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalButtonSecondary: {
-    borderWidth: 1.5,
-  },
-  modalButtonPrimary: {
-    ...Shadow.md,
-  },
-  modalButtonText: {
-    fontSize: Typography.fontSize.base,
-    fontWeight: Typography.fontWeight.semibold,
-  },
 });

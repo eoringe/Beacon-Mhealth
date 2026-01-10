@@ -13,6 +13,7 @@ import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ChildProvider } from '@/contexts/ChildContext';
 import { NotificationProvider } from '@/contexts/NotificationContext';
+import { AlertProvider } from '@/contexts/AlertContext';
 import { Colors } from '@/constants/theme';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
@@ -57,13 +58,15 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider key={key}>
       <ThemeProvider>
-        <AuthProvider>
-          <NotificationProvider>
-            <ChildProvider>
-              <NavigationWrapper />
-            </ChildProvider>
-          </NotificationProvider>
-        </AuthProvider>
+        <AlertProvider>
+          <AuthProvider>
+            <NotificationProvider>
+              <ChildProvider>
+                <NavigationWrapper />
+              </ChildProvider>
+            </NotificationProvider>
+          </AuthProvider>
+        </AlertProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

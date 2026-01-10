@@ -5,6 +5,7 @@
 
 import AuthService, { API_URL } from './authService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import cacheService from './cacheService';
 
 const getAuthToken = async () => {
     try {
@@ -20,30 +21,40 @@ const getAuthToken = async () => {
  * Lookup patient by registration number
  * Returns comprehensive patient data including parent, last visit, and latest triage
  */
-export const lookupPatient = async (registrationNumber) => {
+export const lookupPatient = async (registrationNumber, forceRefresh = false) => {
     try {
         const token = await getAuthToken();
         if (!token) {
             throw new Error('Not authenticated');
         }
 
-        const response = await fetch(
-            `${API_URL}/patients/lookup/${encodeURIComponent(registrationNumber)}`,
-            {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            }
+        const cacheKey = `patient_${registrationNumber}`;
+
+        const result = await cacheService.fetchWithCache(
+            cacheKey,
+            async () => {
+                const response = await fetch(
+                    `${API_URL}/patients/lookup/${encodeURIComponent(registrationNumber)}`,
+                    {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                    }
+                );
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to lookup patient');
+                }
+
+                return await response.json();
+            },
+            { forceRefresh }
         );
 
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to lookup patient');
-        }
-
-        return await response.json();
+        return result.data;
     } catch (error) {
         console.error('Error looking up patient:', error);
         throw error;
@@ -51,7 +62,7 @@ export const lookupPatient = async (registrationNumber) => {
 };
 
 /**
- * Search patients by name or registration number
+ * Search patients by name or registration number (NOT cached - search results should be fresh)
  */
 export const searchPatients = async (query) => {
     try {
@@ -84,33 +95,43 @@ export const searchPatients = async (query) => {
 };
 
 /**
- * Get media/documents for a child by registration number
+ * Get media/documents for a child by registration number (cached)
  */
-export const getMediaList = async (registrationNumber) => {
+export const getMediaList = async (registrationNumber, forceRefresh = false) => {
     try {
         const token = await getAuthToken();
         if (!token) {
             throw new Error('Not authenticated');
         }
 
-        const response = await fetch(
-            `${API_URL}/media/${encodeURIComponent(registrationNumber)}`,
-            {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            }
+        const cacheKey = `media_${registrationNumber}`;
+
+        const result = await cacheService.fetchWithCache(
+            cacheKey,
+            async () => {
+                const response = await fetch(
+                    `${API_URL}/media/${encodeURIComponent(registrationNumber)}`,
+                    {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                    }
+                );
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to fetch media');
+                }
+
+                const result = await response.json();
+                return result.data || [];
+            },
+            { forceRefresh }
         );
 
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to fetch media');
-        }
-
-        const result = await response.json();
-        return result.data || [];
+        return result.data;
     } catch (error) {
         console.error('Error fetching media:', error);
         throw error;
@@ -125,33 +146,43 @@ export const getMediaDownloadUrl = (mediaId) => {
 };
 
 /**
- * Get prescriptions for a child by registration number
+ * Get prescriptions for a child by registration number (cached)
  */
-export const getPrescriptions = async (registrationNumber) => {
+export const getPrescriptions = async (registrationNumber, forceRefresh = false) => {
     try {
         const token = await getAuthToken();
         if (!token) {
             throw new Error('Not authenticated');
         }
 
-        const response = await fetch(
-            `${API_URL}/prescriptions/${encodeURIComponent(registrationNumber)}`,
-            {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-            }
+        const cacheKey = `prescriptions_${registrationNumber}`;
+
+        const result = await cacheService.fetchWithCache(
+            cacheKey,
+            async () => {
+                const response = await fetch(
+                    `${API_URL}/prescriptions/${encodeURIComponent(registrationNumber)}`,
+                    {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json',
+                        },
+                    }
+                );
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to fetch prescriptions');
+                }
+
+                const result = await response.json();
+                return result.data || [];
+            },
+            { forceRefresh }
         );
 
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to fetch prescriptions');
-        }
-
-        const result = await response.json();
-        return result.data || [];
+        return result.data;
     } catch (error) {
         console.error('Error fetching prescriptions:', error);
         throw error;
@@ -165,3 +196,4 @@ export default {
     getMediaDownloadUrl,
     getPrescriptions,
 };
+

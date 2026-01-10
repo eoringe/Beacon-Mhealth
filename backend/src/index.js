@@ -22,6 +22,8 @@ const patientRoutes = require('./routes/patients');
 const mediaRoutes = require('./routes/media');
 const prescriptionRoutes = require('./routes/prescriptions');
 const doctorRoutes = require('./routes/doctors');
+const syncRoutes = require('./routes/sync');
+const mpesaRoutes = require('./routes/mpesa');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -77,6 +79,8 @@ app.use('/api/patients', patientRoutes);
 app.use('/api/media', mediaRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);
 app.use('/api/doctors', doctorRoutes);
+app.use('/api/sync', syncRoutes);
+app.use('/api/mpesa', mpesaRoutes);
 
 // 404 handler
 app.use((req, res) => {

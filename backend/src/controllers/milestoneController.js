@@ -8,8 +8,8 @@ exports.saveMilestoneResponses = async (req, res) => {
         const { ageMonths, category, responses } = req.body;
         const userId = req.user.id;
 
-        // Validation
-        if (!childId || !ageMonths || !category || !responses) {
+        // Validation - use explicit checks since ageMonths can be 0 (Birth)
+        if (!childId || ageMonths === undefined || ageMonths === null || !category || !responses) {
             return res.status(400).json({ error: 'Child ID, age, category, and responses are required' });
         }
 

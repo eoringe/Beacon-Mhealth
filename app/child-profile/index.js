@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
     View,
     Text,
@@ -6,14 +6,15 @@ import {
     ScrollView,
     TouchableOpacity,
     Image,
-    ActivityIndicator,
-    Alert
+    Alert,
+    RefreshControl
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { SafeHeader } from '@/components/SafeHeader';
+import { LoadingSection } from '@/components/LoadingComponents';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import patientService from '@/services/patientService';
 
@@ -28,6 +29,7 @@ export default function ChildProfileScreen() {
     const [loadingClinical, setLoadingClinical] = useState(false);
     const [mediaList, setMediaList] = useState([]);
     const [loadingMedia, setLoadingMedia] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
 
     // Placeholder data for sections not yet connected to backend
     const childData = {
@@ -64,10 +66,10 @@ export default function ChildProfileScreen() {
         }
     }, [selectedChild]);
 
-    const fetchClinicalData = async () => {
+    const fetchClinicalData = async (forceRefresh = false) => {
         try {
             setLoadingClinical(true);
-            const data = await patientService.lookupPatient(selectedChild.registration_number);
+            const data = await patientService.lookupPatient(selectedChild.registration_number, forceRefresh);
             setClinicalData(data);
         } catch (error) {
             console.error('Error fetching clinical data:', error);
@@ -76,10 +78,10 @@ export default function ChildProfileScreen() {
         }
     };
 
-    const fetchMediaList = async () => {
+    const fetchMediaList = async (forceRefresh = false) => {
         try {
             setLoadingMedia(true);
-            const media = await patientService.getMediaList(selectedChild.registration_number);
+            const media = await patientService.getMediaList(selectedChild.registration_number, forceRefresh);
             setMediaList(media);
         } catch (error) {
             console.error('Error fetching media:', error);
@@ -87,6 +89,23 @@ export default function ChildProfileScreen() {
             setLoadingMedia(false);
         }
     };
+
+    // Pull-to-refresh handler
+    const onRefresh = useCallback(async () => {
+        if (!selectedChild?.registration_number) return;
+
+        setRefreshing(true);
+        console.log('🔄 PULL TO REFRESH: Fetching fresh data from remote...');
+
+        try {
+            await Promise.all([
+                fetchClinicalData(true),
+                fetchMediaList(true)
+            ]);
+        } finally {
+            setRefreshing(false);
+        }
+    }, [selectedChild]);
 
     const handleOpenReport = (media) => {
         const downloadUrl = patientService.getMediaDownloadUrl(media.id);
@@ -171,6 +190,14 @@ export default function ChildProfileScreen() {
                 style={styles.content}
                 contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl }}
                 showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        tintColor={colorScheme.primary}
+                        colors={[colorScheme.primary]}
+                    />
+                }
             >
                 {/* Profile Header */}
                 <View style={[styles.headerSection, { backgroundColor: colorScheme.surface }]}>
@@ -218,7 +245,7 @@ export default function ChildProfileScreen() {
                         </View>
 
                         {loadingClinical ? (
-                            <ActivityIndicator size="small" color={colorScheme.primary} />
+                            <LoadingSection text="Loading clinic details..." />
                         ) : clinicalData ? (
                             <View style={{ gap: Spacing.md }}>
                                 {/* Parent/Guardian Info */}
@@ -342,7 +369,7 @@ export default function ChildProfileScreen() {
                         </View>
 
                         {loadingMedia ? (
-                            <ActivityIndicator size="small" color={colorScheme.primary} />
+                            <LoadingSection text="Loading reports..." />
                         ) : mediaList.length > 0 ? (
                             <View style={{ gap: Spacing.sm }}>
                                 {mediaList.map((media, index) => (

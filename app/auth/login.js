@@ -12,8 +12,8 @@ import {
     Keyboard,
     Image,
     Alert,
-    ActivityIndicator
 } from 'react-native';
+import { CustomLoading } from '@/components/CustomLoading';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons, Feather } from '@expo/vector-icons';
@@ -245,7 +245,7 @@ export default function AuthScreen() {
                                     disabled={loading}
                                 >
                                     {loading ? (
-                                        <ActivityIndicator color="#FFFFFF" />
+                                        <CustomLoading size={20} color="#FFFFFF" />
                                     ) : (
                                         <Text style={styles.primaryButtonText}>Log In</Text>
                                     )}

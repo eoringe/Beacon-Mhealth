@@ -1,5 +1,6 @@
 import { API_URL } from './authService';
 import { getAuth } from 'firebase/auth';
+import cacheService from './cacheService';
 
 const getHeaders = async () => {
     const auth = getAuth();
@@ -29,6 +30,10 @@ export const milestoneService = {
             if (!response.ok) {
                 throw new Error(data.error || 'Failed to save milestone responses');
             }
+
+            // Invalidate milestone caches on save
+            await cacheService.invalidatePattern(`milestones_${childId}`);
+
             return data;
         } catch (error) {
             console.error('Error saving milestone responses:', error);
@@ -37,19 +42,32 @@ export const milestoneService = {
     },
 
     // Get milestone responses for a specific child, age, and category
-    getMilestoneResponses: async (childId, ageMonths, category) => {
+    getMilestoneResponses: async (childId, ageMonths, category, forceRefresh = false) => {
         try {
             const headers = await getHeaders();
-            const response = await fetch(
-                `${API_URL}/milestones/${childId}?ageMonths=${ageMonths}&category=${category}`,
-                { headers }
+            const cacheKey = `milestones_${childId}_${ageMonths}_${category}`;
+
+            const result = await cacheService.fetchWithCache(
+                cacheKey,
+                async () => {
+                    const response = await fetch(
+                        `${API_URL}/milestones/${childId}?ageMonths=${ageMonths}&category=${category}`,
+                        { headers }
+                    );
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to fetch milestone responses');
+                    }
+                    return data;
+                },
+                { forceRefresh }
             );
 
-            const data = await response.json();
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to fetch milestone responses');
+            if (result.fromCache) {
+                console.log(`[milestoneService] Loaded from cache: ${cacheKey}`);
             }
-            return data;
+
+            return result.data;
         } catch (error) {
             console.error('Error fetching milestone responses:', error);
             throw error;
@@ -57,21 +75,35 @@ export const milestoneService = {
     },
 
     // Get all milestone responses for a child
-    getAllMilestoneResponsesForChild: async (childId) => {
+    getAllMilestoneResponsesForChild: async (childId, forceRefresh = false) => {
         try {
             const headers = await getHeaders();
-            const response = await fetch(`${API_URL}/milestones/${childId}/all`, {
-                headers
-            });
+            const cacheKey = `milestones_${childId}_all`;
 
-            const data = await response.json();
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to fetch all milestone responses');
+            const result = await cacheService.fetchWithCache(
+                cacheKey,
+                async () => {
+                    const response = await fetch(`${API_URL}/milestones/${childId}/all`, {
+                        headers
+                    });
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to fetch all milestone responses');
+                    }
+                    return data;
+                },
+                { forceRefresh }
+            );
+
+            if (result.fromCache) {
+                console.log(`[milestoneService] Loaded all milestones from cache for child ${childId}`);
             }
-            return data;
+
+            return result.data;
         } catch (error) {
             console.error('Error fetching all milestone responses:', error);
             throw error;
         }
     }
 };
+

@@ -1,5 +1,8 @@
 import { API_URL } from './authService';
 import { getAuth } from 'firebase/auth';
+import cacheService from './cacheService';
+
+const CACHE_KEY = 'children_list';
 
 const getHeaders = async () => {
     const auth = getAuth();
@@ -24,24 +27,39 @@ export const childService = {
             if (!response.ok) {
                 throw new Error(data.error || 'Failed to add child');
             }
+
+            // Invalidate cache on mutation
+            await cacheService.invalidate(CACHE_KEY);
+
             return data;
         } catch (error) {
             throw error;
         }
     },
 
-    getChildren: async () => {
+    getChildren: async (forceRefresh = false) => {
         try {
             const headers = await getHeaders();
-            const response = await fetch(`${API_URL}/children`, {
-                headers
-            });
 
-            const data = await response.json();
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to fetch children');
+            // Use cache-first strategy
+            const result = await cacheService.fetchWithCache(
+                CACHE_KEY,
+                async () => {
+                    const response = await fetch(`${API_URL}/children`, { headers });
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Failed to fetch children');
+                    }
+                    return data;
+                },
+                { forceRefresh }
+            );
+
+            if (result.fromCache) {
+                console.log('[childService] Loaded children from cache');
             }
-            return data;
+
+            return result.data;
         } catch (error) {
             throw error;
         }
@@ -60,6 +78,10 @@ export const childService = {
             if (!response.ok) {
                 throw new Error(data.error || 'Failed to update child');
             }
+
+            // Invalidate cache on mutation
+            await cacheService.invalidate(CACHE_KEY);
+
             return data;
         } catch (error) {
             throw error;
@@ -78,9 +100,14 @@ export const childService = {
             if (!response.ok) {
                 throw new Error(data.error || 'Failed to delete child');
             }
+
+            // Invalidate cache on mutation
+            await cacheService.invalidate(CACHE_KEY);
+
             return data;
         } catch (error) {
             throw error;
         }
     }
 };
+
