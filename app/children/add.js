@@ -51,10 +51,16 @@ export default function AddChildScreen() {
 
         setLoading(true);
         try {
+            // Format date as YYYY-MM-DD using local time
+            const year = dateOfBirth.getFullYear();
+            const month = String(dateOfBirth.getMonth() + 1).padStart(2, '0');
+            const day = String(dateOfBirth.getDate()).padStart(2, '0');
+            const formattedDob = `${year}-${month}-${day}`;
+
             await addChild({
                 firstName,
                 lastName,
-                dateOfBirth: dateOfBirth.toISOString().split('T')[0],
+                dateOfBirth: formattedDob,
                 gender,
                 bloodType,
                 allergies,
@@ -79,11 +85,17 @@ export default function AddChildScreen() {
         setLoading(true);
         try {
             // Verify with backend
+            // Format date as YYYY-MM-DD using local time to avoid timezone shifts
+            const year = dateOfBirth.getFullYear();
+            const month = String(dateOfBirth.getMonth() + 1).padStart(2, '0');
+            const day = String(dateOfBirth.getDate()).padStart(2, '0');
+            const formattedDob = `${year}-${month}-${day}`;
+
             const verificationData = {
                 firstName,
                 lastName,
                 registrationNumber: verifyRegNumber,
-                dateOfBirth: dateOfBirth.toISOString().split('T')[0],
+                dateOfBirth: formattedDob,
                 birthCertificateNumber: verifyBirthCert
             };
 
