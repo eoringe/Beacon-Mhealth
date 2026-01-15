@@ -293,6 +293,11 @@ exports.searchPatients = async (req, res) => {
 exports.verifyPatientSecure = async (req, res) => {
     const { registrationNumber, dateOfBirth } = req.body;
 
+    // DEBUG: Log received parameters for production debugging
+    console.log('[PatientController] Secure Verification Request:');
+    console.log(`- Registration Number: "${registrationNumber}"`);
+    console.log(`- Date of Birth: "${dateOfBirth}"`);
+
     try {
         if (!registrationNumber || !dateOfBirth) {
             return res.status(400).json({ error: 'Registration Number and Date of Birth are required' });
