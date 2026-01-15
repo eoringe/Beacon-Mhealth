@@ -19,4 +19,8 @@ router.get('/lookup/:registrationNumber', patientController.lookupByRegistration
 // GET /api/patients/search?query=xxx
 router.get('/search', patientController.searchPatients);
 
+// Secure verification of patient by 5 parameters
+// POST /api/patients/verify-secure
+router.post('/verify-secure', patientController.verifyPatientSecure);
+
 module.exports = router;

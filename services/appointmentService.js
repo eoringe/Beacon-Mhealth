@@ -2,23 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import cacheService from './cacheService';
+import { API_URL } from './authService';
 
-const getApiUrl = () => {
-    if (Platform.OS === 'web') return 'http://localhost:3000/api';
-
-    const hostUri = Constants.expoConfig?.hostUri
-        || Constants.manifest2?.extra?.expoGo?.debuggerHost
-        || Constants.manifest?.debuggerHost;
-
-    if (hostUri) {
-        const host = hostUri.split(':')[0];
-        return `http://${host}:3000/api`;
-    }
-
-    return Platform.OS === 'android' ? 'http://10.254.253.231:3000/api' : 'http://localhost:3000/api';
-};
-
-const API_URL = getApiUrl();
 
 class AppointmentService {
     // Get auth token

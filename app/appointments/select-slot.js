@@ -17,6 +17,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Calendar } from 'react-native-calendars';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useChild } from '@/contexts/ChildContext';
+import { useAlert } from '@/contexts/AlertContext';
 import { SafeHeader } from '@/components/SafeHeader';
 import { CustomLoading } from '@/components/CustomLoading';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
@@ -29,6 +30,7 @@ export default function SelectSlotScreen() {
     const params = useLocalSearchParams();
     const { colorScheme } = useTheme();
     const { selectedChild } = useChild();
+    const { showAlert } = useAlert();
 
     const doctor = params.doctor ? JSON.parse(params.doctor) : null;
 
@@ -130,19 +132,19 @@ export default function SelectSlotScreen() {
                                 eventId: '',
                             }
                         });
-                        Alert.alert('Payment Successful', `Receipt: ${receipt}. Your appointment is booked.`);
+                        showAlert('Payment Successful', `Receipt: ${receipt}. Your appointment is booked.`, [], 'success');
                     },
                     (error) => {
                         setBooking(false);
                         setProcessingPayment(false);
-                        Alert.alert('Payment Failed', error);
+                        showAlert('Payment Failed', error, [], 'error');
                     }
                 );
 
             } catch (error) {
                 setBooking(false);
                 setProcessingPayment(false);
-                Alert.alert('Payment Error', error.message || 'Payment initiation failed');
+                showAlert('Payment Error', error.message || 'Payment initiation failed', [], 'error');
             }
             return;
         }

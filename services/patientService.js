@@ -64,6 +64,38 @@ export const lookupPatient = async (registrationNumber, forceRefresh = false) =>
 /**
  * Search patients by name or registration number (NOT cached - search results should be fresh)
  */
+// Securely verify patient with 5-parameter check
+export const verifyPatient = async (verificationData) => {
+    try {
+        const token = await getAuthToken();
+        if (!token) {
+            throw new Error('Not authenticated');
+        }
+
+        const response = await fetch(
+            `${API_URL}/patients/verify-secure`,
+            {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(verificationData)
+            }
+        );
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Verification failed');
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Error verifying patient:', error);
+        throw error;
+    }
+};
+
 export const searchPatients = async (query) => {
     try {
         const token = await getAuthToken();

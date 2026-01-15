@@ -6,22 +6,12 @@ import { jwtDecode } from "jwt-decode";
 import { decode } from "base-64";
 global.atob = decode; // Polyfill for jwt-decode
 
-const getApiUrl = () => {
-    if (Platform.OS === 'web') return 'http://localhost:3000/api';
+// USE PRODUCTION URL for all platforms
+const API_URL = 'https://beacon-mhealth-production.up.railway.app/api';
 
-    const origin = Constants.expoConfig?.hostUri;
+console.log('AuthService: Using PRODUCTION API URL:', API_URL);
 
-    if (origin) {
-        const url = `http://${origin.split(':')[0]}:3000/api`;
-        console.log('AuthService: Using dynamic API URL:', url);
-        return url;
-    }
-
-    console.log('AuthService: hostUri not found, falling back to static URL');
-    return Platform.OS === 'android' ? 'http://10.0.2.2:3000/api' : 'http://localhost:3000/api';
-};
-
-export const API_URL = getApiUrl();
+export { API_URL };
 
 class AuthService {
     // Store auth token

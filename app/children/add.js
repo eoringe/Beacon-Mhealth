@@ -17,7 +17,7 @@ import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { useChild } from '@/contexts/ChildContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAlert } from '@/contexts/AlertContext';
-import { searchPatients } from '@/services/patientService';
+import { searchPatients, verifyPatient } from '@/services/patientService';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -30,55 +30,18 @@ export default function AddChildScreen() {
     const [mode, setMode] = useState('manual'); // 'manual' | 'lookup'
     const [loading, setLoading] = useState(false);
 
-    // Manual Entry State
+    // Form State (Shared where applicable, but distinct for clarity)
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [dateOfBirth, setDateOfBirth] = useState(new Date());
     const [showDatePicker, setShowDatePicker] = useState(false);
-    const [gender, setGender] = useState('');
+    const [gender, setGender] = useState('Male'); // Default
     const [bloodType, setBloodType] = useState('');
     const [allergies, setAllergies] = useState('');
 
-    // Lookup State
-    const [searchQuery, setSearchQuery] = useState('');
-    const [searchResults, setSearchResults] = useState([]);
-    const [isSearching, setIsSearching] = useState(false);
-    const [selectedPatient, setSelectedPatient] = useState(null);
-    const [searchError, setSearchError] = useState('');
-
-    // Verification State
+    // Secure Verification Specific State
     const [verifyRegNumber, setVerifyRegNumber] = useState('');
-
-    // Debounce Search Logic
-    useEffect(() => {
-        if (mode !== 'lookup' || !searchQuery || searchQuery.length < 2) {
-            setSearchResults([]);
-            return;
-        }
-
-        const timeoutId = setTimeout(async () => {
-            setIsSearching(true);
-            setSearchError('');
-            try {
-                const results = await searchPatients(searchQuery);
-                setSearchResults(results);
-            } catch (error) {
-                console.error("Search error:", error);
-                if (error.message && !error.message.includes('too short')) {
-                    setSearchError('Failed to fetch results');
-                }
-            } finally {
-                setIsSearching(false);
-            }
-        }, 500); // 500ms debounce
-
-        return () => clearTimeout(timeoutId);
-    }, [searchQuery, mode]);
-
-    // Reset verification when selection changes
-    useEffect(() => {
-        setVerifyRegNumber('');
-    }, [selectedPatient]);
+    const [verifyBirthCert, setVerifyBirthCert] = useState('');
 
     const handleManualSave = async () => {
         if (!firstName || !gender) {
@@ -108,34 +71,42 @@ export default function AddChildScreen() {
     };
 
     const handleVerifyAndAdd = async () => {
-        if (!selectedPatient) return;
-
-        if (!verifyRegNumber.trim()) {
-            showAlert('Verification Required', 'Please enter the Registration Number to confirm identity.', [], 'warning');
-            return;
-        }
-
-        if (verifyRegNumber.trim().toUpperCase() !== selectedPatient.registrationNumber.toUpperCase()) {
-            showAlert('Verification Failed', 'Registration Number does not match selected patient. Please check the clinic card.', [], 'error');
+        if (!verifyRegNumber || !firstName || !lastName || !verifyBirthCert) {
+            showAlert('Missing Information', 'All fields including Registration Number and Birth Certificate Number are required.', [], 'warning');
             return;
         }
 
         setLoading(true);
         try {
+            // Verify with backend
+            const verificationData = {
+                firstName,
+                lastName,
+                registrationNumber: verifyRegNumber,
+                dateOfBirth: dateOfBirth.toISOString().split('T')[0],
+                birthCertificateNumber: verifyBirthCert
+            };
+
+            const response = await verifyPatient(verificationData);
+            const verifiedPatient = response.patient;
+
+            // If verified, Add Child
             await addChild({
-                firstName: selectedPatient.fullname?.first_name || '',
-                lastName: selectedPatient.fullname?.last_name || '',
-                dateOfBirth: selectedPatient.dob,
-                gender: selectedPatient.gender || 'Unknown',
-                bloodType: '',
-                allergies: '',
-                registrationNumber: selectedPatient.registrationNumber
+                firstName: verifiedPatient.fullname?.first_name || firstName,
+                lastName: verifiedPatient.fullname?.last_name || lastName,
+                dateOfBirth: verifiedPatient.dob,
+                gender: verifiedPatient.gender || 'Unknown',
+                bloodType: '', // Not verified
+                allergies: '', // Not verified
+                registrationNumber: verifiedPatient.registrationNumber
             });
-            showAlert('Success', 'Child profile verified and added!', [
+
+            showAlert('Success', 'Identity confirmed! Child profile linked successfully.', [
                 { text: 'OK', onPress: () => router.replace('/children') }
             ], 'success');
+
         } catch (err) {
-            showAlert('Error', err.message || 'Failed to add child', [], 'error');
+            showAlert('Verification Failed', err.message || 'Details do not match clinic records.', [], 'error');
         } finally {
             setLoading(false);
         }
@@ -288,84 +259,31 @@ export default function AddChildScreen() {
     );
 
     const renderLookupForm = () => (
-        <View style={styles.formContainer}>
-            <View style={[styles.searchCard, { backgroundColor: colorScheme.surface, borderColor: colorScheme.border, borderWidth: 1 }]}>
-                <Text style={[styles.searchTitle, { color: colorScheme.textPrimary }]}>
-                    Search Clinic Records
-                </Text>
-                <Text style={[styles.searchSubtitle, { color: colorScheme.textSecondary }]}>
-                    Search by Name or Registration Number
-                </Text>
-                <View style={styles.searchRow}>
-                    <TextInput
-                        style={[styles.searchInput, {
-                            backgroundColor: colorScheme.background,
-                            borderColor: colorScheme.border,
-                            color: colorScheme.textPrimary
-                        }]}
-                        value={searchQuery}
-                        onChangeText={(text) => {
-                            setSearchQuery(text);
-                            if (!text) setSelectedPatient(null);
-                        }}
-                        placeholder="e.g. John Doe"
-                        placeholderTextColor={colorScheme.textTertiary}
-                        autoCapitalize="words"
-                        autoCorrect={false}
-                    />
-                    <View style={[styles.searchIconContainer, { backgroundColor: colorScheme.primary }]}>
-                        {isSearching ? (
-                            <ActivityIndicator size="small" color="#FFFFFF" />
-                        ) : (
-                            <MaterialIcons name="search" size={24} color="#FFFFFF" />
-                        )}
-                    </View>
-                </View>
-            </View>
-
-            {/* Results List or Selected Patient */}
-            {selectedPatient ? (
-                <View style={[styles.resultCard, { backgroundColor: colorScheme.surface, borderColor: colorScheme.primary, borderWidth: 2 }]}>
-                    <View style={[styles.cardHeader, { borderBottomColor: colorScheme.divider }]}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
-                            <MaterialIcons name="verified-user" size={24} color={colorScheme.primary} />
-                            <Text style={[styles.cardTitle, { color: colorScheme.textPrimary }]}>Confirm Identity</Text>
-                        </View>
-                        <TouchableOpacity onPress={() => setSelectedPatient(null)}>
-                            <MaterialIcons name="close" size={20} color={colorScheme.textSecondary} />
-                        </TouchableOpacity>
-                    </View>
-
-                    <View style={styles.infoRow}>
-                        <Text style={[styles.infoLabel, { color: colorScheme.textSecondary }]}>Name</Text>
-                        <Text style={[styles.infoValue, { color: colorScheme.textPrimary }]}>
-                            {selectedPatient.displayName || 'N/A'}
+        <ScrollView
+            contentContainerStyle={{ paddingBottom: 100 }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+        >
+            <View style={styles.formContainer}>
+                <View style={[styles.searchCard, { backgroundColor: colorScheme.surface, borderColor: colorScheme.border, borderWidth: 1 }]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm }}>
+                        <MaterialIcons name="security" size={24} color={colorScheme.primary} />
+                        <Text style={[styles.searchTitle, { color: colorScheme.textPrimary, marginBottom: 0 }]}>
+                            Secure Verification
                         </Text>
                     </View>
-                    <View style={styles.infoRow}>
-                        <Text style={[styles.infoLabel, { color: colorScheme.textSecondary }]}>DOB</Text>
-                        <Text style={[styles.infoValue, { color: colorScheme.textPrimary }]}>
-                            {selectedPatient.dob ? new Date(selectedPatient.dob).toLocaleDateString() : 'N/A'}
-                        </Text>
-                    </View>
-                    <View style={styles.infoRow}>
-                        <Text style={[styles.infoLabel, { color: colorScheme.textSecondary }]}>Gender</Text>
-                        <Text style={[styles.infoValue, { color: colorScheme.textPrimary }]}>
-                            {selectedPatient.gender || 'N/A'}
-                        </Text>
-                    </View>
+                    <Text style={[styles.searchSubtitle, { color: colorScheme.textSecondary }]}>
+                        To link a child account, you must provide EXACT details as they appear in the clinic records.
+                    </Text>
 
-                    <View style={[styles.separator, { backgroundColor: colorScheme.divider, marginVertical: Spacing.md }]} />
-
-                    <View style={styles.verifyContainer}>
-                        <Text style={[styles.verifyLabel, { color: colorScheme.textPrimary }]}>
-                            Enter Registration Number to Verify:
-                        </Text>
+                    {/* Registration Number */}
+                    <View style={styles.inputGroup}>
+                        <Text style={[styles.label, { color: colorScheme.textPrimary }]}>Registration Number *</Text>
                         <TextInput
-                            style={[styles.verifyInput, {
+                            style={[styles.input, {
+                                backgroundColor: colorScheme.background,
                                 borderColor: colorScheme.border,
-                                color: colorScheme.textPrimary,
-                                backgroundColor: colorScheme.background
+                                color: colorScheme.textPrimary
                             }]}
                             value={verifyRegNumber}
                             onChangeText={setVerifyRegNumber}
@@ -373,13 +291,88 @@ export default function AddChildScreen() {
                             placeholderTextColor={colorScheme.textTertiary}
                             autoCapitalize="characters"
                         />
-                        <Text style={[styles.verifyHint, { color: colorScheme.textSecondary }]}>
-                            Please check the child's clinic card for this number.
+                    </View>
+
+                    {/* Name 1 */}
+                    <View style={styles.inputGroup}>
+                        <Text style={[styles.label, { color: colorScheme.textPrimary }]}>Child's Name 1 *</Text>
+                        <TextInput
+                            style={[styles.input, {
+                                backgroundColor: colorScheme.background,
+                                borderColor: colorScheme.border,
+                                color: colorScheme.textPrimary
+                            }]}
+                            value={firstName}
+                            onChangeText={setFirstName}
+                            placeholder="Any valid name (First/Middle/Last)"
+                            placeholderTextColor={colorScheme.textTertiary}
+                        />
+                    </View>
+
+                    {/* Name 2 */}
+                    <View style={styles.inputGroup}>
+                        <Text style={[styles.label, { color: colorScheme.textPrimary }]}>Child's Name 2 *</Text>
+                        <TextInput
+                            style={[styles.input, {
+                                backgroundColor: colorScheme.background,
+                                borderColor: colorScheme.border,
+                                color: colorScheme.textPrimary
+                            }]}
+                            value={lastName}
+                            onChangeText={setLastName}
+                            placeholder="Another valid name"
+                            placeholderTextColor={colorScheme.textTertiary}
+                        />
+                    </View>
+
+                    {/* Date of Birth */}
+                    <View style={styles.inputGroup}>
+                        <Text style={[styles.label, { color: colorScheme.textPrimary }]}>Date of Birth *</Text>
+                        <TouchableOpacity
+                            style={[styles.dateInput, {
+                                backgroundColor: colorScheme.background,
+                                borderColor: colorScheme.border
+                            }]}
+                            onPress={() => setShowDatePicker(true)}
+                        >
+                            <Text style={[styles.dateText, { color: colorScheme.textPrimary }]}>
+                                {dateOfBirth.toLocaleDateString()}
+                            </Text>
+                            <MaterialIcons name="calendar-today" size={20} color={colorScheme.textSecondary} />
+                        </TouchableOpacity>
+                        {showDatePicker && (
+                            <DateTimePicker
+                                value={dateOfBirth}
+                                mode="date"
+                                display="default"
+                                onChange={onDateChange}
+                                maximumDate={new Date()}
+                                themeVariant={isDark ? 'dark' : 'light'}
+                            />
+                        )}
+                    </View>
+
+                    {/* Birth Certificate */}
+                    <View style={styles.inputGroup}>
+                        <Text style={[styles.label, { color: colorScheme.textPrimary }]}>Birth Certificate Number *</Text>
+                        <TextInput
+                            style={[styles.input, {
+                                backgroundColor: colorScheme.background,
+                                borderColor: colorScheme.border,
+                                color: colorScheme.textPrimary
+                            }]}
+                            value={verifyBirthCert}
+                            onChangeText={setVerifyBirthCert}
+                            placeholder="Birth Certificate Entry Number"
+                            placeholderTextColor={colorScheme.textTertiary}
+                        />
+                        <Text style={{ fontSize: 12, color: colorScheme.textSecondary, marginTop: 4 }}>
+                            Enter the Entry Number from the Birth Certificate.
                         </Text>
                     </View>
 
                     <TouchableOpacity
-                        style={[styles.addButton, { backgroundColor: colorScheme.success || '#4CAF50' }]}
+                        style={[styles.addButton, { backgroundColor: colorScheme.primary, marginTop: Spacing.xl }]}
                         onPress={handleVerifyAndAdd}
                         disabled={loading}
                     >
@@ -387,47 +380,15 @@ export default function AddChildScreen() {
                             <CustomLoading size={20} color="#FFFFFF" />
                         ) : (
                             <>
-                                <MaterialIcons name="check-circle" size={20} color="#FFFFFF" />
-                                <Text style={styles.addButtonText}>Verify & Add Child</Text>
+                                <MaterialIcons name="verified-user" size={20} color="#FFFFFF" />
+                                <Text style={styles.addButtonText}>Verify & Link Child</Text>
                             </>
                         )}
                     </TouchableOpacity>
+
                 </View>
-            ) : (
-                <View style={{ flex: 1 }}>
-                    {searchResults.length > 0 && (
-                        <FlatList
-                            data={searchResults}
-                            keyExtractor={(item) => item.id.toString()}
-                            showsVerticalScrollIndicator={false}
-                            contentContainerStyle={{ paddingBottom: 100 }}
-                            renderItem={({ item }) => (
-                                <TouchableOpacity
-                                    style={[styles.resultItem, { backgroundColor: colorScheme.surface, borderColor: colorScheme.border }]}
-                                    onPress={() => setSelectedPatient(item)}
-                                >
-                                    <View style={[styles.avatarPlaceholder, { backgroundColor: `${colorScheme.primary}15` }]}>
-                                        <MaterialIcons name="face" size={24} color={colorScheme.primary} />
-                                    </View>
-                                    <View style={styles.resultContent}>
-                                        <Text style={[styles.resultName, { color: colorScheme.textPrimary }]}>{item.displayName}</Text>
-                                        <Text style={[styles.resultSub, { color: colorScheme.textSecondary }]}>
-                                            🔒 Registration Number Protected • {item.gender}
-                                        </Text>
-                                    </View>
-                                    <MaterialIcons name="chevron-right" size={24} color={colorScheme.textTertiary} />
-                                </TouchableOpacity>
-                            )}
-                        />
-                    )}
-                    {searchQuery.length > 2 && searchResults.length === 0 && !isSearching && (
-                        <View style={{ padding: 20, alignItems: 'center' }}>
-                            <Text style={{ color: colorScheme.textSecondary }}>No patients found</Text>
-                        </View>
-                    )}
-                </View>
-            )}
-        </View>
+            </View>
+        </ScrollView>
     );
 
     return (
@@ -507,6 +468,7 @@ const styles = StyleSheet.create({
         padding: Spacing.xs,
     },
     content: {
+        flex: 1,
         padding: Spacing.lg,
     },
     toggleContainer: {

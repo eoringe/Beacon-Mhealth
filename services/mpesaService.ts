@@ -4,8 +4,8 @@ import Constants from 'expo-constants';
 
 // For M-Pesa testing, use Railway production server directly
 // This ensures callbacks are processed on the same server that's being polled
-const USE_PRODUCTION_FOR_MPESA = false;
-const PRODUCTION_URL = 'https://beaconchildrencenter-production.up.railway.app/api';
+const USE_PRODUCTION_FOR_MPESA = true;
+const PRODUCTION_URL = 'https://beacon-mhealth-production.up.railway.app/api';
 
 const getApiUrl = () => {
     // Use production for M-Pesa to ensure callback reaches the same server

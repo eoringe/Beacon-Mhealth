@@ -285,3 +285,113 @@ exports.searchPatients = async (req, res) => {
         res.status(500).json({ error: 'Server error searching patients' });
     }
 };
+
+/**
+ * Secure verification of patient details
+ * Requires strict match of 5 parameters
+ */
+exports.verifyPatientSecure = async (req, res) => {
+    const { firstName, lastName, registrationNumber, dateOfBirth, birthCertificateNumber } = req.body;
+    console.log('[PatientController] Secure verification request for:', { registrationNumber });
+
+    try {
+        if (!firstName || !lastName || !registrationNumber || !dateOfBirth || !birthCertificateNumber) {
+            return res.status(400).json({ error: 'All 5 parameters are required for verification' });
+        }
+
+        const childQuery = `
+            SELECT 
+                c.id,
+                c.fullname,
+                c.dob,
+                c.birth_cert,
+                c.registration_number,
+                c.insurance_number,
+                g.gender as gender,
+                ip.insurance as insurance_provider
+            FROM children c
+            LEFT JOIN gender g ON c.gender_id = g.id
+            LEFT JOIN insurance_providers ip ON c.insurance_provider_id = ip.id
+            WHERE c.registration_number = $1
+        `;
+
+        const childResult = await externalQuery(childQuery, [registrationNumber]);
+
+        if (childResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Patient not found or details do not match' });
+        }
+
+        const child = childResult.rows[0];
+
+        let patientName = { first_name: '', middle_name: '', last_name: '' };
+        try {
+            if (typeof child.fullname === 'string') {
+                patientName = JSON.parse(child.fullname);
+            } else if (child.fullname) {
+                patientName = child.fullname;
+            }
+        } catch (e) { console.error('Error parsing name', e); }
+
+        // Flexible Name Matching Logic
+        // 1. Collect all valid name parts from DB record
+        const dbNameParts = [
+            patientName.first_name,
+            patientName.middle_name,
+            patientName.last_name
+        ]
+            .filter(n => n && typeof n === 'string' && n.trim().length > 0)
+            .map(n => n.trim().toLowerCase());
+
+        // 2. Prepare input names
+        const inputName1 = (firstName || '').trim().toLowerCase();
+        const inputName2 = (lastName || '').trim().toLowerCase();
+
+        // 3. Verify names
+        // Both inputs must be found in the DB name parts.
+        // We also want to ensure they aren't matching the exact same token if the user typed the same name twice, 
+        // unless the child actually has that name repeated (unlikely).
+        // A simple robust check: 
+        // Are both inputs present in the set of DB names?
+
+        const isName1Valid = dbNameParts.includes(inputName1);
+        const isName2Valid = dbNameParts.includes(inputName2);
+
+        // Security Check: strictly enforce that two DIFFERENT inputs match different parts? 
+        // The user requirement is just "any two names that match".
+        // Use case: Child "John Paul Jones". Inputs: "John", "Jones" -> Pass. "John", "Paul" -> Pass.
+
+        if (!isName1Valid || !isName2Valid) {
+            console.log('[PatientController] Secure verify: Name mismatch', { inputName1, inputName2, dbNameParts });
+            return res.status(404).json({ error: 'Patient not found or details do not match' });
+        }
+
+        const dbDob = new Date(child.dob).toISOString().split('T')[0];
+        const reqDob = new Date(dateOfBirth).toISOString().split('T')[0];
+
+        const dbBirthCert = (child.birth_cert || '').trim().toLowerCase();
+        const reqBirthCert = birthCertificateNumber.trim().toLowerCase();
+
+        if (dbDob !== reqDob || dbBirthCert !== reqBirthCert) {
+            console.log('[PatientController] Secure verify: DOB or BirthCert mismatch');
+            return res.status(404).json({ error: 'Patient not found or details do not match' });
+        }
+
+        const responsePatient = {
+            id: child.id,
+            registrationNumber: child.registration_number,
+            fullname: patientName,
+            displayName: `${patientName.first_name || ''} ${patientName.middle_name || ''} ${patientName.last_name || ''}`.trim(),
+            dob: child.dob,
+            gender: child.gender,
+            birthCertificate: child.birth_cert,
+            insuranceNumber: child.insurance_number,
+            insuranceProvider: child.insurance_provider
+        };
+
+        res.json({ patient: responsePatient });
+
+    } catch (error) {
+        console.error('[PatientController] Error in secure verification:', error);
+        res.status(500).json({ error: 'Server error verifying patient' });
+    }
+};
