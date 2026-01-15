@@ -293,11 +293,6 @@ exports.searchPatients = async (req, res) => {
 exports.verifyPatientSecure = async (req, res) => {
     const { registrationNumber, dateOfBirth } = req.body;
 
-    // DEBUG: Log received parameters for production debugging
-    console.log('[PatientController] Secure Verification Request:');
-    console.log(`- Registration Number: "${registrationNumber}"`);
-    console.log(`- Date of Birth: "${dateOfBirth}"`);
-
     try {
         if (!registrationNumber || !dateOfBirth) {
             return res.status(400).json({ error: 'Registration Number and Date of Birth are required' });
@@ -327,30 +322,29 @@ exports.verifyPatientSecure = async (req, res) => {
 
         const child = childResult.rows[0];
 
-        // Strict DOB Check logic with Debugging
-        // Handle raw DB value safely
+        // DOB Verification with +/- 1 Day Tolerance to handle Timezone offsets
+        // Database often returns UTC midnight which can shift dates by 1 day depending on entry
         let dbDobRaw = child.dob;
-        let dbDob;
+        let dbDate;
 
-        // Try simple string extraction first if it's a date object
         if (dbDobRaw instanceof Date) {
-            dbDob = dbDobRaw.toISOString().split('T')[0];
+            dbDate = dbDobRaw;
         } else {
-            // If string, try to parse
-            dbDob = new Date(dbDobRaw).toISOString().split('T')[0];
+            dbDate = new Date(dbDobRaw);
         }
 
-        const reqDob = new Date(dateOfBirth).toISOString().split('T')[0];
+        const reqDate = new Date(dateOfBirth);
 
-        // DEBUG LOGS FOR PRODUCTION
-        console.log('[PatientController] DOB Check:');
-        console.log(`- DB Raw DOB: ${dbDobRaw} (Type: ${typeof dbDobRaw})`);
-        console.log(`- DB Processed DOB: ${dbDob}`);
-        console.log(`- One day off (Timezone check)? ${new Date(dbDobRaw).toDateString()}`);
-        console.log(`- Request DOB: ${reqDob}`);
-        console.log(`- Match? ${dbDob === reqDob}`);
+        // Normalize both to UTC midnight to compare days difference
+        const utc1 = Date.UTC(dbDate.getFullYear(), dbDate.getMonth(), dbDate.getDate());
+        const utc2 = Date.UTC(reqDate.getFullYear(), reqDate.getMonth(), reqDate.getDate());
 
-        if (dbDob !== reqDob) {
+        const msPerDay = 1000 * 60 * 60 * 24;
+        const diffDays = Math.abs(Math.floor((utc2 - utc1) / msPerDay));
+
+        // Strict: 0 days diff. Tolerance: Allow 1 day diff.
+        if (diffDays > 1) {
+            console.log(`[PatientController] DOB Mismatch. DB: ${dbDate.toISOString().split('T')[0]}, Req: ${reqDate.toISOString().split('T')[0]}, Diff: ${diffDays} days`);
             return res.status(404).json({ error: 'Patient not found or details do not match' });
         }
 
