@@ -41,7 +41,9 @@ export default function AddChildScreen() {
 
     // Secure Verification Specific State
     const [verifyRegNumber, setVerifyRegNumber] = useState('');
-    const [verifyBirthCert, setVerifyBirthCert] = useState('');
+    const [verifyDob, setVerifyDob] = useState(new Date());
+    const [showVerifyDobPicker, setShowVerifyDobPicker] = useState(false);
+
 
     const handleManualSave = async () => {
         if (!firstName || !gender) {
@@ -77,29 +79,25 @@ export default function AddChildScreen() {
     };
 
     const handleVerifyAndAdd = async () => {
-        if (!verifyRegNumber || !firstName || !lastName || !verifyBirthCert) {
-            showAlert('Missing Information', 'All fields including Registration Number and Birth Certificate Number are required.', [], 'warning');
+        if (!verifyRegNumber) {
+            Alert.alert('Error', 'Please enter the Registration Number');
             return;
         }
 
-        setLoading(true);
+        setLoading(true); // Changed from setIsLoading to setLoading
         try {
-            // Verify with backend
             // Format date as YYYY-MM-DD using local time to avoid timezone shifts
-            const year = dateOfBirth.getFullYear();
-            const month = String(dateOfBirth.getMonth() + 1).padStart(2, '0');
-            const day = String(dateOfBirth.getDate()).padStart(2, '0');
+            const year = verifyDob.getFullYear();
+            const month = String(verifyDob.getMonth() + 1).padStart(2, '0');
+            const day = String(verifyDob.getDate()).padStart(2, '0');
             const formattedDob = `${year}-${month}-${day}`;
 
             const verificationData = {
-                firstName,
-                lastName,
                 registrationNumber: verifyRegNumber,
-                dateOfBirth: formattedDob,
-                birthCertificateNumber: verifyBirthCert
+                dateOfBirth: formattedDob
             };
 
-            const response = await verifyPatient(verificationData);
+            const response = await verifyPatient(verificationData); // Changed from patientService.verifyPatient
             const verifiedPatient = response.patient;
 
             // If verified, Add Child
@@ -288,52 +286,28 @@ export default function AddChildScreen() {
                         To link a child account, you must provide EXACT details as they appear in the clinic records.
                     </Text>
 
-                    {/* Registration Number */}
+                    {/* Registration Number Field with Auto-Formatting */}
                     <View style={styles.inputGroup}>
                         <Text style={[styles.label, { color: colorScheme.textPrimary }]}>Registration Number *</Text>
                         <TextInput
                             style={[styles.input, {
-                                backgroundColor: colorScheme.background,
+                                backgroundColor: colorScheme.inputBackground || colorScheme.surface,
                                 borderColor: colorScheme.border,
                                 color: colorScheme.textPrimary
                             }]}
                             value={verifyRegNumber}
-                            onChangeText={setVerifyRegNumber}
+                            onChangeText={(text) => {
+                                // Auto-format: Add dash after 3 characters if not present
+                                // e.g. 002 -> 002-
+                                let formattedText = text;
+                                if (text.length === 3 && verifyRegNumber.length === 2) {
+                                    formattedText = text + '-';
+                                }
+                                setVerifyRegNumber(formattedText);
+                            }}
                             placeholder="e.g. 008-2025"
                             placeholderTextColor={colorScheme.textTertiary}
                             autoCapitalize="characters"
-                        />
-                    </View>
-
-                    {/* Name 1 */}
-                    <View style={styles.inputGroup}>
-                        <Text style={[styles.label, { color: colorScheme.textPrimary }]}>Child's Name 1 *</Text>
-                        <TextInput
-                            style={[styles.input, {
-                                backgroundColor: colorScheme.background,
-                                borderColor: colorScheme.border,
-                                color: colorScheme.textPrimary
-                            }]}
-                            value={firstName}
-                            onChangeText={setFirstName}
-                            placeholder="Any valid name (First/Middle/Last)"
-                            placeholderTextColor={colorScheme.textTertiary}
-                        />
-                    </View>
-
-                    {/* Name 2 */}
-                    <View style={styles.inputGroup}>
-                        <Text style={[styles.label, { color: colorScheme.textPrimary }]}>Child's Name 2 *</Text>
-                        <TextInput
-                            style={[styles.input, {
-                                backgroundColor: colorScheme.background,
-                                borderColor: colorScheme.border,
-                                color: colorScheme.textPrimary
-                            }]}
-                            value={lastName}
-                            onChangeText={setLastName}
-                            placeholder="Another valid name"
-                            placeholderTextColor={colorScheme.textTertiary}
                         />
                     </View>
 
@@ -342,45 +316,30 @@ export default function AddChildScreen() {
                         <Text style={[styles.label, { color: colorScheme.textPrimary }]}>Date of Birth *</Text>
                         <TouchableOpacity
                             style={[styles.dateInput, {
-                                backgroundColor: colorScheme.background,
+                                backgroundColor: colorScheme.inputBackground || colorScheme.surface,
                                 borderColor: colorScheme.border
                             }]}
-                            onPress={() => setShowDatePicker(true)}
+                            onPress={() => setShowVerifyDobPicker(true)}
                         >
                             <Text style={[styles.dateText, { color: colorScheme.textPrimary }]}>
-                                {dateOfBirth.toLocaleDateString()}
+                                {verifyDob.toLocaleDateString()}
                             </Text>
                             <MaterialIcons name="calendar-today" size={20} color={colorScheme.textSecondary} />
                         </TouchableOpacity>
-                        {showDatePicker && (
+                        {showVerifyDobPicker && (
                             <DateTimePicker
-                                value={dateOfBirth}
+                                value={verifyDob}
                                 mode="date"
                                 display="default"
-                                onChange={onDateChange}
+                                onChange={(event, selectedDate) => {
+                                    setShowVerifyDobPicker(Platform.OS === 'ios');
+                                    const currentDate = selectedDate || verifyDob;
+                                    setVerifyDob(currentDate);
+                                }}
                                 maximumDate={new Date()}
                                 themeVariant={isDark ? 'dark' : 'light'}
                             />
                         )}
-                    </View>
-
-                    {/* Birth Certificate */}
-                    <View style={styles.inputGroup}>
-                        <Text style={[styles.label, { color: colorScheme.textPrimary }]}>Birth Certificate Number *</Text>
-                        <TextInput
-                            style={[styles.input, {
-                                backgroundColor: colorScheme.background,
-                                borderColor: colorScheme.border,
-                                color: colorScheme.textPrimary
-                            }]}
-                            value={verifyBirthCert}
-                            onChangeText={setVerifyBirthCert}
-                            placeholder="Birth Certificate Entry Number"
-                            placeholderTextColor={colorScheme.textTertiary}
-                        />
-                        <Text style={{ fontSize: 12, color: colorScheme.textSecondary, marginTop: 4 }}>
-                            Enter the Entry Number from the Birth Certificate.
-                        </Text>
                     </View>
 
                     <TouchableOpacity

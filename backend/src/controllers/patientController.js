@@ -288,25 +288,14 @@ exports.searchPatients = async (req, res) => {
 
 /**
  * Secure verification of patient details
- * Requires strict match of 5 parameters
+ * Requires strict match of Registration Number and Date of Birth
  */
 exports.verifyPatientSecure = async (req, res) => {
-    const { firstName, lastName, registrationNumber, dateOfBirth, birthCertificateNumber } = req.body;
-
-    // DEBUG LOGGING
-    console.log('\n[PatientController] === SECURE VERIFICATION REQUEST ===');
-    console.log('Received Params:', JSON.stringify(req.body, null, 2));
-    console.log('Processed Params:');
-    console.log('- Reg:', registrationNumber);
-    console.log('- Name 1:', firstName?.trim().toLowerCase());
-    console.log('- Name 2:', lastName?.trim().toLowerCase());
-    console.log('- DOB:', dateOfBirth, '(Expected Format: YYYY-MM-DD)');
-    console.log('- BirthCert:', birthCertificateNumber?.trim().toLowerCase());
-    console.log('==================================================\n');
+    const { registrationNumber, dateOfBirth } = req.body;
 
     try {
-        if (!firstName || !lastName || !registrationNumber || !dateOfBirth || !birthCertificateNumber) {
-            return res.status(400).json({ error: 'All 5 parameters are required for verification' });
+        if (!registrationNumber || !dateOfBirth) {
+            return res.status(400).json({ error: 'Registration Number and Date of Birth are required' });
         }
 
         const childQuery = `
@@ -333,6 +322,14 @@ exports.verifyPatientSecure = async (req, res) => {
 
         const child = childResult.rows[0];
 
+        // Strict DOB Check
+        const dbDob = new Date(child.dob).toISOString().split('T')[0];
+        const reqDob = new Date(dateOfBirth).toISOString().split('T')[0];
+
+        if (dbDob !== reqDob) {
+            return res.status(404).json({ error: 'Patient not found or details do not match' });
+        }
+
         let patientName = { first_name: '', middle_name: '', last_name: '' };
         try {
             if (typeof child.fullname === 'string') {
@@ -341,48 +338,6 @@ exports.verifyPatientSecure = async (req, res) => {
                 patientName = child.fullname;
             }
         } catch (e) { console.error('Error parsing name', e); }
-
-        // Flexible Name Matching Logic
-        // 1. Collect all valid name parts from DB record
-        const dbNameParts = [
-            patientName.first_name,
-            patientName.middle_name,
-            patientName.last_name
-        ]
-            .filter(n => n && typeof n === 'string' && n.trim().length > 0)
-            .map(n => n.trim().toLowerCase());
-
-        // 2. Prepare input names
-        const inputName1 = (firstName || '').trim().toLowerCase();
-        const inputName2 = (lastName || '').trim().toLowerCase();
-
-        // 3. Verify names
-        // Both inputs must be found in the DB name parts.
-        // We also want to ensure they aren't matching the exact same token if the user typed the same name twice, 
-        // unless the child actually has that name repeated (unlikely).
-        // A simple robust check: 
-        // Are both inputs present in the set of DB names?
-
-        const isName1Valid = dbNameParts.includes(inputName1);
-        const isName2Valid = dbNameParts.includes(inputName2);
-
-        // Security Check: strictly enforce that two DIFFERENT inputs match different parts? 
-        // The user requirement is just "any two names that match".
-        // Use case: Child "John Paul Jones". Inputs: "John", "Jones" -> Pass. "John", "Paul" -> Pass.
-
-        if (!isName1Valid || !isName2Valid) {
-            return res.status(404).json({ error: 'Patient not found or details do not match' });
-        }
-
-        const dbDob = new Date(child.dob).toISOString().split('T')[0];
-        const reqDob = new Date(dateOfBirth).toISOString().split('T')[0];
-
-        const dbBirthCert = (child.birth_cert || '').trim().toLowerCase();
-        const reqBirthCert = birthCertificateNumber.trim().toLowerCase();
-
-        if (dbDob !== reqDob || dbBirthCert !== reqBirthCert) {
-            return res.status(404).json({ error: 'Patient not found or details do not match' });
-        }
 
         const responsePatient = {
             id: child.id,

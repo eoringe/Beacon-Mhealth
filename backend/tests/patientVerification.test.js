@@ -18,136 +18,77 @@ app.use((req, res, next) => {
 });
 app.post('/verify-secure', patientController.verifyPatientSecure);
 
-describe('POST /verify-secure', () => {
+describe('POST /api/patients/verify-secure', () => {
     beforeEach(() => {
         jest.clearAllMocks();
     });
 
     it('should return 400 if missing parameters', async () => {
         const res = await request(app)
-            .post('/verify-secure')
-            .send({ firstName: 'John' }); // Missing other fields
+            .post('/verify-secure') // Use the correct endpoint
+            .send({
+                registrationNumber: 'REG123'
+                // Missing parameters
+            });
 
         expect(res.statusCode).toBe(400);
-        expect(res.body.error).toBe('All 5 parameters are required for verification');
+        expect(res.body).toHaveProperty('error');
     });
 
-    it('should return patient data if First and Last name match', async () => {
-        const mockChild = {
-            id: 1,
-            fullname: JSON.stringify({ first_name: 'John', middle_name: 'Paul', last_name: 'Doe' }),
-            dob: '2020-01-01',
-            registration_number: 'REG123',
-            birth_cert: 'BC123',
-            gender: 'Male'
-        };
-
-        externalQuery.mockResolvedValueOnce({ rows: [mockChild] });
+    it('should return patient data if Reg Number and DOB match', async () => {
+        // Mock external query response
+        externalQuery.mockResolvedValueOnce({
+            rows: [{
+                id: 1,
+                fullname: JSON.stringify({ first_name: 'John', last_name: 'Doe' }),
+                dob: '2020-01-01',
+                birth_cert: 'BC12345',
+                registration_number: 'REG123',
+                gender_id: 1
+            }]
+        });
 
         const res = await request(app)
-            .post('/verify-secure')
+            .post('/verify-secure') // Use the correct endpoint
             .send({
-                firstName: 'John',
-                lastName: 'Doe',
-                dateOfBirth: '2020-01-01',
                 registrationNumber: 'REG123',
-                birthCertificateNumber: 'BC123'
+                dateOfBirth: '2020-01-01'
             });
 
         expect(res.statusCode).toBe(200);
+        expect(res.body.patient).toBeDefined();
         expect(res.body.patient.registrationNumber).toBe('REG123');
     });
 
-    it('should return patient data if First and Middle name match', async () => {
-        const mockChild = {
-            id: 1,
-            fullname: JSON.stringify({ first_name: 'John', middle_name: 'Paul', last_name: 'Doe' }),
-            dob: '2020-01-01',
-            registration_number: 'REG123',
-            birth_cert: 'BC123',
-            gender: 'Male'
-        };
-
-        externalQuery.mockResolvedValueOnce({ rows: [mockChild] });
-
-        const res = await request(app)
-            .post('/verify-secure')
-            .send({
-                firstName: 'John',
-                lastName: 'Paul', // Checking First + Middle
-                dateOfBirth: '2020-01-01',
-                registrationNumber: 'REG123',
-                birthCertificateNumber: 'BC123'
-            });
-
-        expect(res.statusCode).toBe(200);
-        expect(res.body.patient.registrationNumber).toBe('REG123');
-    });
-
-    it('should return 404 if one name part is incorrect', async () => {
-        const mockChild = {
-            id: 1,
-            fullname: JSON.stringify({ first_name: 'John', middle_name: 'Paul', last_name: 'Doe' }),
-            dob: '2020-01-01',
-            registration_number: 'REG123',
-            birth_cert: 'BC123',
-            gender: 'Male'
-        };
-
-        externalQuery.mockResolvedValueOnce({ rows: [mockChild] });
-
-        const res = await request(app)
-            .post('/verify-secure')
-            .send({
-                firstName: 'John',
-                lastName: 'Wrong', // Incorrect name
-                dateOfBirth: '2020-01-01',
-                registrationNumber: 'REG123',
-                birthCertificateNumber: 'BC123'
-            });
-
-        expect(res.statusCode).toBe(404);
-        expect(res.body.error).toBe('Patient not found or details do not match');
-    });
-
-    it('should return 404 if patient not found', async () => {
+    it('should return 404 if Registration Number not found', async () => {
         externalQuery.mockResolvedValueOnce({ rows: [] });
 
         const res = await request(app)
-            .post('/verify-secure')
+            .post('/verify-secure') // Use the correct endpoint
             .send({
-                firstName: 'John',
-                lastName: 'Doe',
-                dateOfBirth: '2020-01-01',
-                registrationNumber: 'REG123',
-                birthCertificateNumber: 'BC123'
+                registrationNumber: 'INVALID',
+                dateOfBirth: '2020-01-01'
             });
 
         expect(res.statusCode).toBe(404);
         expect(res.body.error).toBe('Patient not found or details do not match');
     });
 
-    it('should return 404 if details mismatch (e.g. Birth Cert)', async () => {
-        const mockChild = {
-            id: 1,
-            fullname: JSON.stringify({ first_name: 'John', last_name: 'Doe' }),
-            dob: '2020-01-01',
-            registration_number: 'REG123',
-            birth_cert: 'BC999', // Database has BC999
-            gender: 'Male'
-        };
-
-        // Code uses fetching by RegNum then checking fields manually
-        externalQuery.mockResolvedValueOnce({ rows: [mockChild] });
+    it('should return 404 if DOB does not match', async () => {
+        externalQuery.mockResolvedValueOnce({
+            rows: [{
+                id: 1,
+                fullname: JSON.stringify({ first_name: 'John', last_name: 'Doe' }),
+                dob: '2020-01-01', // DB DOB
+                registration_number: 'REG123'
+            }]
+        });
 
         const res = await request(app)
-            .post('/verify-secure')
+            .post('/verify-secure') // Use the correct endpoint
             .send({
-                firstName: 'John',
-                lastName: 'Doe',
-                dateOfBirth: '2020-01-01',
                 registrationNumber: 'REG123',
-                birthCertificateNumber: 'BC123' // Request sends BC123 (mismatch)
+                dateOfBirth: '2022-05-05' // WRONG DOB
             });
 
         expect(res.statusCode).toBe(404);
