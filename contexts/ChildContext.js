@@ -77,7 +77,7 @@ export const ChildProvider = ({ children }) => {
             // Check for potential duplicates if registration number is provided
             if (childData.registrationNumber) {
                 const isDuplicate = childrenList.some(
-                    child => child.registrationNumber === childData.registrationNumber
+                    child => (child.registrationNumber || child.registration_number) === childData.registrationNumber
                 );
                 if (isDuplicate) {
                     throw new Error('This child record is already linked to your account.');
