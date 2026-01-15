@@ -41,7 +41,7 @@ export default function MilestoneChecklist() {
   return (
     <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
       <SafeHeader
-        title="Milestone Checklist"
+        title="Milestone Checker"
         showBack={true}
       />
       <ScrollView

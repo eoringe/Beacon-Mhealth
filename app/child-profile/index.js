@@ -436,7 +436,7 @@ export default function ChildProfileScreen() {
                         >
                             <MaterialIcons name="check-circle" size={24} color={colorScheme.primary} />
                             <Text style={[styles.quickActionLabel, { color: colorScheme.textPrimary }]}>
-                                Milestones
+                                Milestone Checker
                             </Text>
                         </TouchableOpacity>
                     </View>

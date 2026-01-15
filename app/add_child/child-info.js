@@ -156,7 +156,7 @@ export default function ChildInfoScreen() {
             onPress={() => router.push(`/milestone-checklist?age=${selectedAge}`)}
           >
             <View style={styles.milestoneHeader}>
-              <Text style={styles.milestoneTitle}>Milestone Checklist</Text>
+              <Text style={styles.milestoneTitle}>Milestone Checker</Text>
               <MaterialIcons name="chevron-right" size={24} color="#333333" />
             </View>
             <View style={styles.progressContainer}>

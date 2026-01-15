@@ -187,11 +187,12 @@ export default function DashboardScreen() {
             route: '/vaccinations',
         },
         {
-            id: 'milestones',
-            title: 'Checklist',
+            id: 'checklist',
+            title: 'Milestone Checker',
             icon: 'checklist',
-            color: '#FF9800',
+            color: '#4CAF50',
             route: '/milestone-checklist',
+            description: 'Track development'
         },
         {
             id: 'appointments',
