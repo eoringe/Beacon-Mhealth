@@ -292,7 +292,17 @@ exports.searchPatients = async (req, res) => {
  */
 exports.verifyPatientSecure = async (req, res) => {
     const { firstName, lastName, registrationNumber, dateOfBirth, birthCertificateNumber } = req.body;
-    console.log('[PatientController] Secure verification request for:', { registrationNumber });
+
+    // DEBUG LOGGING
+    console.log('\n[PatientController] === SECURE VERIFICATION REQUEST ===');
+    console.log('Received Params:', JSON.stringify(req.body, null, 2));
+    console.log('Processed Params:');
+    console.log('- Reg:', registrationNumber);
+    console.log('- Name 1:', firstName?.trim().toLowerCase());
+    console.log('- Name 2:', lastName?.trim().toLowerCase());
+    console.log('- DOB:', dateOfBirth, '(Expected Format: YYYY-MM-DD)');
+    console.log('- BirthCert:', birthCertificateNumber?.trim().toLowerCase());
+    console.log('==================================================\n');
 
     try {
         if (!firstName || !lastName || !registrationNumber || !dateOfBirth || !birthCertificateNumber) {
@@ -361,7 +371,6 @@ exports.verifyPatientSecure = async (req, res) => {
         // Use case: Child "John Paul Jones". Inputs: "John", "Jones" -> Pass. "John", "Paul" -> Pass.
 
         if (!isName1Valid || !isName2Valid) {
-            console.log('[PatientController] Secure verify: Name mismatch', { inputName1, inputName2, dbNameParts });
             return res.status(404).json({ error: 'Patient not found or details do not match' });
         }
 
@@ -372,7 +381,6 @@ exports.verifyPatientSecure = async (req, res) => {
         const reqBirthCert = birthCertificateNumber.trim().toLowerCase();
 
         if (dbDob !== reqDob || dbBirthCert !== reqBirthCert) {
-            console.log('[PatientController] Secure verify: DOB or BirthCert mismatch');
             return res.status(404).json({ error: 'Patient not found or details do not match' });
         }
 

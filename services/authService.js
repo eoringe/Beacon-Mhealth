@@ -7,9 +7,18 @@ import { decode } from "base-64";
 global.atob = decode; // Polyfill for jwt-decode
 
 // USE PRODUCTION URL for all platforms
-const API_URL = 'https://beacon-mhealth-production.up.railway.app/api';
+// const API_URL = 'https://beacon-mhealth-production.up.railway.app/api';
 
-console.log('AuthService: Using PRODUCTION API URL:', API_URL);
+// DYNAMIC DEVELOPMENT URL
+// Automatically detects the IP of the computer running the Expo packager
+const debuggerHost = Constants.expoConfig?.hostUri || Constants.manifest?.debuggerHost;
+const localhost = debuggerHost?.split(':')[0];
+
+const API_URL = localhost
+    ? `http://${localhost}:3000/api`
+    : 'https://beacon-mhealth-production.up.railway.app/api';
+
+console.log('AuthService: Using API URL:', API_URL);
 
 export { API_URL };
 
@@ -90,9 +99,7 @@ class AuthService {
     // Register user in backend after Firebase auth
     async registerUser(firebaseUser) {
         try {
-            console.log('AuthService: Starting backend registration for', firebaseUser.email);
             const token = await firebaseUser.getIdToken();
-            console.log('AuthService: Got Firebase token, calling API:', `${API_URL}/auth/register`);
 
             // Add timeout to prevent infinite hanging
             const controller = new AbortController();
@@ -116,16 +123,12 @@ class AuthService {
 
                 clearTimeout(timeoutId);
 
-                console.log('AuthService: API Response status:', response.status);
-
                 if (!response.ok) {
                     const errorText = await response.text();
-                    console.error('AuthService: API Error body:', errorText);
                     throw new Error(`Failed to register user in backend: ${response.status} ${errorText}`);
                 }
 
                 const data = await response.json();
-                console.log('AuthService: Backend registration successful');
                 await this.storeToken(token);
 
                 return data;
