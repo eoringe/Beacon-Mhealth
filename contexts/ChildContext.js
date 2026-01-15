@@ -74,6 +74,16 @@ export const ChildProvider = ({ children }) => {
     const addChild = async (childData) => {
         setLoading(true);
         try {
+            // Check for potential duplicates if registration number is provided
+            if (childData.registrationNumber) {
+                const isDuplicate = childrenList.some(
+                    child => child.registrationNumber === childData.registrationNumber
+                );
+                if (isDuplicate) {
+                    throw new Error('This child record is already linked to your account.');
+                }
+            }
+
             const newChild = await childService.addChild(childData);
             setChildrenList(prev => [newChild, ...prev]);
             // Automatically select the new child

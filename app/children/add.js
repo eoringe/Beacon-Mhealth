@@ -112,7 +112,7 @@ export default function AddChildScreen() {
             });
 
             showAlert('Success', 'Identity confirmed! Child profile linked successfully.', [
-                { text: 'OK', onPress: () => router.replace('/children') }
+                { text: 'OK', onPress: () => router.replace('/(tabs)/dashboard') }
             ], 'success');
 
         } catch (err) {
