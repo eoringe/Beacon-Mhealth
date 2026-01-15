@@ -327,9 +327,28 @@ exports.verifyPatientSecure = async (req, res) => {
 
         const child = childResult.rows[0];
 
-        // Strict DOB Check
-        const dbDob = new Date(child.dob).toISOString().split('T')[0];
+        // Strict DOB Check logic with Debugging
+        // Handle raw DB value safely
+        let dbDobRaw = child.dob;
+        let dbDob;
+
+        // Try simple string extraction first if it's a date object
+        if (dbDobRaw instanceof Date) {
+            dbDob = dbDobRaw.toISOString().split('T')[0];
+        } else {
+            // If string, try to parse
+            dbDob = new Date(dbDobRaw).toISOString().split('T')[0];
+        }
+
         const reqDob = new Date(dateOfBirth).toISOString().split('T')[0];
+
+        // DEBUG LOGS FOR PRODUCTION
+        console.log('[PatientController] DOB Check:');
+        console.log(`- DB Raw DOB: ${dbDobRaw} (Type: ${typeof dbDobRaw})`);
+        console.log(`- DB Processed DOB: ${dbDob}`);
+        console.log(`- One day off (Timezone check)? ${new Date(dbDobRaw).toDateString()}`);
+        console.log(`- Request DOB: ${reqDob}`);
+        console.log(`- Match? ${dbDob === reqDob}`);
 
         if (dbDob !== reqDob) {
             return res.status(404).json({ error: 'Patient not found or details do not match' });
