@@ -1,34 +1,8 @@
-
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import { API_URL } from '@/config/api';
 
-// For M-Pesa testing, use Railway production server directly
-// This ensures callbacks are processed on the same server that's being polled
-const USE_PRODUCTION_FOR_MPESA = true;
-const PRODUCTION_URL = 'https://beacon-mhealth-production.up.railway.app/api';
-
-const getApiUrl = () => {
-    // Use production for M-Pesa to ensure callback reaches the same server
-    if (USE_PRODUCTION_FOR_MPESA) {
-        console.log('MpesaService: Using PRODUCTION API URL');
-        return PRODUCTION_URL;
-    }
-
-    if (Platform.OS === 'web') return 'http://localhost:3000/api';
-
-    const origin = Constants.expoConfig?.hostUri;
-
-    if (origin) {
-        const url = `http://${origin.split(':')[0]}:3000/api`;
-        console.log('MpesaService: Using dynamic API URL:', url);
-        return url;
-    }
-
-    console.log('MpesaService: hostUri not found, falling back to static URL');
-    return Platform.OS === 'android' ? 'http://10.0.2.2:3000/api' : 'http://localhost:3000/api';
-};
-
-const API_BASE = getApiUrl();
+const API_BASE = API_URL;
 
 
 

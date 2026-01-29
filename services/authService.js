@@ -4,20 +4,9 @@ import { Platform } from 'react-native';
 import { auth } from '@/config/firebase';
 import { jwtDecode } from "jwt-decode";
 import { decode } from "base-64";
+import { API_URL } from '@/config/api';
+
 global.atob = decode; // Polyfill for jwt-decode
-
-// USE PRODUCTION URL for all platforms
-const API_URL = 'https://beacon-mhealth-production.up.railway.app/api';
-
-// DYNAMIC DEVELOPMENT URL (Commented out for Production Deployment)
-/*
-const debuggerHost = Constants.expoConfig?.hostUri || Constants.manifest?.debuggerHost;
-const localhost = debuggerHost?.split(':')[0];
-
-const API_URL = localhost 
-    ? `http://${localhost}:3000/api` 
-    : 'https://beacon-mhealth-production.up.railway.app/api';
-*/
 
 console.log('AuthService: Using API URL:', API_URL);
 

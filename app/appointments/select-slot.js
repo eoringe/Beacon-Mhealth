@@ -294,6 +294,7 @@ export default function SelectSlotScreen() {
                                 </Text>
                             </TouchableOpacity>
 
+                            {/* TEMPORARILY DISABLED PER USER REQUEST
                             <TouchableOpacity
                                 style={[
                                     styles.typeOption,
@@ -327,6 +328,7 @@ export default function SelectSlotScreen() {
                                     Teleconsult
                                 </Text>
                             </TouchableOpacity>
+                            */}
                         </View>
                         {appointmentType === 'TELECONSULT' && (
                             <View>

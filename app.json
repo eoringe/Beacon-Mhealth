@@ -4,7 +4,7 @@
     "slug": "beacon-children-center",
     "version": "1.0.0",
     "orientation": "default",
-    "icon": "./assets/images/icon_optimized.png",
+    "icon": "./assets/images/beacon_30.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "splash": {
@@ -29,7 +29,7 @@
       "package": "com.beaconchildrencenter.app",
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icon_optimized.png",
+        "foregroundImage": "./assets/images/beacon_30.png",
         "backgroundColor": "#ffffff"
       },
       "permissions": [
@@ -41,7 +41,7 @@
         "ACCESS_NETWORK_STATE"
       ],
       "notification": {
-        "icon": "./assets/images/icon.png",
+        "icon": "./assets/images/beacon_30.png",
         "color": "#2E5BFF"
       }
     },
