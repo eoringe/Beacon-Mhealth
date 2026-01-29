@@ -7,6 +7,8 @@ import {
     onAuthStateChanged,
     GoogleAuthProvider,
     signInWithCredential,
+    sendPasswordResetEmail,
+    updatePassword,
 } from 'firebase/auth';
 import { auth } from '@/config/firebase';
 import authService from '@/services/authService';
@@ -284,6 +286,43 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const forgotPassword = async (email) => {
+        try {
+            setLoading(true);
+            await sendPasswordResetEmail(auth, email);
+            return { success: true, message: 'Password reset email sent!' };
+        } catch (error) {
+            console.error('Forgot password error:', error);
+            let message = 'Failed to send reset email';
+            if (error.code === 'auth/user-not-found') message = 'No account found with this email';
+            if (error.code === 'auth/invalid-email') message = 'Invalid email address';
+            throw new Error(message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const changePassword = async (newPassword) => {
+        try {
+            setLoading(true);
+            if (!auth.currentUser) throw new Error('No user logged in');
+
+            await updatePassword(auth.currentUser, newPassword);
+            return { success: true, message: 'Password updated successfully' };
+        } catch (error) {
+            console.error('Change password error:', error);
+            let message = 'Failed to update password';
+            if (error.code === 'auth/requires-recent-login') {
+                message = 'For security, please log out and log back in before changing your password.';
+            } else if (error.code === 'auth/weak-password') {
+                message = 'Password is too weak';
+            }
+            throw new Error(message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const value = {
         user,
         loading,
@@ -292,7 +331,9 @@ export const AuthProvider = ({ children }) => {
         login,
         loginWithGoogle,
         logout,
-        resendVerificationEmail
+        resendVerificationEmail,
+        forgotPassword,
+        changePassword
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

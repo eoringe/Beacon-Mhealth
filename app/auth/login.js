@@ -233,7 +233,7 @@ export default function AuthScreen() {
                                         <Text style={styles.rememberMeText}>Remember me</Text>
                                     </TouchableOpacity>
 
-                                    <TouchableOpacity>
+                                    <TouchableOpacity onPress={() => router.push('/auth/forgot-password')}>
                                         <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
                                     </TouchableOpacity>
                                 </View>
