@@ -34,6 +34,9 @@ export default function SelectSlotScreen() {
 
     const doctor = params.doctor ? JSON.parse(params.doctor) : null;
 
+    // Detect if this is a guest booking (child has no registration number)
+    const isGuestBooking = selectedChild && !selectedChild.registration_number && !selectedChild.registrationNumber;
+
     const [selectedDate, setSelectedDate] = useState('');
     const [selectedTime, setSelectedTime] = useState('');
     const [availableSlots, setAvailableSlots] = useState([]);
@@ -44,6 +47,14 @@ export default function SelectSlotScreen() {
     const [processingPayment, setProcessingPayment] = useState(false);
     const [phoneNumber, setPhoneNumber] = useState('');
     const [appointmentType, setAppointmentType] = useState('IN_PERSON');
+
+    // Guest booking fields (parent/guardian details)
+    const [parentFirstName, setParentFirstName] = useState('');
+    const [parentLastName, setParentLastName] = useState('');
+    const [parentPhone, setParentPhone] = useState('');
+    const [parentEmail, setParentEmail] = useState('');
+    const [parentGender, setParentGender] = useState('');
+    const [childGender, setChildGender] = useState(selectedChild?.gender || 'Male');
 
     useEffect(() => {
         if (selectedDate && doctor) {
@@ -81,6 +92,66 @@ export default function SelectSlotScreen() {
     const handleBookAppointment = async () => {
         if (!selectedDate || !selectedTime) {
             Alert.alert('Missing Information', 'Please select a date and time');
+            return;
+        }
+
+        // Validate guest booking fields
+        if (isGuestBooking) {
+            if (!parentFirstName || !parentLastName) {
+                Alert.alert('Missing Information', 'Please enter parent/guardian name');
+                return;
+            }
+            if (!parentPhone) {
+                Alert.alert('Missing Information', 'Please enter parent phone number');
+                return;
+            }
+        }
+
+        // IF GUEST BOOKING: Use guest appointment endpoint
+        if (isGuestBooking) {
+            const guestData = {
+                parent_first_name: parentFirstName,
+                parent_last_name: parentLastName,
+                parent_phone: parentPhone,
+                parent_email: parentEmail || null,
+                parent_gender: parentGender || null,
+                child_first_name: selectedChild?.firstName || selectedChild?.first_name || selectedChild?.name?.split(' ')[0] || '',
+                child_last_name: selectedChild?.lastName || selectedChild?.last_name || selectedChild?.name?.split(' ').slice(1).join(' ') || '',
+                child_dob: selectedChild?.dateOfBirth || selectedChild?.date_of_birth || selectedChild?.dob || '',
+                child_gender: childGender,
+                doctor_id: doctor.id,
+                appointment_date: selectedDate,
+                start_time: selectedTime,
+            };
+
+            try {
+                setBooking(true);
+                const response = await appointmentService.createGuestAppointment(guestData);
+
+                // Navigate to confirmation screen
+                router.push({
+                    pathname: '/appointments/confirmation',
+                    params: {
+                        doctorName: doctor.name,
+                        specialty: doctor.specialty,
+                        date: selectedDate,
+                        time: selectedTime,
+                        appointmentType: appointmentType,
+                        meetLink: '',
+                        eventId: '',
+                        isGuest: 'true',
+                    }
+                });
+                showAlert('Success', response.message || 'Appointment booked successfully!', [], 'success');
+            } catch (error) {
+                Alert.alert(
+                    'Booking Failed',
+                    error.message || 'Failed to book appointment. Please try again.'
+                );
+                console.error('Error booking guest appointment:', error);
+            } finally {
+                setBooking(false);
+            }
             return;
         }
 
@@ -356,6 +427,110 @@ export default function SelectSlotScreen() {
                             </View>
                         )}
                     </View>
+
+                    {/* Guest Booking Notice & Parent/Guardian Details */}
+                    {isGuestBooking && (
+                        <View style={styles.section}>
+                            <View style={[styles.guestNotice, { backgroundColor: colorScheme.warning + '20', borderColor: colorScheme.warning }]}>
+                                <MaterialIcons name="info-outline" size={20} color={colorScheme.warning} />
+                                <Text style={{ color: colorScheme.textPrimary, marginLeft: 8, flex: 1, fontSize: 13 }}>
+                                    Your child doesn't have a registration number yet. Please provide parent/guardian details to complete the booking.
+                                </Text>
+                            </View>
+
+                            <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, marginTop: 16 }]}>
+                                Parent/Guardian Details
+                            </Text>
+
+                            <View style={styles.formRow}>
+                                <View style={styles.formHalf}>
+                                    <Text style={[styles.label, { color: colorScheme.textSecondary }]}>First Name *</Text>
+                                    <TextInput
+                                        style={[styles.input, { backgroundColor: colorScheme.surface, color: colorScheme.textPrimary, borderColor: colorScheme.border }]}
+                                        placeholder="First name"
+                                        placeholderTextColor={colorScheme.textTertiary}
+                                        value={parentFirstName}
+                                        onChangeText={setParentFirstName}
+                                    />
+                                </View>
+                                <View style={styles.formHalf}>
+                                    <Text style={[styles.label, { color: colorScheme.textSecondary }]}>Last Name *</Text>
+                                    <TextInput
+                                        style={[styles.input, { backgroundColor: colorScheme.surface, color: colorScheme.textPrimary, borderColor: colorScheme.border }]}
+                                        placeholder="Last name"
+                                        placeholderTextColor={colorScheme.textTertiary}
+                                        value={parentLastName}
+                                        onChangeText={setParentLastName}
+                                    />
+                                </View>
+                            </View>
+
+                            <Text style={[styles.label, { color: colorScheme.textSecondary }]}>Phone Number *</Text>
+                            <TextInput
+                                style={[styles.input, { backgroundColor: colorScheme.surface, color: colorScheme.textPrimary, borderColor: colorScheme.border }]}
+                                placeholder="e.g., 0712345678"
+                                placeholderTextColor={colorScheme.textTertiary}
+                                value={parentPhone}
+                                onChangeText={setParentPhone}
+                                keyboardType="phone-pad"
+                            />
+
+                            <Text style={[styles.label, { color: colorScheme.textSecondary }]}>Email (Optional)</Text>
+                            <TextInput
+                                style={[styles.input, { backgroundColor: colorScheme.surface, color: colorScheme.textPrimary, borderColor: colorScheme.border }]}
+                                placeholder="email@example.com"
+                                placeholderTextColor={colorScheme.textTertiary}
+                                value={parentEmail}
+                                onChangeText={setParentEmail}
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                            />
+
+                            <Text style={[styles.label, { color: colorScheme.textSecondary }]}>Gender</Text>
+                            <View style={styles.genderRow}>
+                                {['Male', 'Female'].map((gender) => (
+                                    <TouchableOpacity
+                                        key={gender}
+                                        style={[
+                                            styles.genderOption,
+                                            {
+                                                backgroundColor: parentGender === gender ? colorScheme.primary : colorScheme.surface,
+                                                borderColor: parentGender === gender ? colorScheme.primary : colorScheme.border,
+                                            }
+                                        ]}
+                                        onPress={() => setParentGender(gender)}
+                                    >
+                                        <Text style={{ color: parentGender === gender ? '#FFFFFF' : colorScheme.textPrimary }}>
+                                            {gender}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, marginTop: 16 }]}>
+                                Child's Gender
+                            </Text>
+                            <View style={styles.genderRow}>
+                                {['Male', 'Female'].map((gender) => (
+                                    <TouchableOpacity
+                                        key={gender}
+                                        style={[
+                                            styles.genderOption,
+                                            {
+                                                backgroundColor: childGender === gender ? colorScheme.primary : colorScheme.surface,
+                                                borderColor: childGender === gender ? colorScheme.primary : colorScheme.border,
+                                            }
+                                        ]}
+                                        onPress={() => setChildGender(gender)}
+                                    >
+                                        <Text style={{ color: childGender === gender ? '#FFFFFF' : colorScheme.textPrimary }}>
+                                            {gender}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+                    )}
 
 
                     {/* Calendar */}
@@ -710,5 +885,36 @@ const styles = StyleSheet.create({
     typeOptionText: {
         fontSize: Typography.fontSize.sm,
         fontWeight: Typography.fontWeight.medium,
+    },
+    // Guest booking styles
+    guestNotice: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        padding: Spacing.md,
+        borderRadius: BorderRadius.md,
+        borderWidth: 1,
+    },
+    formRow: {
+        flexDirection: 'row',
+        gap: Spacing.md,
+    },
+    formHalf: {
+        flex: 1,
+    },
+    label: {
+        fontSize: Typography.fontSize.sm,
+        marginBottom: Spacing.xs,
+        fontWeight: Typography.fontWeight.medium,
+    },
+    genderRow: {
+        flexDirection: 'row',
+        gap: Spacing.sm,
+        marginBottom: Spacing.md,
+    },
+    genderOption: {
+        paddingVertical: Spacing.sm,
+        paddingHorizontal: Spacing.lg,
+        borderRadius: BorderRadius.md,
+        borderWidth: 1,
     },
 });

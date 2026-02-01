@@ -19,6 +19,9 @@ router.get('/doctors/:doctorId/availability', appointmentController.getDoctorAva
 // Create a new appointment
 router.post('/', appointmentController.createAppointment);
 
+// Create a guest appointment (for children without registration number)
+router.post('/guest', appointmentController.createGuestAppointment);
+
 // Get user's appointments (with optional status filter)
 router.get('/', appointmentController.getUserAppointments);
 

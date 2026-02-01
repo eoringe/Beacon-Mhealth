@@ -752,3 +752,104 @@ exports.deleteAppointment = async (req, res) => {
         client.release();
     }
 };
+
+// Create a guest appointment - proxy to external Laravel API
+exports.createGuestAppointment = async (req, res) => {
+    try {
+        const {
+            parent_first_name,
+            parent_last_name,
+            parent_phone,
+            parent_email,
+            parent_gender,
+            child_first_name,
+            child_last_name,
+            child_dob,
+            child_gender,
+            doctor_id,
+            appointment_date,
+            start_time,
+            end_time
+        } = req.body;
+
+        // Validate required fields
+        const errors = {};
+        if (!parent_first_name) errors.parent_first_name = ['Parent first name is required'];
+        if (!parent_last_name) errors.parent_last_name = ['Parent last name is required'];
+        if (!parent_phone) errors.parent_phone = ['Parent phone is required'];
+        if (!child_first_name) errors.child_first_name = ['Child first name is required'];
+        if (!child_last_name) errors.child_last_name = ['Child last name is required'];
+        if (!child_dob) errors.child_dob = ['Child date of birth is required'];
+        if (!child_gender) errors.child_gender = ['Child gender is required'];
+        if (!doctor_id) errors.doctor_id = ['Doctor is required'];
+        if (!appointment_date) errors.appointment_date = ['Appointment date is required'];
+        if (!start_time) errors.start_time = ['Start time is required'];
+
+        if (Object.keys(errors).length > 0) {
+            return res.status(422).json({
+                success: false,
+                message: 'Validation failed',
+                errors
+            });
+        }
+
+        // Calculate end_time if not provided (1 hour default)
+        const finalEndTime = end_time || (() => {
+            const [hours, minutes] = start_time.split(':');
+            const endHour = (parseInt(hours) + 1).toString().padStart(2, '0');
+            return `${endHour}:${minutes}`;
+        })();
+
+        // Forward to external Laravel API
+        const LARAVEL_API_URL = process.env.LARAVEL_API_URL || 'https://beaconchildrencentre.co.ke';
+
+        const laravelResponse = await fetch(`${LARAVEL_API_URL}/api/book-guest-appointment`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                parent_first_name,
+                parent_last_name,
+                parent_phone,
+                parent_email: parent_email || null,
+                parent_gender: parent_gender || null,
+                child_first_name,
+                child_last_name,
+                child_dob,
+                child_gender,
+                doctor_id,
+                appointment_date,
+                start_time,
+                end_time: finalEndTime
+            })
+        });
+
+        const data = await laravelResponse.json();
+
+        // Forward the Laravel response
+        if (laravelResponse.ok && data.success !== false) {
+            return res.json({
+                success: true,
+                message: data.message || 'Appointment booked successfully',
+                data: data.data || data
+            });
+        } else {
+            // Forward error response
+            return res.status(laravelResponse.status || 400).json({
+                success: false,
+                message: data.message || 'Failed to book appointment',
+                errors: data.errors || {}
+            });
+        }
+
+    } catch (error) {
+        console.error('Error creating guest appointment:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Server error creating guest appointment',
+            message: error.message
+        });
+    }
+};

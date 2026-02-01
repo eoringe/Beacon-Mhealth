@@ -156,6 +156,51 @@ class AppointmentService {
         }
     }
 
+    // Create a guest appointment (for children without registration number)
+    // This calls the external Laravel API directly
+    async createGuestAppointment(guestData) {
+        try {
+            const token = await this.getToken();
+            if (!token) throw new Error('No authentication token');
+
+            // The guest endpoint is on the external Laravel API, not our Node.js backend
+            // We'll proxy through our backend to maintain auth
+            const response = await fetch(`${API_URL}/appointments/guest`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(guestData)
+            });
+
+            const responseData = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                console.error(`Create guest appointment failed: ${response.status}`, responseData);
+                // Handle Laravel validation errors
+                if (responseData.errors) {
+                    const errorMessages = Object.values(responseData.errors).flat().join('\n');
+                    throw new Error(errorMessages);
+                }
+                throw new Error(responseData.message || responseData.error || `Failed to create appointment: ${response.status}`);
+            }
+
+            // Check for business logic errors (Laravel returns 200 with success: false)
+            if (responseData.success === false) {
+                throw new Error(responseData.message || 'Booking failed');
+            }
+
+            // Invalidate appointments cache on mutation
+            await cacheService.invalidatePattern('appointments');
+
+            return responseData;
+        } catch (error) {
+            console.error('Error creating guest appointment:', error);
+            throw error;
+        }
+    }
+
     // Get user's appointments (cached)
     async getAppointments(status = null, forceRefresh = false) {
         try {
