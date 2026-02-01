@@ -110,6 +110,45 @@ export default function AppointmentsScreen() {
         );
     };
 
+    const handleClearAllPast = async () => {
+        // Get IDs of all past appointments
+        const pastIds = appointments.filter(apt => {
+            const isPast = new Date(apt.appointment_date) < new Date();
+            const isCancelled = apt.status === 'cancelled' || apt.status === 'canceled';
+            return isPast || isCancelled;
+        }).map(apt => apt.id);
+
+        if (pastIds.length === 0) {
+            showAlert('No Past Appointments', 'There are no past appointments to clear.', [], 'info');
+            return;
+        }
+
+        showAlert(
+            'Clear All Past Appointments',
+            `Are you sure you want to remove ${pastIds.length} past/cancelled appointment${pastIds.length > 1 ? 's' : ''} from your history?`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Clear All',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            // Delete all past appointments
+                            await Promise.all(pastIds.map(id => appointmentService.deleteAppointment(id)));
+                            fetchAppointments();
+                            showAlert('Success', 'Past appointments cleared', [], 'success');
+                        } catch (error) {
+                            showAlert('Error', 'Failed to clear some appointments', [], 'error');
+                            console.error('Error clearing past appointments:', error);
+                            fetchAppointments(); // Refresh to show what was actually deleted
+                        }
+                    },
+                },
+            ],
+            'warning'
+        );
+    };
+
     const getStatusColor = (status) => {
         switch (status) {
             case 'scheduled':
@@ -377,6 +416,30 @@ export default function AppointmentsScreen() {
                                 </TouchableOpacity>
                             )}
 
+                            {/* Delete button for past or cancelled appointments - compact style */}
+                            {(isPast || appointment.status === 'cancelled' || appointment.status === 'canceled') && (
+                                <TouchableOpacity
+                                    style={{
+                                        flexDirection: 'row',
+                                        alignItems: 'center',
+                                        paddingVertical: 6,
+                                        paddingHorizontal: 10,
+                                        borderRadius: 6,
+                                        borderWidth: 1,
+                                        borderColor: colorScheme.error + '50',
+                                        backgroundColor: colorScheme.error + '10',
+                                        alignSelf: 'flex-start',
+                                        marginTop: 8,
+                                    }}
+                                    onPress={() => onDelete(appointment.id)}
+                                >
+                                    <MaterialIcons name="delete-outline" size={14} color={colorScheme.error} />
+                                    <Text style={{ color: colorScheme.error, fontSize: 12, marginLeft: 4, fontWeight: '500' }}>
+                                        Remove
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
+
                             {/* Appointment Type Badge (Informational) */}
                             <View style={[
                                 styles.typeBadge,
@@ -514,12 +577,30 @@ export default function AppointmentsScreen() {
 
                         {(selectedFilter === 'all' || selectedFilter === 'past' || selectedFilter === 'canceled' || selectedFilter === 'completed') && pastAppointments.length > 0 && (
                             <View style={styles.section}>
-                                <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
-                                    {selectedFilter === 'canceled'
-                                        ? 'Cancelled Appointments'
-                                        : (selectedFilter === 'all' ? 'Past Appointments' : 'History')
-                                    }
-                                </Text>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                    <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, marginBottom: 0 }]}>
+                                        {selectedFilter === 'canceled'
+                                            ? 'Cancelled Appointments'
+                                            : (selectedFilter === 'all' ? 'Past Appointments' : 'History')
+                                        }
+                                    </Text>
+                                    <TouchableOpacity
+                                        style={{
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            paddingVertical: 4,
+                                            paddingHorizontal: 8,
+                                            borderRadius: 4,
+                                            backgroundColor: colorScheme.error + '15',
+                                        }}
+                                        onPress={handleClearAllPast}
+                                    >
+                                        <MaterialIcons name="delete-sweep" size={14} color={colorScheme.error} />
+                                        <Text style={{ color: colorScheme.error, fontSize: 12, marginLeft: 4, fontWeight: '500' }}>
+                                            Clear All
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
                                 {pastAppointments.map(apt => (
                                     <AppointmentCard
                                         key={apt.id}
