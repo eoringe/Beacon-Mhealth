@@ -197,7 +197,14 @@ class AppointmentService {
             // ENHANCEMENT: Populate doctor_name if missing, using cached doctors list
             try {
                 const appointments = result.data;
+                // DEBUG: Log raw appointments received from backend
+                console.log('[Frontend DEBUG] Raw appointments from API:', JSON.stringify(appointments && appointments.slice ? appointments.slice(0, 3) : appointments, null, 2));
+
                 if (Array.isArray(appointments) && appointments.length > 0) {
+                    // DEBUG: Log doctor_id and staff_id for each appointment
+                    appointments.forEach(apt => {
+                        console.log(`[Frontend DEBUG] Apt ID: ${apt.id}, doctor_id: ${apt.doctor_id}, staff_id: ${apt.staff_id}, child_name: ${apt.child_name}, doctor_name: ${apt.doctor_name}`);
+                    });
                     // We use getDoctors(false) to use cached version if available
                     const doctors = await this.getDoctors(false);
 

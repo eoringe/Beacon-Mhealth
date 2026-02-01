@@ -540,7 +540,12 @@ exports.getUserAppointments = async (req, res) => {
 
         // 4. Format Response to match frontend expectations
         // Frontend expects: doctor_name, doctor_specialty, child_name, etc.
+        console.log('[Backend DEBUG] Raw appointmentsResult.rows:', JSON.stringify(appointmentsResult.rows.slice(0, 3), null, 2)); // Log first 3 raw appointments
+
         const formattedAppointments = appointmentsResult.rows.map(appt => {
+            // DEBUG: Log raw IDs from the query result
+            console.log(`[Backend DEBUG] Appointment ID: ${appt.id}, Raw staff_id: ${appt.staff_id}, Raw doctor_id: ${appt.doctor_id}, Child: ${appt.child_fullname}`);
+
             // Helper to parsing names from JSON or String
             const parseName = (nameField) => {
                 if (!nameField) return 'Unknown';
