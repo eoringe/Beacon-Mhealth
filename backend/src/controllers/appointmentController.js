@@ -811,7 +811,8 @@ exports.createGuestAppointment = async (req, res) => {
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
+                'X-Requested-With': 'XMLHttpRequest',
+                'User-Agent': 'Beacon-Mobile-App/1.0'
             },
             body: JSON.stringify({
                 parent_first_name,
