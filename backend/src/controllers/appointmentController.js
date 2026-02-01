@@ -512,6 +512,7 @@ exports.getUserAppointments = async (req, res) => {
                 a.status,
                 a.created_at,
                 a.staff_id,
+                a.doctor_id, // Added doctor_id selection
                 a.appointment_type,
                 a.google_meet_link,
                 s.fullname as doctor_name,
@@ -563,7 +564,7 @@ exports.getUserAppointments = async (req, res) => {
                 doctor_name: parseName(appt.doctor_name),
                 doctor_specialty: appt.doctor_specialty || 'General',
                 child_name: parseName(appt.child_fullname),
-                doctor_id: appt.staff_id, // For reference
+                doctor_id: appt.doctor_id || appt.staff_id, // Use real doctor_id, fallback to staff_id if null
                 // Add dummy photo since external DB doesn't have it easily accessible yet
                 doctor_photo: null,
                 // Teleconsultation fields
