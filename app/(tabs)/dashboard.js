@@ -475,7 +475,8 @@ const styles = StyleSheet.create({
     actionCard: {
         width: '31%',
         borderRadius: BorderRadius.lg,
-        padding: Spacing.md,
+        padding: Spacing.xs, // Reduced padding to give text more width
+        paddingVertical: Spacing.md,
         marginBottom: Spacing.md,
         alignItems: 'center',
         ...Shadow.md,
@@ -486,13 +487,12 @@ const styles = StyleSheet.create({
         borderRadius: BorderRadius.xl,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: Spacing.sm,
+        marginBottom: 4, // Reduced margin
     },
     actionTitle: {
-        fontSize: Typography.fontSize.xs,
+        fontSize: 10, // Reduced to 10 per user request
         fontWeight: Typography.fontWeight.medium,
         textAlign: 'center',
-        numberOfLines: 1,
     },
     card: {
         borderRadius: BorderRadius.lg,

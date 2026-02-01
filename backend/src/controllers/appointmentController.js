@@ -170,7 +170,7 @@ exports.createAppointment = async (req, res) => {
         // 1. Resolve External Child ID
         // Fetch local child first to get registration number
         const localChildCheck = await client.query(
-            'SELECT registration_number, first_name, last_name FROM children WHERE id = $1 AND parent_id = $2',
+            'SELECT registration_number, first_name, last_name, date_of_birth, gender FROM children WHERE id = $1 AND parent_id = $2',
             [childId, userId]
         );
 
@@ -178,27 +178,91 @@ exports.createAppointment = async (req, res) => {
             return res.status(404).json({ error: 'Child not found or unauthorized' });
         }
 
+        let externalChildId = null;
+        let childFullName = `${localChildCheck.rows[0].first_name} ${localChildCheck.rows[0].last_name}`;
         const childRegNumber = localChildCheck.rows[0].registration_number;
-        if (!childRegNumber) {
-            return res.status(400).json({
-                error: 'Child is not linked to the clinic system. Please update child profile with Registration Number.'
-            });
+
+        if (childRegNumber) {
+            // Lookup child in External DB using Registration Number to get Real External ID
+            const externalChildCheck = await externalQuery(
+                'SELECT id, fullname FROM children WHERE registration_number = $1',
+                [childRegNumber]
+            );
+
+            if (externalChildCheck.rows.length === 0) {
+                return res.status(404).json({
+                    error: `Child with Registration Number ${childRegNumber} not found in clinic system`
+                });
+            }
+            externalChildId = externalChildCheck.rows[0].id;
+        } else {
+            // Child has no registration number - Treat as Guest/New Patient in External DB
+            console.log(`[Appointment] Child ${childId} has no reg number. Creating/Linking as guest in External DB.`);
+
+            // 1. Get Parent Details from Local User
+            const userResult = await client.query('SELECT first_name, last_name, phone_number, email, gender FROM users WHERE id = $1', [userId]);
+            const user = userResult.rows[0];
+
+            if (!user) {
+                return res.status(500).json({ error: 'User profile not found' });
+            }
+
+            // 2. Find or Create External Parent (User)
+            // Try to find by phone (primary) or email
+            let externalParentId = null;
+            const parentCheck = await externalQuery(
+                'SELECT id FROM users WHERE phone_number = $1 OR email = $2',
+                [user.phone_number, user.email]
+            );
+
+            if (parentCheck.rows.length > 0) {
+                externalParentId = parentCheck.rows[0].id;
+            } else {
+                // Create new Guest/Provisional Parent in External DB
+                const insertParentQuery = `
+                    INSERT INTO users (first_name, last_name, phone_number, email, gender, password, created_at, updated_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+                    RETURNING id
+                `;
+                // Use a placeholder password or null
+                try {
+                    // Note: External DB 'users' schema might require fields we assume.
+                    // We use the same assumption as the Guest Controller.
+                    const newParent = await externalQuery(insertParentQuery, [
+                        user.first_name || 'Guest',
+                        user.last_name || 'Parent',
+                        user.phone_number,
+                        user.email || `guest_${Date.now()}@beacon.com`,
+                        user.gender || 'Unknown',
+                        'GUEST_LINKED_ACCOUNT'
+                    ]);
+                    externalParentId = newParent.rows[0].id;
+                } catch (pError) {
+                    console.error('Failed to create external parent:', pError);
+                    return res.status(500).json({ error: 'Failed to synchronize parent profile with clinic system.' });
+                }
+            }
+
+            // 3. Create External Child
+            const localChild = localChildCheck.rows[0];
+            const insertChildQuery = `
+                INSERT INTO children (
+                    parent_id, first_name, last_name, date_of_birth, gender, registration_number, created_at, updated_at
+                )
+                VALUES ($1, $2, $3, $4, $5, NULL, NOW(), NOW())
+                RETURNING id
+            `;
+
+            const newChild = await externalQuery(insertChildQuery, [
+                externalParentId,
+                localChild.first_name,
+                localChild.last_name,
+                localChild.date_of_birth,
+                localChild.gender
+            ]);
+
+            externalChildId = newChild.rows[0].id;
         }
-
-        // Lookup child in External DB using Registration Number to get Real External ID
-        const externalChildCheck = await externalQuery(
-            'SELECT id, fullname FROM children WHERE registration_number = $1',
-            [childRegNumber]
-        );
-
-        if (externalChildCheck.rows.length === 0) {
-            return res.status(404).json({
-                error: `Child with Registration Number ${childRegNumber} not found in clinic system`
-            });
-        }
-
-        const externalChildId = externalChildCheck.rows[0].id;
-        const childFullName = `${localChildCheck.rows[0].first_name} ${localChildCheck.rows[0].last_name}`;
 
         // Generate Title based on appointment type
         let appointmentTitle = appointmentType === 'TELECONSULT'

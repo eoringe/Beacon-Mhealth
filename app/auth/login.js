@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons, Feather } from '@expo/vector-icons';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAlert } from '@/contexts/AlertContext';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { validatePassword, getPasswordStrength } from '@/utils/validation';
 import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme';
@@ -26,6 +27,7 @@ export default function AuthScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { login, loginWithGoogle, signup, loading, resendVerificationEmail, logout } = useAuth();
+    const { showAlert } = useAlert();
     const [activeTab, setActiveTab] = useState('login');
 
     // Login state
@@ -53,7 +55,7 @@ export default function AuthScreen() {
             const result = await login(email, password);
 
             if (result && result.requiresVerification) {
-                Alert.alert(
+                showAlert(
                     'Email Not Verified',
                     'Please verify your email before logging in. Check your inbox for the verification link.',
                     [
@@ -62,9 +64,9 @@ export default function AuthScreen() {
                             onPress: async () => {
                                 try {
                                     await resendVerificationEmail();
-                                    Alert.alert('Sent', 'Verification email sent! Please check your inbox.');
+                                    showAlert('Sent', 'Verification email sent! Please check your inbox.', [], 'success');
                                 } catch (error) {
-                                    Alert.alert('Error', 'Failed to send verification email: ' + error.message);
+                                    showAlert('Error', 'Failed to send verification email: ' + error.message, [], 'error');
                                 } finally {
                                     await logout();
                                 }
@@ -75,14 +77,15 @@ export default function AuthScreen() {
                             onPress: async () => await logout(),
                             style: 'cancel'
                         }
-                    ]
+                    ],
+                    'warning'
                 );
                 return;
             }
 
             router.replace('/(tabs)/dashboard');
         } catch (error) {
-            Alert.alert('Login Failed', error.message);
+            showAlert('Login Failed', error.message, [], 'error');
         }
     };
 
@@ -94,34 +97,34 @@ export default function AuthScreen() {
                 router.replace('/(tabs)/dashboard');
             }
         } catch (error) {
-            Alert.alert('Google Login Failed', error.message);
+            showAlert('Google Login Failed', error.message, [], 'error');
         }
     };
 
     const handleSignup = async () => {
         if (!fullName || !signupEmail || !signupPassword || !confirmPassword) {
-            Alert.alert('Error', 'Please fill in all fields');
+            showAlert('Error', 'Please fill in all fields', [], 'error');
             return;
         }
 
         const passwordValidation = validatePassword(signupPassword);
         if (!passwordValidation.isValid) {
-            Alert.alert('Weak Password', passwordValidation.errors.join('\n'));
+            showAlert('Weak Password', passwordValidation.errors.join('\n'), [], 'warning');
             return;
         }
 
         if (signupPassword !== confirmPassword) {
-            Alert.alert('Error', 'Passwords do not match');
+            showAlert('Error', 'Passwords do not match', [], 'error');
             return;
         }
 
         try {
             const result = await signup(signupEmail, signupPassword, fullName);
-            Alert.alert('Success!', result.message, [
+            showAlert('Success!', result.message, [
                 { text: 'OK', onPress: () => setActiveTab('login') }
-            ]);
+            ], 'success');
         } catch (error) {
-            Alert.alert('Signup Failed', error.message);
+            showAlert('Signup Failed', error.message, [], 'error');
         }
     };
 

@@ -82,14 +82,22 @@ function NavigationWrapper() {
     if (loading) return;
 
     const inAuthGroup = segments[0] === 'auth';
-    const inWelcomeScreen = segments.length === 0 || segments[0] === 'index';
+    const inWelcomeScreen = (segments as string[]).length === 0;
 
     if (!user && !inAuthGroup && !inWelcomeScreen) {
       // Redirect to the welcome page if not logged in and not in a public area
       router.replace('/');
     } else if (user && (inAuthGroup || inWelcomeScreen)) {
-      // Redirect to dashboard if logged in and in a public area
-      router.replace('/(tabs)/dashboard');
+      // Only redirect to dashboard if email is verified
+      if (user.emailVerified) {
+        router.replace('/(tabs)/dashboard');
+      } else {
+        // If logged in but not verified, valid states are only Auth screens
+        if (!inAuthGroup) {
+          // Force them back to login if they try to access protected areas
+          router.replace('/auth/login');
+        }
+      }
     }
   }, [user, loading, segments]);
 
