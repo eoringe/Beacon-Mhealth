@@ -810,7 +810,8 @@ exports.createGuestAppointment = async (req, res) => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json'
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
             },
             body: JSON.stringify({
                 parent_first_name,
@@ -829,8 +830,19 @@ exports.createGuestAppointment = async (req, res) => {
             })
         });
 
-        const data = await laravelResponse.json();
-        console.log('[GuestAppointment] Laravel API response:', data);
+        const responseText = await laravelResponse.text();
+        console.log('[GuestAppointment] Laravel API status:', laravelResponse.status);
+        console.log('[GuestAppointment] Laravel API raw response:', responseText.substring(0, 500)); // Log first 500 chars
+
+        let data;
+        try {
+            data = JSON.parse(responseText);
+        } catch (e) {
+            console.error('[GuestAppointment] Failed to parse JSON:', e);
+            return res.status(laravelResponse.status).send(responseText); // Return the HTML to client for debugging
+        }
+
+        console.log('[GuestAppointment] Laravel API response data:', data);
 
         // Forward the Laravel response
         if (laravelResponse.ok && data.success !== false) {
