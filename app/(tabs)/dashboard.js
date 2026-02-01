@@ -248,7 +248,7 @@ export default function DashboardScreen() {
             title: 'Appointments',
             icon: 'calendar-today',
             color: colorScheme.info,
-            route: '/appointments',
+            route: '/(tabs)/appointments', // Navigate to tabbed version to show bottom nav bar
         },
         {
             id: 'prescriptions',

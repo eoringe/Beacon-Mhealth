@@ -686,10 +686,69 @@ exports.cancelAppointment = async (req, res) => {
     }
 };
 
-// Delete appointment (Blocked for External Data integrity, or implement soft delete)
+// Delete appointment - Only allow for past/cancelled appointments (for clearing history)
 exports.deleteAppointment = async (req, res) => {
-    // Generally better to just allow cancellation. 
-    // For now, we'll map delete to cancel or forbid it.
-    // Let's forbid Hard Delete on external DB from mobile app for safety.
-    res.status(403).json({ error: 'Permanently deleting appointments is not allowed. Please cancel instead.' });
+    const client = await pool.connect();
+    try {
+        const userId = req.user.id;
+        const { appointmentId } = req.params;
+
+        // 1. Get user's children registration numbers
+        const localChildrenResult = await client.query(
+            'SELECT registration_number FROM children WHERE parent_id = $1 AND registration_number IS NOT NULL',
+            [userId]
+        );
+
+        const regNumbers = localChildrenResult.rows.map(c => c.registration_number);
+        if (regNumbers.length === 0) {
+            return res.status(404).json({ error: 'Appointment not found or unauthorized' });
+        }
+
+        // 2. Get external child IDs
+        const externalChildrenResult = await externalQuery(
+            `SELECT id FROM children WHERE registration_number = ANY($1)`,
+            [regNumbers]
+        );
+
+        const externalChildIds = externalChildrenResult.rows.map(c => c.id);
+        if (externalChildIds.length === 0) {
+            return res.status(404).json({ error: 'Appointment not found or unauthorized' });
+        }
+
+        // 3. Check appointment ownership and status
+        const checkQuery = `
+            SELECT id, status, appointment_date 
+            FROM appointments 
+            WHERE id = $1 AND child_id = ANY($2)
+        `;
+        const checkResult = await externalQuery(checkQuery, [appointmentId, externalChildIds]);
+
+        if (checkResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Appointment not found or unauthorized' });
+        }
+
+        const appointment = checkResult.rows[0];
+
+        // 4. Only allow deletion of cancelled or past appointments
+        const isPast = new Date(appointment.appointment_date) < new Date();
+        const isCancelled = appointment.status === 'cancelled' || appointment.status === 'canceled';
+
+        if (!isPast && !isCancelled) {
+            return res.status(400).json({
+                error: 'Cannot delete upcoming appointments. Please cancel first.'
+            });
+        }
+
+        // 5. Delete the appointment
+        const deleteQuery = `DELETE FROM appointments WHERE id = $1 RETURNING id`;
+        await externalQuery(deleteQuery, [appointmentId]);
+
+        res.json({ message: 'Appointment deleted successfully', appointmentId });
+
+    } catch (error) {
+        console.error('Error deleting appointment:', error);
+        res.status(500).json({ error: 'Server error deleting appointment' });
+    } finally {
+        client.release();
+    }
 };
