@@ -577,9 +577,9 @@ exports.getUserAppointments = async (req, res) => {
                 google_meet_link: appt.google_meet_link || null
             };
 
-            // Normalize status to strict 'canceled' (one L) for standardization
-            if (appt.status === 'cancelled' || appt.status === 'rejected') {
-                formatted.status = 'canceled';
+            // Normalize status to 'cancelled' (British English with double L) to match clinic's Laravel system
+            if (appt.status === 'canceled' || appt.status === 'rejected') {
+                formatted.status = 'cancelled';
             }
             return formatted;
         });
@@ -663,10 +663,10 @@ exports.cancelAppointment = async (req, res) => {
         }
 
         // 3. Cancel Appointment in External DB
-        // Use 'canceled' (US English) for compatibility with typical Laravel/System enums, even if DB column is text.
+        // IMPORTANT: Use 'cancelled' (British English with double 'l') to match Laravel/Clinic system
         const updateQuery = `
             UPDATE appointments 
-            SET status = 'canceled', updated_at = NOW()
+            SET status = 'cancelled', updated_at = NOW()
             WHERE id = $1
             RETURNING *;
         `;
@@ -674,7 +674,7 @@ exports.cancelAppointment = async (req, res) => {
 
         // Normalize response for frontend
         const updatedAppointment = result.rows[0];
-        if (updatedAppointment.status === 'canceled') updatedAppointment.status = 'cancelled';
+        // Status is already 'cancelled' from the UPDATE query
 
         res.json({ message: 'Appointment cancelled successfully', appointment: updatedAppointment });
 
