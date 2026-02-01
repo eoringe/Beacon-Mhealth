@@ -214,7 +214,7 @@ export default function AppointmentsScreen() {
         if (selectedFilter === 'all') return true;
         if (selectedFilter === 'upcoming') return (apt.status === 'scheduled' || apt.status === 'pending') && isUpcoming(apt.appointment_date, apt.appointment_time);
         if (selectedFilter === 'completed') return apt.status === 'completed';
-        if (selectedFilter === 'canceled') return apt.status === 'canceled';
+        if (selectedFilter === 'canceled') return apt.status === 'canceled' || apt.status === 'cancelled';
         return true;
     });
 
@@ -223,12 +223,13 @@ export default function AppointmentsScreen() {
     );
     const pastAppointments = filteredAppointments.filter(
         (apt) => {
-            // If explicitly filtering for canceled, include them
+            // If explicitly filtering for canceled, include them in this section
             if (selectedFilter === 'canceled') return true;
 
-            // Otherwise, hide canceled items from general lists (All/Past)
-            if (apt.status === 'canceled') return false;
+            // Always hide canceled/cancelled items from Past section - they appear in Cancelled tab only
+            if (apt.status === 'canceled' || apt.status === 'cancelled') return false;
 
+            // Show completed or past scheduled/pending appointments
             return (apt.status !== 'scheduled' && apt.status !== 'pending') || !isUpcoming(apt.appointment_date, apt.appointment_time);
         }
     );
