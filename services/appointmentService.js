@@ -214,19 +214,21 @@ class AppointmentService {
 
                     // Map doctor details to appointments
                     const enhancedAppointments = appointments.map(apt => {
-                        // usage of doctor_id as requested by user
-                        if ((!apt.doctor_name || apt.doctor_name.trim() === '') && apt.doctor_id) {
+                        // FORCE Override: Prioritize doctor_id lookup to fix incorrect names (e.g. receptionist names)
+                        if (apt.doctor_id) {
                             const doctor = doctorMap[apt.doctor_id];
                             if (doctor) {
                                 return {
                                     ...apt,
                                     doctor_name: cleanName(doctor.name),
-                                    doctor_photo: doctor.photo_url,
-                                    doctor_specialty: doctor.specialization
+                                    doctor_photo: doctor.photo_url || apt.doctor_photo,
+                                    doctor_specialty: doctor.specialization || apt.doctor_specialty
                                 };
                             }
-                        } else if (apt.doctor_name) {
-                            // Also clean existing names
+                        }
+
+                        // Fallback: If no doctor_id match, clean the existing name if present
+                        if (apt.doctor_name) {
                             return {
                                 ...apt,
                                 doctor_name: cleanName(apt.doctor_name)
