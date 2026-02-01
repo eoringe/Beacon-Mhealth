@@ -512,7 +512,7 @@ exports.getUserAppointments = async (req, res) => {
                 a.status,
                 a.created_at,
                 a.staff_id,
-                a.doctor_id, // Added doctor_id selection
+                a.doctor_id,
                 a.appointment_type,
                 a.google_meet_link,
                 s.fullname as doctor_name,

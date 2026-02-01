@@ -146,11 +146,12 @@ export default function DashboardScreen() {
     const fetchUpcomingAppointments = async () => {
         try {
             setLoadingAppointments(true);
-            const allAppointments = await appointmentService.getAppointments('scheduled');
+            const allAppointments = await appointmentService.getAppointments('scheduled', true); // Force refresh
 
             // Filter future appointments
             const now = new Date();
-            const future = allAppointments.filter(apt => {
+            const appointmentsArray = Array.isArray(allAppointments) ? allAppointments : [];
+            const future = appointmentsArray.filter(apt => {
                 if (apt.status !== 'scheduled' && apt.status !== 'pending') return false;
 
                 // Parse date and time

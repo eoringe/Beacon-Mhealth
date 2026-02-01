@@ -50,7 +50,7 @@ export default function AppointmentsScreen() {
     const fetchAppointments = async () => {
         try {
             setLoading(true);
-            const data = await appointmentService.getAppointments();
+            const data = await appointmentService.getAppointments(null, true); // Force refresh on screen focus
             setAppointments(data);
         } catch (error) {
             showAlert('Error', 'Failed to load appointments', [], 'error');
