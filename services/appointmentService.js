@@ -194,6 +194,55 @@ class AppointmentService {
                 console.log(`[AppointmentService] Loaded appointments from cache`);
             }
 
+            // ENHANCEMENT: Populate doctor_name if missing, using cached doctors list
+            try {
+                const appointments = result.data;
+                if (Array.isArray(appointments) && appointments.length > 0) {
+                    // We use getDoctors(false) to use cached version if available
+                    const doctors = await this.getDoctors(false);
+
+                    const doctorMap = {};
+                    doctors.forEach(d => {
+                        doctorMap[d.id] = d;
+                    });
+
+                    // Helper to remove "Dr." prefix
+                    const cleanName = (name) => {
+                        if (!name) return name;
+                        return name.replace(/^Dr\.?\s+/i, '');
+                    };
+
+                    // Map doctor details to appointments
+                    const enhancedAppointments = appointments.map(apt => {
+                        // usage of doctor_id as requested by user
+                        if ((!apt.doctor_name || apt.doctor_name.trim() === '') && apt.doctor_id) {
+                            const doctor = doctorMap[apt.doctor_id];
+                            if (doctor) {
+                                return {
+                                    ...apt,
+                                    doctor_name: cleanName(doctor.name),
+                                    doctor_photo: doctor.photo_url,
+                                    doctor_specialty: doctor.specialization
+                                };
+                            }
+                        } else if (apt.doctor_name) {
+                            // Also clean existing names
+                            return {
+                                ...apt,
+                                doctor_name: cleanName(apt.doctor_name)
+                            };
+                        }
+                        return apt;
+                    });
+
+                    return enhancedAppointments;
+                }
+            } catch (enrichError) {
+                console.warn('Failed to enrich appointments with doctor details:', enrichError);
+                // Fallback to original data if enrichment fails
+                return result.data;
+            }
+
             return result.data;
         } catch (error) {
             console.error('Error fetching appointments:', error);

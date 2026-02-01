@@ -9,7 +9,7 @@ import {
     Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { formatDistanceToNow } from 'date-fns';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -18,6 +18,7 @@ import { useNotifications } from '@/contexts/NotificationContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChild } from '@/contexts/ChildContext';
+import appointmentService from '@/services/appointmentService';
 import { milestoneService } from '@/services/milestoneService';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Spacing, Typography, BorderRadius, Shadow, Colors } from '@/constants/theme';
@@ -35,6 +36,10 @@ export default function DashboardScreen() {
     // Milestone concern state
     const [milestoneConcern, setMilestoneConcern] = useState(false);
     const [milestoneAlertDismissed, setMilestoneAlertDismissed] = useState(false);
+
+    // Appointments state
+    const [upcomingAppointments, setUpcomingAppointments] = useState([]);
+    const [loadingAppointments, setLoadingAppointments] = useState(false);
 
     // Get latest 3 notifications
     const recentActivity = notifications.slice(0, 3);
@@ -134,7 +139,50 @@ export default function DashboardScreen() {
     // Check milestones when child changes
     useEffect(() => {
         checkMilestoneProgress();
+        fetchUpcomingAppointments();
     }, [checkMilestoneProgress]);
+
+    // Fetch upcoming appointments
+    const fetchUpcomingAppointments = async () => {
+        try {
+            setLoadingAppointments(true);
+            const allAppointments = await appointmentService.getAppointments('scheduled');
+
+            // Filter future appointments
+            const now = new Date();
+            const future = allAppointments.filter(apt => {
+                if (apt.status !== 'scheduled' && apt.status !== 'pending') return false;
+
+                // Parse date and time
+                const aptDate = new Date(apt.appointment_date);
+                const [hours, minutes] = (apt.appointment_time || '00:00').split(':').map(Number);
+                aptDate.setHours(hours, minutes, 0, 0);
+
+                return aptDate >= now;
+            });
+
+            // Sort by date/time ascending
+            future.sort((a, b) => {
+                const dateA = new Date(a.appointment_date + 'T' + (a.appointment_time || '00:00'));
+                const dateB = new Date(b.appointment_date + 'T' + (b.appointment_time || '00:00'));
+                return dateA - dateB;
+            });
+
+            // Take top 2
+            setUpcomingAppointments(future.slice(0, 2));
+        } catch (error) {
+            console.error('Error fetching dashboard appointments:', error);
+        } finally {
+            setLoadingAppointments(false);
+        }
+    };
+
+    // Listen for focus to refresh appointments
+    useFocusEffect(
+        React.useCallback(() => {
+            fetchUpcomingAppointments();
+        }, [])
+    );
 
     useEffect(() => {
         if (user) {
@@ -324,6 +372,57 @@ export default function DashboardScreen() {
                                 </Text>
                             </TouchableOpacity>
                         </View>
+                    </View>
+                )}
+
+                {/* Upcoming Appointments */}
+                {upcomingAppointments.length > 0 && (
+                    <View style={styles.section}>
+                        <View style={styles.headerRow}>
+                            <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, marginBottom: Spacing.md }]}>
+                                Upcoming Appointments
+                            </Text>
+                            <TouchableOpacity onPress={() => router.push('/appointments')}>
+                                <Text style={{ color: colorScheme.primary, fontWeight: '600' }}>See All</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {upcomingAppointments.map((apt) => (
+                            <TouchableOpacity
+                                key={apt.id}
+                                style={[styles.appointmentCard, { backgroundColor: colorScheme.surface }]}
+                                onPress={() => router.push('/appointments')}
+                            >
+                                <View style={styles.appointmentHeader}>
+                                    <View style={styles.doctorInfo}>
+                                        <View style={[styles.doctorAvatarSmall, { backgroundColor: colorScheme.primaryLight }]}>
+                                            <MaterialIcons name="person" size={20} color={colorScheme.primary} />
+                                        </View>
+                                        <View>
+                                            <Text style={[styles.doctorName, { color: colorScheme.textPrimary }]}>
+                                                {apt.doctor_name || 'Doctor'}
+                                            </Text>
+                                            <Text style={[styles.specialty, { color: colorScheme.textSecondary }]}>
+                                                {apt.appointment_type === 'TELECONSULT' ? 'Teleconsult' : 'In-Person'}
+                                            </Text>
+                                        </View>
+                                    </View>
+                                    <View style={[styles.dateBadge, { backgroundColor: colorScheme.surfaceVariant }]}>
+                                        <Text style={[styles.dateText, { color: colorScheme.textPrimary }]}>
+                                            {new Date(apt.appointment_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                        </Text>
+                                        <Text style={[styles.timeText, { color: colorScheme.textSecondary }]}>
+                                            {(() => {
+                                                const [h, m] = (apt.appointment_time || '00:00').split(':');
+                                                const hour = parseInt(h);
+                                                const ampm = hour >= 12 ? 'PM' : 'AM';
+                                                return `${hour % 12 || 12}:${m} ${ampm}`;
+                                            })()}
+                                        </Text>
+                                    </View>
+                                </View>
+                            </TouchableOpacity>
+                        ))}
                     </View>
                 )}
 
@@ -635,5 +734,40 @@ const styles = StyleSheet.create({
     milestoneWarningButtonSecondaryText: {
         fontSize: Typography.fontSize.sm,
         fontWeight: Typography.fontWeight.semibold,
+    },
+    // Appointment Card Styles
+    appointmentCard: {
+        borderRadius: BorderRadius.lg,
+        padding: Spacing.md,
+        marginBottom: Spacing.md,
+        ...Shadow.sm,
+        borderLeftWidth: 4,
+        borderLeftColor: Colors.primary,
+    },
+    appointmentHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    doctorAvatarSmall: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: Spacing.sm,
+    },
+    dateBadge: {
+        alignItems: 'center',
+        paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.xs,
+        borderRadius: BorderRadius.md,
+    },
+    dateText: {
+        fontSize: Typography.fontSize.sm,
+        fontWeight: Typography.fontWeight.bold,
+    },
+    timeText: {
+        fontSize: Typography.fontSize.xs,
     },
 });
