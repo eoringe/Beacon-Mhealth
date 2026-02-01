@@ -753,7 +753,8 @@ exports.deleteAppointment = async (req, res) => {
     }
 };
 
-// Create a guest appointment - writes directly to external database (same as return visits)
+// Create a guest appointment - calls Laravel API
+// The Laravel API handles the complex database schema (parents table with JSON fullname, child_parent pivot, etc.)
 exports.createGuestAppointment = async (req, res) => {
     try {
         const {
@@ -800,95 +801,52 @@ exports.createGuestAppointment = async (req, res) => {
             return `${endHour}:${minutes}`;
         })();
 
-        console.log('[GuestAppointment] Creating guest appointment directly in external DB');
+        console.log('[GuestAppointment] Calling Laravel API for guest booking');
 
-        // 1. Find or Create Parent in External DB
-        let externalParentId = null;
-        const parentCheck = await externalQuery(
-            'SELECT id FROM users WHERE phone_number = $1',
-            [parent_phone]
-        );
+        // Call Laravel API
+        const LARAVEL_API_URL = 'https://beaconchildrencenter-production.up.railway.app';
 
-        if (parentCheck.rows.length > 0) {
-            externalParentId = parentCheck.rows[0].id;
-            console.log('[GuestAppointment] Found existing parent:', externalParentId);
-        } else {
-            // Create new parent
-            const insertParentQuery = `
-                INSERT INTO users (first_name, last_name, phone_number, email, gender, password, created_at, updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-                RETURNING id
-            `;
-            const newParent = await externalQuery(insertParentQuery, [
+        const laravelResponse = await fetch(`${LARAVEL_API_URL}/api/book-guest-appointment`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
                 parent_first_name,
                 parent_last_name,
                 parent_phone,
-                parent_email || `guest_${Date.now()}@beacon.com`,
-                parent_gender || 'Unknown',
-                'GUEST_MOBILE_APP'
-            ]);
-            externalParentId = newParent.rows[0].id;
-            console.log('[GuestAppointment] Created new parent:', externalParentId);
-        }
-
-        // 2. Create Child in External DB (without registration number)
-        const childFullName = `${child_first_name} ${child_last_name}`;
-        const insertChildQuery = `
-            INSERT INTO children (fullname, date_of_birth, gender, guardian_id, registration_number, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, NULL, NOW(), NOW())
-            RETURNING id
-        `;
-        const newChild = await externalQuery(insertChildQuery, [
-            childFullName,
-            child_dob,
-            child_gender,
-            externalParentId
-        ]);
-        const externalChildId = newChild.rows[0].id;
-        console.log('[GuestAppointment] Created new child:', externalChildId);
-
-        // 3. Get doctor name for appointment title
-        const doctorResult = await externalQuery(
-            'SELECT fullname FROM staffs WHERE id = $1',
-            [doctor_id]
-        );
-        const doctorName = doctorResult.rows[0]?.fullname || 'Doctor';
-        const appointmentTitle = `${childFullName} - ${doctorName}`;
-
-        // 4. Insert Appointment
-        const insertAppointmentQuery = `
-            INSERT INTO appointments (
-                child_id, staff_id, doctor_id, 
-                appointment_title, appointment_date, 
-                start_time, end_time, status,
-                appointment_type,
-                created_at, updated_at
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', 'IN_PERSON', NOW(), NOW())
-            RETURNING id, appointment_date, start_time, status
-        `;
-
-        const result = await externalQuery(insertAppointmentQuery, [
-            externalChildId,    // $1 Child ID
-            doctor_id,          // $2 Staff ID
-            doctor_id,          // $3 Doctor ID
-            appointmentTitle,   // $4 Title
-            appointment_date,   // $5 Date
-            start_time,         // $6 Start Time
-            finalEndTime        // $7 End Time
-        ]);
-
-        console.log('[GuestAppointment] Appointment created:', result.rows[0]);
-
-        res.status(201).json({
-            success: true,
-            message: 'Appointment booked successfully',
-            data: {
-                appointment_id: result.rows[0].id,
-                child_id: externalChildId,
-                registration_number: null
-            }
+                parent_email: parent_email || null,
+                parent_gender: parent_gender || null,
+                child_first_name,
+                child_last_name,
+                child_dob,
+                child_gender,
+                doctor_id,
+                appointment_date,
+                start_time,
+                end_time: finalEndTime
+            })
         });
+
+        const data = await laravelResponse.json();
+        console.log('[GuestAppointment] Laravel API response:', data);
+
+        // Forward the Laravel response
+        if (laravelResponse.ok && data.success !== false) {
+            return res.status(201).json({
+                success: true,
+                message: data.message || 'Appointment booked successfully',
+                data: data.data || data
+            });
+        } else {
+            // Forward error response
+            return res.status(laravelResponse.status || 400).json({
+                success: false,
+                message: data.message || 'Failed to book appointment',
+                errors: data.errors || {}
+            });
+        }
 
     } catch (error) {
         console.error('Error creating guest appointment:', error);
