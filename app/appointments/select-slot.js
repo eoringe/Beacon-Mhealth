@@ -54,7 +54,6 @@ export default function SelectSlotScreen() {
     const [parentPhone, setParentPhone] = useState('');
     const [parentEmail, setParentEmail] = useState('');
     const [parentGender, setParentGender] = useState('');
-    const [childGender, setChildGender] = useState(selectedChild?.gender || 'Male');
 
     useEffect(() => {
         if (selectedDate && doctor) {
@@ -118,7 +117,7 @@ export default function SelectSlotScreen() {
                 child_first_name: selectedChild?.firstName || selectedChild?.first_name || selectedChild?.name?.split(' ')[0] || '',
                 child_last_name: selectedChild?.lastName || selectedChild?.last_name || selectedChild?.name?.split(' ').slice(1).join(' ') || '',
                 child_dob: selectedChild?.dateOfBirth || selectedChild?.date_of_birth || selectedChild?.dob || '',
-                child_gender: childGender,
+                child_gender: selectedChild?.gender || 'Male',
                 doctor_id: doctor.id,
                 appointment_date: selectedDate,
                 start_time: selectedTime,
@@ -501,29 +500,6 @@ export default function SelectSlotScreen() {
                                         onPress={() => setParentGender(gender)}
                                     >
                                         <Text style={{ color: parentGender === gender ? '#FFFFFF' : colorScheme.textPrimary }}>
-                                            {gender}
-                                        </Text>
-                                    </TouchableOpacity>
-                                ))}
-                            </View>
-
-                            <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, marginTop: 16 }]}>
-                                Child's Gender
-                            </Text>
-                            <View style={styles.genderRow}>
-                                {['Male', 'Female'].map((gender) => (
-                                    <TouchableOpacity
-                                        key={gender}
-                                        style={[
-                                            styles.genderOption,
-                                            {
-                                                backgroundColor: childGender === gender ? colorScheme.primary : colorScheme.surface,
-                                                borderColor: childGender === gender ? colorScheme.primary : colorScheme.border,
-                                            }
-                                        ]}
-                                        onPress={() => setChildGender(gender)}
-                                    >
-                                        <Text style={{ color: childGender === gender ? '#FFFFFF' : colorScheme.textPrimary }}>
                                             {gender}
                                         </Text>
                                     </TouchableOpacity>
