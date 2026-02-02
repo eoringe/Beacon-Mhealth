@@ -92,20 +92,26 @@ export default function ChildProfileScreen() {
 
     // Pull-to-refresh handler
     const onRefresh = useCallback(async () => {
-        if (!selectedChild?.registration_number) return;
-
         setRefreshing(true);
-        console.log('🔄 PULL TO REFRESH: Fetching fresh data from remote...');
+        console.log('🔄 PULL TO REFRESH: Fetching fresh data...');
 
         try {
-            await Promise.all([
-                fetchClinicalData(true),
-                fetchMediaList(true)
-            ]);
+            // 1. Refresh Child List (Local DB) - This updates selectedChild with new Reg Number
+            await refreshChildren();
+
+            // 2. If we have a reg number (now or before), fetch clinical data
+            if (selectedChild?.registration_number) {
+                await Promise.all([
+                    fetchClinicalData(true),
+                    fetchMediaList(true)
+                ]);
+            }
+        } catch (error) {
+            console.error('Error refreshing profile:', error);
         } finally {
             setRefreshing(false);
         }
-    }, [selectedChild]);
+    }, [selectedChild, refreshChildren]);
 
     const handleOpenReport = (media) => {
         const downloadUrl = patientService.getMediaDownloadUrl(media.id);

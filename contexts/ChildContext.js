@@ -62,6 +62,15 @@ export const ChildProvider = ({ children }) => {
         try {
             const data = await childService.getChildren();
             setChildrenList(data);
+
+            // If a child is currently selected, update its data from the new list
+            if (selectedChild) {
+                const updatedSelected = data.find(c => c.id === selectedChild.id);
+                if (updatedSelected) {
+                    setSelectedChild(updatedSelected);
+                }
+            }
+
             setError(null);
         } catch (err) {
             console.error('Error fetching children:', err);
