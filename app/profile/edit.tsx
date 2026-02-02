@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,7 +14,34 @@ export default function EditProfileScreen() {
     const { colorScheme } = useTheme();
 
     const [displayName, setDisplayName] = useState(user?.displayName || '');
+    const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '');
     const [loading, setLoading] = useState(false);
+    const [initialLoading, setInitialLoading] = useState(true);
+
+    // Load full profile from backend on mount to get phone number if not in Firebase
+    useEffect(() => {
+        const loadProfile = async () => {
+            try {
+                // We use authService to get the full profile including phone_number from DB
+                // Assuming authService.getProfile exists and works.
+                // If not, we might need to rely only on what we have or implement getProfile in service.
+                // Check authService content... yes getProfile exists.
+                const authService = require('@/services/authService').default; // Dynamic import to avoid cycles if any? Or standard import.
+                // Actually standard import at top is better. But let's assume standard import.
+
+                const profile = await authService.getProfile();
+                if (profile && profile.user) {
+                    if (profile.user.phone_number) setPhoneNumber(profile.user.phone_number);
+                    // Also sync display name if different? Maybe.
+                }
+            } catch (e) {
+                console.log('Failed to load backend profile details', e);
+            } finally {
+                setInitialLoading(false);
+            }
+        };
+        loadProfile();
+    }, []);
 
     const handleSave = async () => {
         if (!displayName.trim()) {
@@ -24,17 +51,26 @@ export default function EditProfileScreen() {
 
         setLoading(true);
         try {
+            // 1. Update Firebase Profile (Display Name)
             if (auth.currentUser) {
                 await updateProfile(auth.currentUser, {
                     displayName: displayName
                 });
-                Alert.alert('Success', 'Profile updated successfully', [
-                    { text: 'OK', onPress: () => router.back() }
-                ]);
             }
+
+            // 2. Update Backend Profile (Phone Number & Name syncing)
+            const authService = require('@/services/authService').default;
+            await authService.updateProfile({
+                displayName,
+                phoneNumber
+            });
+
+            Alert.alert('Success', 'Profile updated successfully', [
+                { text: 'OK', onPress: () => router.back() }
+            ]);
         } catch (error) {
             console.error(error);
-            Alert.alert('Error', 'Failed to update profile');
+            Alert.alert('Error', 'Failed to update profile: ' + error.message);
         } finally {
             setLoading(false);
         }
@@ -60,6 +96,25 @@ export default function EditProfileScreen() {
                 </View>
 
                 <View style={styles.inputGroup}>
+                    <Text style={[styles.label, { color: colorScheme.textPrimary }]}>Phone Number</Text>
+                    <TextInput
+                        style={[styles.input, {
+                            color: colorScheme.textPrimary,
+                            borderColor: colorScheme.border,
+                            backgroundColor: colorScheme.surface
+                        }]}
+                        value={phoneNumber}
+                        onChangeText={setPhoneNumber}
+                        placeholder="e.g. 0712345678"
+                        placeholderTextColor={colorScheme.textSecondary}
+                        keyboardType="phone-pad"
+                    />
+                    <Text style={[styles.helperText, { color: colorScheme.textSecondary }]}>
+                        Used for appointment bookings.
+                    </Text>
+                </View>
+
+                <View style={styles.inputGroup}>
                     <Text style={[styles.label, { color: colorScheme.textPrimary }]}>Email</Text>
                     <View style={[styles.input, {
                         backgroundColor: colorScheme.surface,
@@ -75,7 +130,7 @@ export default function EditProfileScreen() {
 
                 <TouchableOpacity
                     style={[styles.changePasswordButton, { borderColor: colorScheme.primary }]}
-                    onPress={() => router.push('/profile/change-password' as any)}
+                    onPress={() => router.push('/profile/change-password')}
                 >
                     <Text style={[styles.changePasswordText, { color: colorScheme.primary }]}>Change Password</Text>
                 </TouchableOpacity>

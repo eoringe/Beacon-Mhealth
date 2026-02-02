@@ -8,6 +8,7 @@ router.post('/register', authController.registerUser);
 
 // Protected routes (require authentication)
 router.get('/profile', authMiddleware, authController.getProfile);
+router.put('/profile', authMiddleware, authController.updateProfile);
 router.post('/fcm-token', authMiddleware, authController.updateFCMToken);
 router.post('/verify', authMiddleware, authController.verifyToken);
 
