@@ -118,6 +118,7 @@ export default function SelectSlotScreen() {
                 child_last_name: selectedChild?.lastName || selectedChild?.last_name || selectedChild?.name?.split(' ').slice(1).join(' ') || '',
                 child_dob: selectedChild?.dateOfBirth || selectedChild?.date_of_birth || selectedChild?.dob || '',
                 child_gender: selectedChild?.gender || 'Male',
+                local_child_id: selectedChild?.id || null, // Pass local ID so backend can update it
                 doctor_id: doctor.id,
                 appointment_date: selectedDate,
                 start_time: selectedTime,
