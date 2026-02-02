@@ -97,14 +97,19 @@ export default function ChildProfileScreen() {
 
         try {
             // 1. Refresh Child List (Local DB) - This updates selectedChild with new Reg Number
-            await refreshChildren();
+            console.log('🔄 Calling refreshChildren(true)...');
+            await refreshChildren(true);
+            console.log('✅ refreshChildren complete. New selectedChild:', JSON.stringify(selectedChild));
 
             // 2. If we have a reg number (now or before), fetch clinical data
             if (selectedChild?.registration_number) {
+                console.log('Fetching clinical data for:', selectedChild.registration_number);
                 await Promise.all([
                     fetchClinicalData(true),
                     fetchMediaList(true)
                 ]);
+            } else {
+                console.log('Still no registration number for selected child');
             }
         } catch (error) {
             console.error('Error refreshing profile:', error);

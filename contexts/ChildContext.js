@@ -57,17 +57,24 @@ export const ChildProvider = ({ children }) => {
         }
     };
 
-    const refreshChildren = async () => {
+    const refreshChildren = async (forceRefresh = false) => {
         setLoading(true);
         try {
-            const data = await childService.getChildren();
+            const data = await childService.getChildren(forceRefresh);
+            console.log('[ChildContext] refreshChildren fetched:', data.length, 'children');
+            if (forceRefresh) {
+                console.log('[ChildContext] Full data:', JSON.stringify(data, null, 2));
+            }
             setChildrenList(data);
 
             // If a child is currently selected, update its data from the new list
             if (selectedChild) {
                 const updatedSelected = data.find(c => c.id === selectedChild.id);
                 if (updatedSelected) {
+                    console.log('[ChildContext] Updating selectedChild. New Reg Number:', updatedSelected.registration_number);
                     setSelectedChild(updatedSelected);
+                } else {
+                    console.log('[ChildContext] selectedChild NOT found in new list');
                 }
             }
 
