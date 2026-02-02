@@ -68,7 +68,6 @@ exports.getAvailableDoctors = async (req, res) => {
     }
 };
 
-// Get available time slots for a specific doctor on a specific date
 // Get available time slots for a specific doctor on a specific date (External DB)
 exports.getDoctorAvailability = async (req, res) => {
     try {
@@ -110,8 +109,8 @@ exports.getDoctorAvailability = async (req, res) => {
             SELECT start_time, end_time
             FROM appointments
             WHERE (staff_id = $1 OR doctor_id = $1)
-              AND appointment_date = $2 
-              AND status != 'cancelled'
+            AND appointment_date = $2 
+            AND status != 'cancelled'
         `, [doctorId, date]);
 
         const bookedTimes = bookedSlots.rows.map(row => row.start_time.substring(0, 5));
@@ -138,13 +137,15 @@ exports.getDoctorAvailability = async (req, res) => {
 };
 
 // Create new appointment (External DB)
-// Create new appointment (External DB)
 exports.createAppointment = async (req, res) => {
     const client = await pool.connect(); // Keep local connection for local child lookup
     let externalClient = null;
 
     try {
         const userId = req.user.id;
+        // Use req.user directly instead of querying local table
+        const user = req.user;
+
         const {
             doctorId,
             childId,
@@ -184,10 +185,6 @@ exports.createAppointment = async (req, res) => {
         let childRegNumber = localChildCheck.rows[0].registration_number;
         const localChild = localChildCheck.rows[0];
         let childFullName = `${localChild.first_name} ${localChild.last_name}`;
-
-        // Get Local Parent Details (needed for Guest flow)
-        const userResult = await client.query('SELECT display_name, phone_number, email FROM users WHERE id = $1', [userId]);
-        const user = userResult.rows[0];
 
         if (!user) return res.status(500).json({ error: 'User profile not found' });
 
@@ -298,10 +295,6 @@ exports.createAppointment = async (req, res) => {
                 ]);
 
                 // Step E: Update Local Child with Generated Registration Number
-                // We do this BEFORE commit to ensure consistent state, though technically if commit fails we might have a reg number locally that doesn't exist externally.
-                // Better: If commit succeeds, then update local. But local update is separate DB.
-                // We'll proceed with commit first.
-
                 await externalClient.query('COMMIT');
 
                 // Update Local Child
@@ -400,7 +393,7 @@ exports.createAppointment = async (req, res) => {
     } finally {
         client.release();
         if (externalClient) {
-            // externalClient.release() was called in finally block above, but good to be safe if error happened before connect
+            // externalClient.release() was called in finally block above
         }
     }
 };
@@ -413,29 +406,18 @@ exports.getUserAppointments = async (req, res) => {
         const userId = req.user.id;
         const { status } = req.query;
 
-        // 1. Get local user details and children
-        const userQuery = `
-            SELECT u.display_name, u.phone_number, u.email,
-                   json_agg(c.registration_number) FILTER (WHERE c.registration_number IS NOT NULL) as reg_numbers
-            FROM users u
-            LEFT JOIN children c ON u.id = c.parent_id
-            WHERE u.id = $1
-            GROUP BY u.id
-        `;
+        // 1. Get Local Registration Numbers (From Local Children Table Only)
+        // We avoid querying the 'users' table here to prevent schema mismatch errors.
+        const childrenResult = await client.query(
+            'SELECT registration_number FROM children WHERE parent_id = $1 AND registration_number IS NOT NULL',
+            [userId]
+        );
 
-        const userResult = await client.query(userQuery, [userId]);
-
-        if (userResult.rows.length === 0) {
-            return res.status(404).json({ error: 'User not found' });
-        }
-
-        const user = userResult.rows[0];
-        const regNumbers = user.reg_numbers || [];
+        const regNumbers = childrenResult.rows.map(row => row.registration_number);
         const uniqueExternalChildIds = new Set();
 
         // 2a. Strategy 1: Find External Children by Registration Number (Primary)
         if (regNumbers.length > 0) {
-            // Note: Guest reg numbers ("GUEST-...") are also stored in regNumbers array
             const childrenByReg = await externalQuery(
                 `SELECT id FROM children WHERE registration_number = ANY($1)`,
                 [regNumbers]
@@ -444,49 +426,35 @@ exports.getUserAppointments = async (req, res) => {
         }
 
         // 2b. Strategy 2: Find External Children by Parent Phone/Email (Fallback/Guest)
-        // If we found children by reg number, we might technically skip this, but 
-        // strictly speaking, we might have some children with reg numbers and some without (rare edge case? or migration?).
-        // To be safe and robust (as per "robust lookup" requirement), we check this too, specifically if we didn't find matches for all known children.
-        // However, for pure performance, we could skip. But let's verify identity.
-
-        // Find external parent profile
-        const externalParentCheck = await externalQuery(
-            `SELECT id FROM parents WHERE telephone = $1`, // Updated to match Report table 'parents'
-            [user.phone_number]
-        );
-
-        if (externalParentCheck.rows.length > 0) {
-            const externalParentIds = externalParentCheck.rows.map(row => row.id);
-
-            // Get all children belonging to these external parent IDs (child_parent link)
-            const childrenByParent = await externalQuery(
-                `SELECT child_id FROM child_parent WHERE parent_id = ANY($1)`, // Updated to match Report table 'child_parent'
-                [externalParentIds]
+        // Using req.user from auth middleware
+        if (req.user.phone_number || req.user.email) {
+            // Find external parent profile
+            const externalParentCheck = await externalQuery(
+                `SELECT id FROM parents WHERE telephone = $1`,
+                [req.user.phone_number]
             );
-            childrenByParent.rows.forEach(row => uniqueExternalChildIds.add(row.child_id));
-        } else {
-            // Fallback to legacy 'users' table check IF the system is in migration state?
-            // User report implies we should strictly use the new tables.
-            // But let's leave the old check as a backup if the report is ONLY for new guest bookings 
-            // and old data is in old tables? The report said "refactor to match exactly".
-            // Assuming new schema replaces old schema for Guest logic.
-            // But wait, standard registered children might still be in 'users'/'children' (standard schema).
-            // The report title is 'Guest Booking Database Logic'. It might not replace the STANDARD table schema for standard users.
-            // Standard users usually have a proper 'users' record.
-            // To be safe, I should preserve the legacy lookup for standard users if 'parents' table lookup fails or returns nothing relevant.
 
-            // Legacy/Standard User Lookup Check
-            const standardParentCheck = await externalQuery(
-                `SELECT id FROM users WHERE phone_number = $1 OR email = $2`,
-                [user.phone_number, user.email]
-            );
-            if (standardParentCheck.rows.length > 0) {
-                const stdParentIds = standardParentCheck.rows.map(r => r.id);
-                const stdChildren = await externalQuery(
-                    `SELECT id FROM children WHERE parent_id = ANY($1)`,
-                    [stdParentIds]
+            if (externalParentCheck.rows.length > 0) {
+                const externalParentIds = externalParentCheck.rows.map(row => row.id);
+                const childrenByParent = await externalQuery(
+                    `SELECT child_id FROM child_parent WHERE parent_id = ANY($1)`,
+                    [externalParentIds]
                 );
-                stdChildren.rows.forEach(r => uniqueExternalChildIds.add(r.id));
+                childrenByParent.rows.forEach(row => uniqueExternalChildIds.add(row.child_id));
+            } else {
+                // Fallback to legacy 'users' table check for migration/standard users
+                const standardParentCheck = await externalQuery(
+                    `SELECT id FROM users WHERE phone_number = $1 OR email = $2`,
+                    [req.user.phone_number, req.user.email]
+                );
+                if (standardParentCheck.rows.length > 0) {
+                    const stdParentIds = standardParentCheck.rows.map(r => r.id);
+                    const stdChildren = await externalQuery(
+                        `SELECT id FROM children WHERE parent_id = ANY($1)`,
+                        [stdParentIds]
+                    );
+                    stdChildren.rows.forEach(r => uniqueExternalChildIds.add(r.id));
+                }
             }
         }
 
@@ -498,10 +466,11 @@ exports.getUserAppointments = async (req, res) => {
         const externalChildIds = Array.from(uniqueExternalChildIds);
 
         // 4. Fetch Appointments from External DB
+        // Fix: Use TO_CHAR for date to avoid timezone issues causing appointments to appear in past
         let query = `
             SELECT 
                 a.id,
-                a.appointment_date,
+                TO_CHAR(a.appointment_date, 'YYYY-MM-DD') as appointment_date,
                 a.start_time as appointment_time,
                 a.status,
                 a.created_at,
@@ -534,7 +503,6 @@ exports.getUserAppointments = async (req, res) => {
 
         // 5. Format Response to match frontend expectations
         const formattedAppointments = appointmentsResult.rows.map(appt => {
-            // Helper to parsing names from JSON or String
             const parseName = (nameField) => {
                 if (!nameField) return 'Unknown';
                 try {
@@ -551,19 +519,18 @@ exports.getUserAppointments = async (req, res) => {
 
             const formatted = {
                 id: appt.id,
-                appointment_date: appt.appointment_date,
+                appointment_date: appt.appointment_date, // Now correctly formatted string YYYY-MM-DD
                 appointment_time: appt.appointment_time,
                 status: appt.status,
                 doctor_name: parseName(appt.doctor_name),
                 doctor_specialty: appt.doctor_specialty || 'General',
                 child_name: parseName(appt.child_fullname),
                 doctor_id: appt.doctor_id || appt.staff_id,
-                doctor_photo: null, // Placeholder
+                doctor_photo: null,
                 appointment_type: appt.appointment_type || 'IN_PERSON',
                 google_meet_link: appt.google_meet_link || null
             };
 
-            // Normalize status to 'cancelled'
             if (appt.status === 'canceled' || appt.status === 'rejected') {
                 formatted.status = 'cancelled';
             }
@@ -858,17 +825,6 @@ exports.createGuestAppointment = async (req, res) => {
         });
 
         // Lookup Logic: Check if a child with the same dob and name (first/last) exists for THIS parent
-        // We need to check child_parent table or just rely on children table if it has parent_id (Report implies linking via child_parent, but let's check if children table has parent_id too usually. 
-        // Report says: "Table: child_parent. Action: Link the parent_id and child_id if a new child was created."
-        // AND "Lookup Logic: Check if a child with the same dob and name (first/last) exists for the specific parent".
-
-        // We'll check via a JOIN to be safe or just check children table if we suspect strict schema.
-        // Assuming 'children' might NOT have parent_id directly if 'child_parent' exists? 
-        // BUT the previous code used `parent_id` in `children`. Let's assume `children` has `parent_id` for simplicity or legacy, 
-        // BUT we MUST populate `child_parent` as requested. 
-        // Let's first search for child by attributes + parent relationship.
-
-        // Search for existing child for this parent
         // We match basic details and ensure they are linked to the parent.
         const childCheckQuery = `
             SELECT c.id 
@@ -879,10 +835,6 @@ exports.createGuestAppointment = async (req, res) => {
             AND c.fullname::jsonb->>'first_name' = $3
             AND c.fullname::jsonb->>'last_name' = $4
         `;
-
-        // Note: The previous code insertion used `parent_id` column in `children`. 
-        // The new report mentions `child_parent` table. We should probably write to both or at least `child_parent`.
-        // If the schema has `parent_id` in `children`, we should probably still fill it.
 
         let childId = null;
         let isNewChild = false;
@@ -911,20 +863,6 @@ exports.createGuestAppointment = async (req, res) => {
                 VALUES ($1, $2, $3, NULL, NULL, NULL, NOW(), NOW())
                 RETURNING id
             `;
-            // Removed 'parent_id' from insert based on "Table: child_parent... Link the parent_id and child_id" instruction, 
-            // implying normalization. But if the DB enforces parent_id in children, this might fail.
-            // CAUTION: The previous code HAD parent_id in children. 
-            // The report does NOT explicitly say "Remove parent_id from children table", it just says "Table: child_parent... Action: Link".
-            // However, usually if there is a many-to-many or normalized `child_parent`, `children` might not have `parent_id`.
-            // BUT, valid SQL usually allows NULL if nullable. 
-            // Let's try to keeping `parent_id` in the INSERT if the column exists, matching the previous logic, 
-            // BUT the report didn't list `parent_id` in the "Data Mapping" for `children`. It listed it for `child_parent`.
-            // I will err on the side of the Report's Explicit Data Mapping which omitted `parent_id` from `children` table mapping.
-
-            // Wait, if I strip it and it's required, it breaks. 
-            // Let's check the previous code's INSERT: `INSERT INTO children (parent_id, ...)`
-            // I will assume the report is precise. I will NOT insert parent_id into children. I will insert into child_parent.
-            // IF it fails, I'll know.
 
             const newChild = await externalQuery(insertChildQuery, [
                 childFullnameJson,
@@ -939,13 +877,6 @@ exports.createGuestAppointment = async (req, res) => {
         // 3. Link Child and Parent (If new child or link missing)
         if (isNewChild) {
             // Insert into child_parent
-            const linkQuery = `
-                INSERT INTO child_parent (parent_id, child_id, created_at, updated_at)
-                VALUES ($1, $2, NOW(), NOW())
-                ON CONFLICT DO NOTHING
-            `;
-            // ON CONFLICT might not work if no unique constraint, but strictly we just insert.
-            // Using simple insert for now.
             const linkQuerySimple = `
                 INSERT INTO child_parent (parent_id, child_id, created_at, updated_at)
                 VALUES ($1, $2, NOW(), NOW())
