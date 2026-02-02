@@ -165,79 +165,80 @@ class AuthService {
             console.error('Error getting profile:', error);
             throw error;
         }
+    }
 
 
     // Update user profile in backend
     async updateProfile(profileData) {
-            try {
-                const token = await this.getToken();
+        try {
+            const token = await this.getToken();
 
-                if (!token) {
-                    throw new Error('No authentication token');
-                }
-
-                const response = await fetch(`${API_URL}/auth/profile`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify(profileData)
-                });
-
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(errorText || 'Failed to update profile');
-                }
-
-                return await response.json();
-            } catch (error) {
-                console.error('Error updating profile:', error);
-                throw error;
+            if (!token) {
+                throw new Error('No authentication token');
             }
+
+            const response = await fetch(`${API_URL}/auth/profile`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(profileData)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText || 'Failed to update profile');
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('Error updating profile:', error);
+            throw error;
         }
+    }
 
     // Update FCM token
     async updateFCMToken(fcmToken) {
-            try {
-                const token = await this.getToken(); // Uses refreshed token
+        try {
+            const token = await this.getToken(); // Uses refreshed token
 
-                if (!token) {
-                    throw new Error('No authentication token');
-                }
-
-                const response = await fetch(`${API_URL}/auth/fcm-token`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ fcmToken })
-                });
-
-                if (!response.ok) {
-                    throw new Error('Failed to update FCM token');
-                }
-
-                return await response.json();
-            } catch (error) {
-                console.error('Error updating FCM token:', error);
-                throw error;
+            if (!token) {
+                throw new Error('No authentication token');
             }
+
+            const response = await fetch(`${API_URL}/auth/fcm-token`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ fcmToken })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to update FCM token');
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('Error updating FCM token:', error);
+            throw error;
         }
+    }
 
     // Logout
     async logout() {
-            try {
-                const user = auth.currentUser;
-                if (user) {
-                    await auth.signOut();
-                }
-            } catch (e) {
-                console.error('Firebase signout error:', e);
+        try {
+            const user = auth.currentUser;
+            if (user) {
+                await auth.signOut();
             }
-            await this.removeToken();
+        } catch (e) {
+            console.error('Firebase signout error:', e);
         }
+        await this.removeToken();
     }
+}
 
 export default new AuthService();
