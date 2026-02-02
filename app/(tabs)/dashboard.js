@@ -267,6 +267,29 @@ export default function DashboardScreen() {
         // Notifications moved to Tab Bar
     ];
 
+    // Navigation lock to prevent double-taps
+    const isNavigating = React.useRef(false);
+
+    const handleQuickAction = (action) => {
+        if (isNavigating.current) return;
+        isNavigating.current = true;
+
+        // Reset lock after delay
+        setTimeout(() => {
+            isNavigating.current = false;
+        }, 1000);
+
+        if (action.id === 'growth_chart') {
+            if (selectedChild) {
+                router.push({ pathname: '/growth-chart', params: { childId: selectedChild.id } });
+            } else {
+                Alert.alert('Select Child', 'Please select a child to view their growth chart.');
+            }
+        } else {
+            router.push(action.route);
+        }
+    };
+
     return (
         <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
             {/* Header with Safe Area */}
@@ -435,17 +458,7 @@ export default function DashboardScreen() {
                             <TouchableOpacity
                                 key={action.id}
                                 style={[styles.actionCard, { backgroundColor: colorScheme.surface }]}
-                                onPress={() => {
-                                    if (action.id === 'growth_chart') {
-                                        if (selectedChild) {
-                                            router.push({ pathname: '/growth-chart', params: { childId: selectedChild.id } });
-                                        } else {
-                                            Alert.alert('Select Child', 'Please select a child to view their growth chart.');
-                                        }
-                                    } else {
-                                        router.push(action.route);
-                                    }
-                                }}
+                                onPress={() => handleQuickAction(action)}
                             >
                                 <View style={[styles.actionIconContainer, { backgroundColor: `${action.color}15` }]}>
                                     <MaterialIcons name={action.icon} size={28} color={action.color} />

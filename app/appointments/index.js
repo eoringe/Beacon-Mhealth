@@ -35,6 +35,7 @@ export default function AppointmentsScreen() {
     const { colorScheme } = useTheme();
     const { showAlert } = useAlert();
 
+    const isNavigating = React.useRef(false);
     const [appointments, setAppointments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -492,6 +493,7 @@ export default function AppointmentsScreen() {
             <SafeHeader title="Appointments" showBack={true} />
 
             <View style={styles.filterContainer}>
+                {/* ... existing filter code ... */}
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterContent}>
                     {['all', 'upcoming', 'past', 'canceled'].map((filter) => (
                         <TouchableOpacity
@@ -530,6 +532,7 @@ export default function AppointmentsScreen() {
                     />
                 }
             >
+                {/* ... existing content ... */}
                 {filteredAppointments.length === 0 ? (
                     <View style={styles.emptyContainer}>
                         <MaterialIcons
@@ -564,17 +567,6 @@ export default function AppointmentsScreen() {
                                 ))}
                             </View>
                         )}
-
-                        {/* Note: 'past' filter maps to pastAppointments. 'cancelled' might be in past or upcoming technically but usually past logic handles non-upcoming. 
-                            Let's rely on the filteredAppointments list for specific status filters like 'cancelled' or 'completed' if we want a flat list, 
-                            OR strictly adhere to the Upcoming/Past split. 
-                            
-                            Current logic: 
-                            - upcomingAppointments = filtered subset that matches 'upcoming' criteria
-                            - pastAppointments = filtered subset that matches 'past' criteria
-                            
-                            If filter is 'cancelled', upcomingAppointments might be empty and pastAppointments might have them.
-                        */}
 
                         {(selectedFilter === 'all' || selectedFilter === 'past' || selectedFilter === 'canceled' || selectedFilter === 'completed') && pastAppointments.length > 0 && (
                             <View style={styles.section}>
@@ -614,21 +606,19 @@ export default function AppointmentsScreen() {
                                 ))}
                             </View>
                         )}
-
-                        {/* Fallback: If we have filtered items but they didn't fall into up/past buckets easily (edge cases), render them. 
-                             Actually, the definitions of upcoming/past cover the whole set. 
-                             upcoming = status is scheduled/pending AND is future.
-                             past = status is NOT (scheduled/pending) OR is past.
-                             So everything is covered.
-                         */}
                     </>
                 )}
             </ScrollView>
 
-            {/* FAB */}
+            {/* FAB with Debounce */}
             <TouchableOpacity
                 style={[styles.fab, { backgroundColor: colorScheme.primary }]}
-                onPress={() => router.push('/appointments/book')}
+                onPress={() => {
+                    if (isNavigating.current) return;
+                    isNavigating.current = true;
+                    setTimeout(() => { isNavigating.current = false; }, 1000);
+                    router.push('/appointments/book');
+                }}
                 activeOpacity={0.8}
             >
                 <MaterialIcons name="add" size={28} color="#FFFFFF" />

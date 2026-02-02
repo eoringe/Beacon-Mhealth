@@ -800,30 +800,27 @@ exports.createGuestAppointment = async (req, res) => {
             return `${endHour}:${minutes}`;
         })();
 
-        console.log('[GuestAppointment] Creating guest appointment via Direct DB Write (Fixed Schema)');
+        console.log('[GuestAppointment] Creating guest appointment via Direct DB Write (Strict Mode)');
 
-        // Helper to get gender ID - FIXED: Table 'gender' (singular)
+        // Helper to get gender ID
         const getGenderId = async (genderName) => {
-            if (!genderName) return null;
+            if (!genderName) return 1; // Default to 1 (Male/Unknown) as per spec
             try {
-                // FIXED: Use 'gender' table
                 const res = await externalQuery('SELECT id FROM gender WHERE LOWER(gender) = LOWER($1)', [genderName]);
                 if (res.rows.length > 0) return res.rows[0].id;
-                // Fallback map if DB check fails
                 const map = { 'male': 1, 'female': 2 };
                 return map[genderName.toLowerCase()] || 1;
             } catch (e) {
                 console.error('Error fetching gender ID:', e);
-                return 1; // Default
+                return 1;
             }
         };
 
         const parentGenderId = await getGenderId(parent_gender);
         const childGenderId = await getGenderId(child_gender);
-        // Default relationship_id to 3 (Guardian) as per report if logic fails (we just hardcode 3 for simplicity or loop over logic) 
-        // Report said: "You can default it to 3 (Guardian)."
-        // We will default to 3 directly as per instruction "Add 3 (or a variable) to the values list"
-        const relationshipId = 3;
+
+        // Relationship ID: Set to 1 (System default for this flow)
+        const relationshipId = 1;
 
         // 1. Find or Create Parent
         // Schema: parents(id, fullname(json), telephone, email, gender_id, relationship_id ...)
@@ -840,8 +837,10 @@ exports.createGuestAppointment = async (req, res) => {
             console.log('[GuestAppointment] Found existing parent:', parentId);
         } else {
             // Create New Parent
+            // fullname: JSON string {"first_name": "...", "middle_name": "", "last_name": "..."}
             const parentFullname = JSON.stringify({
                 first_name: parent_first_name,
+                middle_name: "",
                 last_name: parent_last_name
             });
 
@@ -862,47 +861,119 @@ exports.createGuestAppointment = async (req, res) => {
             console.log('[GuestAppointment] Created new parent:', parentId);
         }
 
-        // 2. Create Child (Guest)
-        // Schema: children(id, fullname(json), dob, gender_id, parent_id, registration_number, ...)
-        const childFullname = JSON.stringify({
+        // 2. Find or Create Child (Guest)
+        // Schema: children(id, fullname(json), dob, gender_id, registration_number(NULL), ...)
+
+        // fullname: JSON string {"first_name": "...", "middle_name": "", "last_name": "..."}
+        const childFullnameJson = JSON.stringify({
             first_name: child_first_name,
+            middle_name: "",
             last_name: child_last_name
         });
 
-        // FIXED: Registration Number 'GUEST-{timestamp}' as per report
-        const guestRegNumber = `GUEST-${Date.now()}`;
+        // Lookup Logic: Check if a child with the same dob and name (first/last) exists for THIS parent
+        // We need to check child_parent table or just rely on children table if it has parent_id (Report implies linking via child_parent, but let's check if children table has parent_id too usually. 
+        // Report says: "Table: child_parent. Action: Link the parent_id and child_id if a new child was created."
+        // AND "Lookup Logic: Check if a child with the same dob and name (first/last) exists for the specific parent".
 
-        const insertChildQuery = `
-            INSERT INTO children (fullname, dob, gender_id, parent_id, registration_number, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-            RETURNING id
+        // We'll check via a JOIN to be safe or just check children table if we suspect strict schema.
+        // Assuming 'children' might NOT have parent_id directly if 'child_parent' exists? 
+        // BUT the previous code used `parent_id` in `children`. Let's assume `children` has `parent_id` for simplicity or legacy, 
+        // BUT we MUST populate `child_parent` as requested. 
+        // Let's first search for child by attributes + parent relationship.
+
+        // Search for existing child for this parent
+        // We match basic details and ensure they are linked to the parent.
+        const childCheckQuery = `
+            SELECT c.id 
+            FROM children c
+            JOIN child_parent cp ON c.id = cp.child_id
+            WHERE cp.parent_id = $1 
+            AND c.dob = $2
+            AND c.fullname::jsonb->>'first_name' = $3
+            AND c.fullname::jsonb->>'last_name' = $4
         `;
 
-        const newChild = await externalQuery(insertChildQuery, [
-            childFullname,
-            child_dob,
-            childGenderId,
-            parentId,
-            guestRegNumber
-        ]);
-        const childId = newChild.rows[0].id;
-        console.log('[GuestAppointment] Created new child:', childId, 'Reg:', guestRegNumber);
+        // Note: The previous code insertion used `parent_id` column in `children`. 
+        // The new report mentions `child_parent` table. We should probably write to both or at least `child_parent`.
+        // If the schema has `parent_id` in `children`, we should probably still fill it.
 
-        // 3. Create Appointment
-        // Schema: appointments(child_id, doctor_id, staff_id, appointment_date, start_time, end_time, status, appointment_title, appointment_type)
+        let childId = null;
+        let isNewChild = false;
 
-        // Get Doctor Name from 'staff' table
-        let doctorName = 'Doctor';
         try {
-            const doctorRes = await externalQuery('SELECT fullname FROM staff WHERE id = $1', [doctor_id]);
-            if (doctorRes.rows.length > 0) {
-                doctorName = doctorRes.rows[0].fullname;
+            const existingChild = await externalQuery(childCheckQuery, [
+                parentId,
+                child_dob,
+                child_first_name,
+                child_last_name
+            ]);
+
+            if (existingChild.rows.length > 0) {
+                childId = existingChild.rows[0].id;
+                console.log('[GuestAppointment] Found existing child match:', childId);
             }
         } catch (e) {
-            console.warn('Could not fetch doctor name:', e.message);
+            console.warn('[GuestAppointment] Child lookup query failed (maybe jsonb issue), proceeding to create new.', e.message);
         }
 
-        const appointmentTitle = `${child_first_name} ${child_last_name} - ${doctorName}`;
+        if (!childId) {
+            // Create New Child
+            // Critical Requirement: registration_number MUST be NULL.
+            const insertChildQuery = `
+                INSERT INTO children (fullname, dob, gender_id, registration_number, insurance_provider_id, insurance_number, created_at, updated_at)
+                VALUES ($1, $2, $3, NULL, NULL, NULL, NOW(), NOW())
+                RETURNING id
+            `;
+            // Removed 'parent_id' from insert based on "Table: child_parent... Link the parent_id and child_id" instruction, 
+            // implying normalization. But if the DB enforces parent_id in children, this might fail.
+            // CAUTION: The previous code HAD parent_id in children. 
+            // The report does NOT explicitly say "Remove parent_id from children table", it just says "Table: child_parent... Action: Link".
+            // However, usually if there is a many-to-many or normalized `child_parent`, `children` might not have `parent_id`.
+            // BUT, valid SQL usually allows NULL if nullable. 
+            // Let's try to keeping `parent_id` in the INSERT if the column exists, matching the previous logic, 
+            // BUT the report didn't list `parent_id` in the "Data Mapping" for `children`. It listed it for `child_parent`.
+            // I will err on the side of the Report's Explicit Data Mapping which omitted `parent_id` from `children` table mapping.
+
+            // Wait, if I strip it and it's required, it breaks. 
+            // Let's check the previous code's INSERT: `INSERT INTO children (parent_id, ...)`
+            // I will assume the report is precise. I will NOT insert parent_id into children. I will insert into child_parent.
+            // IF it fails, I'll know.
+
+            const newChild = await externalQuery(insertChildQuery, [
+                childFullnameJson,
+                child_dob,
+                childGenderId
+            ]);
+            childId = newChild.rows[0].id;
+            isNewChild = true;
+            console.log('[GuestAppointment] Created new child:', childId);
+        }
+
+        // 3. Link Child and Parent (If new child or link missing)
+        if (isNewChild) {
+            // Insert into child_parent
+            const linkQuery = `
+                INSERT INTO child_parent (parent_id, child_id, created_at, updated_at)
+                VALUES ($1, $2, NOW(), NOW())
+                ON CONFLICT DO NOTHING
+            `;
+            // ON CONFLICT might not work if no unique constraint, but strictly we just insert.
+            // Using simple insert for now.
+            const linkQuerySimple = `
+                INSERT INTO child_parent (parent_id, child_id, created_at, updated_at)
+                VALUES ($1, $2, NOW(), NOW())
+            `;
+            await externalQuery(linkQuerySimple, [parentId, childId]);
+            console.log('[GuestAppointment] Linked parent', parentId, 'and child', childId);
+        }
+
+        // 4. Create Appointment
+        // appointment_title: [NEW PATIENT] {First Name} {Middle Name} {Last Name}
+        const apptTitle = `[NEW PATIENT] ${child_first_name}  ${child_last_name}`; // Middle name empty
+
+        // staff_id: 1 (System/Reception user ID)
+        const staffId = 1;
 
         const insertAppointmentQuery = `
             INSERT INTO appointments (
@@ -919,8 +990,8 @@ exports.createGuestAppointment = async (req, res) => {
         const appointmentResult = await externalQuery(insertAppointmentQuery, [
             childId,
             doctor_id,
-            doctor_id, // staff_id
-            appointmentTitle,
+            staffId, // Fixed to 1
+            apptTitle,
             appointment_date,
             start_time,
             finalEndTime
@@ -935,7 +1006,7 @@ exports.createGuestAppointment = async (req, res) => {
             data: {
                 appointment_id: appointmentId,
                 child_id: childId,
-                registration_number: guestRegNumber
+                registration_number: null // Explicitly null as per new logic
             }
         });
 

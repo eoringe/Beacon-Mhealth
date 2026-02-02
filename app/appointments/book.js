@@ -27,6 +27,8 @@ export default function BookAppointmentScreen() {
     const [loading, setLoading] = useState(true);
     const [expandedSpecialty, setExpandedSpecialty] = useState(null);
 
+    const isNavigating = React.useRef(false);
+
     useEffect(() => {
         fetchDoctors();
     }, []);
@@ -45,6 +47,10 @@ export default function BookAppointmentScreen() {
     };
 
     const handleDoctorSelect = (doctor) => {
+        if (isNavigating.current) return;
+        isNavigating.current = true;
+        setTimeout(() => isNavigating.current = false, 1000);
+
         router.push({
             pathname: '/appointments/select-slot',
             params: { doctor: JSON.stringify(doctor) }
