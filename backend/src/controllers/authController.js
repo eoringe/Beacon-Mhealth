@@ -61,7 +61,7 @@ class AuthController {
             const { uid } = req.user;
 
             const result = await query(
-                'SELECT id, firebase_uid, email, display_name, photo_url, phone_number, first_name, last_name, date_of_birth, location, created_at FROM users WHERE firebase_uid = $1',
+                'SELECT id, firebase_uid, email, display_name, photo_url, phone_number, date_of_birth, location, created_at FROM users WHERE firebase_uid = $1',
                 [uid]
             );
 
@@ -79,23 +79,20 @@ class AuthController {
     async updateProfile(req, res, next) {
         try {
             const { uid } = req.user;
-            const { displayName, phoneNumber, firstName, lastName } = req.body;
+            const { displayName, phoneNumber } = req.body;
 
             console.log('[AuthController] Updating profile for:', uid, req.body);
 
             // Update user record
             // We map displayName to display_name (Firebase style)
-            // And also firstName/lastName if provided (App style)
             const result = await query(
                 `UPDATE users 
                  SET display_name = COALESCE($1, display_name), 
                      phone_number = COALESCE($2, phone_number),
-                     first_name = COALESCE($3, first_name),
-                     last_name = COALESCE($4, last_name),
                      updated_at = NOW()
-                 WHERE firebase_uid = $5
-                 RETURNING id, firebase_uid, email, display_name, phone_number, first_name, last_name`,
-                [displayName, phoneNumber, firstName, lastName, uid]
+                 WHERE firebase_uid = $3
+                 RETURNING id, firebase_uid, email, display_name, phone_number`,
+                [displayName, phoneNumber, uid]
             );
 
             if (result.rows.length === 0) {
