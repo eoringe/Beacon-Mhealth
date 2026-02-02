@@ -214,10 +214,10 @@ exports.createAppointment = async (req, res) => {
 
             try {
                 // Step A: Check or Create Parent (Table: parents)
-                // Check: Does a parent with the given telephone already exist?
+                // Check: Does a parent with the given telephone OR email already exist?
                 const parentCheck = await externalClient.query(
-                    'SELECT id FROM parents WHERE telephone = $1',
-                    [user.phone_number]
+                    'SELECT id FROM parents WHERE telephone = $1 OR email = $2',
+                    [user.phone_number, user.email]
                 );
 
                 let externalParentId;
@@ -229,11 +229,11 @@ exports.createAppointment = async (req, res) => {
 
                     // relationship_id: 1 (Default), gender_id: 2 (Female default - mapping simplified as requested)
                     const insertParentQuery = `
-                        INSERT INTO parents (fullname, telephone, relationship_id, gender_id, created_at, updated_at)
-                        VALUES ($1, $2, 1, 2, NOW(), NOW())
+                        INSERT INTO parents (fullname, telephone, email, relationship_id, gender_id, created_at, updated_at)
+                        VALUES ($1, $2, $3, 1, 2, NOW(), NOW())
                         RETURNING id
                     `;
-                    const newParent = await externalClient.query(insertParentQuery, [fullnameJson, user.phone_number]);
+                    const newParent = await externalClient.query(insertParentQuery, [fullnameJson, user.phone_number, user.email]);
                     externalParentId = newParent.rows[0].id;
                 }
 
