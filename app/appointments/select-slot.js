@@ -17,6 +17,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Calendar } from 'react-native-calendars';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useChild } from '@/contexts/ChildContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useAlert } from '@/contexts/AlertContext';
 import { SafeHeader } from '@/components/SafeHeader';
 import { CustomLoading } from '@/components/CustomLoading';
@@ -30,6 +31,7 @@ export default function SelectSlotScreen() {
     const params = useLocalSearchParams();
     const { colorScheme } = useTheme();
     const { selectedChild } = useChild();
+    const { user } = useAuth();
     const { showAlert } = useAlert();
 
     const doctor = params.doctor ? JSON.parse(params.doctor) : null;
@@ -54,6 +56,17 @@ export default function SelectSlotScreen() {
     const [parentPhone, setParentPhone] = useState('');
     const [parentEmail, setParentEmail] = useState('');
     const [parentGender, setParentGender] = useState('');
+
+    useEffect(() => {
+        if (user) {
+            const names = user.displayName ? user.displayName.split(' ') : ['Guest', 'User'];
+            setParentFirstName(names[0]);
+            setParentLastName(names.slice(1).join(' ') || '');
+            setParentPhone(user.phoneNumber || '');
+            setParentEmail(user.email || '');
+            // Leave gender empty to force selection if not known, or default if you prefer.
+        }
+    }, [user]);
 
     useEffect(() => {
         if (selectedDate && doctor) {
@@ -444,47 +457,32 @@ export default function SelectSlotScreen() {
 
                             <View style={styles.formRow}>
                                 <View style={styles.formHalf}>
-                                    <Text style={[styles.label, { color: colorScheme.textSecondary }]}>First Name *</Text>
-                                    <TextInput
-                                        style={[styles.input, { backgroundColor: colorScheme.surface, color: colorScheme.textPrimary, borderColor: colorScheme.border }]}
-                                        placeholder="First name"
-                                        placeholderTextColor={colorScheme.textTertiary}
-                                        value={parentFirstName}
-                                        onChangeText={setParentFirstName}
-                                    />
+                                    <Text style={[styles.label, { color: colorScheme.textSecondary }]}>First Name</Text>
+                                    <View style={[styles.readOnlyInput, { backgroundColor: colorScheme.surface, borderColor: colorScheme.border }]}>
+                                        <Text style={{ color: colorScheme.textSecondary }}>{parentFirstName}</Text>
+                                    </View>
                                 </View>
                                 <View style={styles.formHalf}>
-                                    <Text style={[styles.label, { color: colorScheme.textSecondary }]}>Last Name *</Text>
-                                    <TextInput
-                                        style={[styles.input, { backgroundColor: colorScheme.surface, color: colorScheme.textPrimary, borderColor: colorScheme.border }]}
-                                        placeholder="Last name"
-                                        placeholderTextColor={colorScheme.textTertiary}
-                                        value={parentLastName}
-                                        onChangeText={setParentLastName}
-                                    />
+                                    <Text style={[styles.label, { color: colorScheme.textSecondary }]}>Last Name</Text>
+                                    <View style={[styles.readOnlyInput, { backgroundColor: colorScheme.surface, borderColor: colorScheme.border }]}>
+                                        <Text style={{ color: colorScheme.textSecondary }}>{parentLastName}</Text>
+                                    </View>
                                 </View>
                             </View>
 
-                            <Text style={[styles.label, { color: colorScheme.textSecondary }]}>Phone Number *</Text>
-                            <TextInput
-                                style={[styles.input, { backgroundColor: colorScheme.surface, color: colorScheme.textPrimary, borderColor: colorScheme.border }]}
-                                placeholder="e.g., 0712345678"
-                                placeholderTextColor={colorScheme.textTertiary}
-                                value={parentPhone}
-                                onChangeText={setParentPhone}
-                                keyboardType="phone-pad"
-                            />
+                            <Text style={[styles.label, { color: colorScheme.textSecondary }]}>Phone Number</Text>
+                            <View style={[styles.readOnlyInput, { backgroundColor: colorScheme.surface, borderColor: colorScheme.border, marginBottom: 16 }]}>
+                                <Text style={{ color: colorScheme.textSecondary }}>{parentPhone || 'Not set in profile'}</Text>
+                            </View>
 
-                            <Text style={[styles.label, { color: colorScheme.textSecondary }]}>Email (Optional)</Text>
-                            <TextInput
-                                style={[styles.input, { backgroundColor: colorScheme.surface, color: colorScheme.textPrimary, borderColor: colorScheme.border }]}
-                                placeholder="email@example.com"
-                                placeholderTextColor={colorScheme.textTertiary}
-                                value={parentEmail}
-                                onChangeText={setParentEmail}
-                                keyboardType="email-address"
-                                autoCapitalize="none"
-                            />
+                            <Text style={[styles.label, { color: colorScheme.textSecondary }]}>Email</Text>
+                            <View style={[styles.readOnlyInput, { backgroundColor: colorScheme.surface, borderColor: colorScheme.border, marginBottom: 16 }]}>
+                                <Text style={{ color: colorScheme.textSecondary }}>{parentEmail || 'Not set in profile'}</Text>
+                            </View>
+
+                            <TouchableOpacity onPress={() => router.push('/(tabs)/settings')} style={{ alignSelf: 'flex-end', marginBottom: 16 }}>
+                                <Text style={{ color: colorScheme.primary, fontSize: 13 }}>Update details in Settings</Text>
+                            </TouchableOpacity>
 
                             <Text style={[styles.label, { color: colorScheme.textSecondary }]}>Gender</Text>
                             <View style={styles.genderRow}>
@@ -825,6 +823,13 @@ const styles = StyleSheet.create({
         borderRadius: BorderRadius.md,
         padding: Spacing.md,
         fontSize: Typography.fontSize.base,
+        marginBottom: Spacing.sm,
+    },
+    readOnlyInput: {
+        borderWidth: 1,
+        borderRadius: BorderRadius.md,
+        padding: Spacing.md,
+        justifyContent: 'center',
         marginBottom: Spacing.sm,
     },
     notesInput: {

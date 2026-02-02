@@ -24,7 +24,7 @@ export default function ChildProfileScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { colorScheme } = useTheme();
-    const { selectedChild } = useChild();
+    const { selectedChild, refreshChildren } = useChild();
     const [clinicalData, setClinicalData] = useState(null);
     const [loadingClinical, setLoadingClinical] = useState(false);
     const [mediaList, setMediaList] = useState([]);
