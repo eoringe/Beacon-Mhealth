@@ -800,15 +800,16 @@ exports.createGuestAppointment = async (req, res) => {
             return `${endHour}:${minutes}`;
         })();
 
-        console.log('[GuestAppointment] Creating guest appointment via Direct DB Write');
+        console.log('[GuestAppointment] Creating guest appointment via Direct DB Write (Fixed Schema)');
 
-        // Helper to get gender ID
+        // Helper to get gender ID - FIXED: Table 'gender' (singular)
         const getGenderId = async (genderName) => {
             if (!genderName) return null;
             try {
-                const res = await externalQuery('SELECT id FROM genders WHERE LOWER(name) = LOWER($1)', [genderName]);
+                // FIXED: Use 'gender' table
+                const res = await externalQuery('SELECT id FROM gender WHERE LOWER(gender) = LOWER($1)', [genderName]);
                 if (res.rows.length > 0) return res.rows[0].id;
-                // Fallback map if DB check fails or table empty (Unlikely in production but safe)
+                // Fallback map if DB check fails
                 const map = { 'male': 1, 'female': 2 };
                 return map[genderName.toLowerCase()] || 1;
             } catch (e) {
@@ -835,15 +836,10 @@ exports.createGuestAppointment = async (req, res) => {
             console.log('[GuestAppointment] Found existing parent:', parentId);
         } else {
             // Create New Parent
-            // fullname is JSON: {"first_name": "...", "last_name": "..."}
             const parentFullname = JSON.stringify({
                 first_name: parent_first_name,
                 last_name: parent_last_name
             });
-
-            // Note: DB schema might require other fields like relationship_id. 
-            // We'll try to insert minimal required. If fails due to constraint, we might need default relationship_id.
-            // Typically Relationship: 1=Father, 2=Mother. We'll leave null if nullable, or try inserting.
 
             const insertParentQuery = `
                 INSERT INTO parents (fullname, telephone, email, gender_id, created_at, updated_at)
@@ -862,40 +858,45 @@ exports.createGuestAppointment = async (req, res) => {
         }
 
         // 2. Create Child (Guest)
-        // Schema: children(id, fullname(json), dob, gender_id, registration_number(NULL), ...)
+        // Schema: children(id, fullname(json), dob, gender_id, parent_id, registration_number, ...)
         const childFullname = JSON.stringify({
             first_name: child_first_name,
             last_name: child_last_name
         });
 
+        // FIXED: Registration Number should be NULL for guests
+        const guestRegNumber = null;
+
         const insertChildQuery = `
-            INSERT INTO children (fullname, dob, gender_id, registration_number, created_at, updated_at)
-            VALUES ($1, $2, $3, NULL, NOW(), NOW())
+            INSERT INTO children (fullname, dob, gender_id, parent_id, registration_number, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
             RETURNING id
         `;
 
         const newChild = await externalQuery(insertChildQuery, [
             childFullname,
             child_dob,
-            childGenderId
+            childGenderId,
+            parentId,
+            guestRegNumber
         ]);
         const childId = newChild.rows[0].id;
-        console.log('[GuestAppointment] Created new child:', childId);
+        console.log('[GuestAppointment] Created new child:', childId, 'Reg:', guestRegNumber);
 
-        // 3. Link Parent and Child (Pivot)
-        // Schema: child_parent(id, child_id, parent_id)
-        await externalQuery(
-            'INSERT INTO child_parent (child_id, parent_id) VALUES ($1, $2)',
-            [childId, parentId]
-        );
-        console.log('[GuestAppointment] Linked child and parent');
-
-        // 4. Create Appointment
+        // 3. Create Appointment
         // Schema: appointments(child_id, doctor_id, staff_id, appointment_date, start_time, end_time, status, appointment_title, appointment_type)
 
-        // Get Doctor Name for Title
-        const doctorRes = await externalQuery('SELECT fullname FROM staffs WHERE id = $1', [doctor_id]);
-        const doctorName = doctorRes.rows[0]?.fullname || 'Doctor';
+        // Get Doctor Name from 'staff' table
+        let doctorName = 'Doctor';
+        try {
+            const doctorRes = await externalQuery('SELECT fullname FROM staff WHERE id = $1', [doctor_id]);
+            if (doctorRes.rows.length > 0) {
+                doctorName = doctorRes.rows[0].fullname;
+            }
+        } catch (e) {
+            console.warn('Could not fetch doctor name:', e.message);
+        }
+
         const appointmentTitle = `${child_first_name} ${child_last_name} - ${doctorName}`;
 
         const insertAppointmentQuery = `
@@ -910,8 +911,6 @@ exports.createGuestAppointment = async (req, res) => {
             RETURNING id
         `;
 
-        // We use doctor_id as staff_id (receptionist) placeholder, or maybe we should use a default system user?
-        // Using doctor_id as staff_id for now to satisfy FK.
         const appointmentResult = await externalQuery(insertAppointmentQuery, [
             childId,
             doctor_id,
@@ -931,7 +930,7 @@ exports.createGuestAppointment = async (req, res) => {
             data: {
                 appointment_id: appointmentId,
                 child_id: childId,
-                registration_number: null
+                registration_number: guestRegNumber
             }
         });
 
