@@ -644,7 +644,7 @@ exports.cancelAppointment = async (req, res) => {
 
         const appointment = checkResult.rows[0];
 
-        if (appointment.status === 'cancelled' || appointment.status === 'canceled') {
+        if (appointment.status === 'cancelled' || appointment.status === 'cancelled') {
             return res.status(400).json({ error: 'Appointment is already cancelled' });
         }
 
@@ -820,9 +820,13 @@ exports.createGuestAppointment = async (req, res) => {
 
         const parentGenderId = await getGenderId(parent_gender);
         const childGenderId = await getGenderId(child_gender);
+        // Default relationship_id to 3 (Guardian) as per report if logic fails (we just hardcode 3 for simplicity or loop over logic) 
+        // Report said: "You can default it to 3 (Guardian)."
+        // We will default to 3 directly as per instruction "Add 3 (or a variable) to the values list"
+        const relationshipId = 3;
 
         // 1. Find or Create Parent
-        // Schema: parents(id, fullname(json), telephone, email, gender_id, ...)
+        // Schema: parents(id, fullname(json), telephone, email, gender_id, relationship_id ...)
         let parentId = null;
 
         // Check by telephone
@@ -842,8 +846,8 @@ exports.createGuestAppointment = async (req, res) => {
             });
 
             const insertParentQuery = `
-                INSERT INTO parents (fullname, telephone, email, gender_id, created_at, updated_at)
-                VALUES ($1, $2, $3, $4, NOW(), NOW())
+                INSERT INTO parents (fullname, telephone, email, gender_id, relationship_id, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
                 RETURNING id
             `;
 
@@ -851,7 +855,8 @@ exports.createGuestAppointment = async (req, res) => {
                 parentFullname,
                 parent_phone,
                 parent_email || null,
-                parentGenderId
+                parentGenderId,
+                relationshipId
             ]);
             parentId = newParent.rows[0].id;
             console.log('[GuestAppointment] Created new parent:', parentId);
@@ -864,8 +869,8 @@ exports.createGuestAppointment = async (req, res) => {
             last_name: child_last_name
         });
 
-        // FIXED: Registration Number should be NULL for guests
-        const guestRegNumber = null;
+        // FIXED: Registration Number 'GUEST-{timestamp}' as per report
+        const guestRegNumber = `GUEST-${Date.now()}`;
 
         const insertChildQuery = `
             INSERT INTO children (fullname, dob, gender_id, parent_id, registration_number, created_at, updated_at)
