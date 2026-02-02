@@ -415,7 +415,7 @@ exports.getUserAppointments = async (req, res) => {
 
         // 1. Get local user details and children
         const userQuery = `
-            SELECT u.first_name, u.last_name, u.phone_number, u.email,
+            SELECT u.display_name, u.phone_number, u.email,
                    json_agg(c.registration_number) FILTER (WHERE c.registration_number IS NOT NULL) as reg_numbers
             FROM users u
             LEFT JOIN children c ON u.id = c.parent_id
