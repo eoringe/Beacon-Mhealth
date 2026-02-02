@@ -28,12 +28,14 @@ import { CustomLoading } from '@/components/CustomLoading';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import appointmentService from '@/services/appointmentService';
 import { useAlert } from '@/contexts/AlertContext';
+import { useChild } from '@/contexts/ChildContext'; // Import Child Context
 
 export default function AppointmentsScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { colorScheme } = useTheme();
     const { showAlert } = useAlert();
+    const { selectedChild } = useChild(); // Get selected child from context
 
     const isNavigating = React.useRef(false);
     const [appointments, setAppointments] = useState([]);
@@ -45,13 +47,14 @@ export default function AppointmentsScreen() {
     useFocusEffect(
         React.useCallback(() => {
             fetchAppointments();
-        }, [])
+        }, [selectedChild]) // Re-fetch when selected child changes
     );
 
     const fetchAppointments = async () => {
         try {
             setLoading(true);
-            const data = await appointmentService.getAppointments(null, true); // Force refresh on screen focus
+            // Pass selectedChild.id to filter appointments
+            const data = await appointmentService.getAppointments(null, true, selectedChild?.id);
             setAppointments(data);
         } catch (error) {
             showAlert('Error', 'Failed to load appointments', [], 'error');

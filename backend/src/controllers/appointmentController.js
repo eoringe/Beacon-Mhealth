@@ -404,19 +404,37 @@ exports.getUserAppointments = async (req, res) => {
     const client = await pool.connect(); // Keep local connection for local child lookup
     try {
         const userId = req.user.id;
-        const { status } = req.query;
+        const { status, childId } = req.query;
 
-        // 1. Get Local Registration Numbers (From Local Children Table Only)
-        // We avoid querying the 'users' table here to prevent schema mismatch errors.
-        const childrenResult = await client.query(
-            'SELECT registration_number FROM children WHERE parent_id = $1 AND registration_number IS NOT NULL',
-            [userId]
-        );
-
-        const regNumbers = childrenResult.rows.map(row => row.registration_number);
         const uniqueExternalChildIds = new Set();
+        let regNumbers = [];
 
-        // 2a. Strategy 1: Find External Children by Registration Number (Primary)
+        if (childId) {
+            // STRATEGY A: Specific Child Requested
+            // 1. Get Registration Number for this SPECIFIC child
+            const childResult = await client.query(
+                'SELECT registration_number FROM children WHERE id = $1 AND parent_id = $2 AND registration_number IS NOT NULL',
+                [childId, userId]
+            );
+
+            if (childResult.rows.length > 0) {
+                regNumbers.push(childResult.rows[0].registration_number);
+            }
+            // If child has no local reg number, we still proceed with empty list (returns []) 
+            // because strict filtering means "for THIS child only". 
+            // We skip Strategy 2 (Fallback) intentionally.
+
+        } else {
+            // STRATEGY B: All Children (Default behavior)
+            // 1. Get Local Registration Numbers for ALL children
+            const childrenResult = await client.query(
+                'SELECT registration_number FROM children WHERE parent_id = $1 AND registration_number IS NOT NULL',
+                [userId]
+            );
+            regNumbers = childrenResult.rows.map(row => row.registration_number);
+        }
+
+        // 2a. Find External Children by Registration Number (Primary)
         if (regNumbers.length > 0) {
             const childrenByReg = await externalQuery(
                 `SELECT id FROM children WHERE registration_number = ANY($1)`,
@@ -425,9 +443,9 @@ exports.getUserAppointments = async (req, res) => {
             childrenByReg.rows.forEach(row => uniqueExternalChildIds.add(row.id));
         }
 
-        // 2b. Strategy 2: Find External Children by Parent Phone/Email (Fallback/Guest)
-        // Using req.user from auth middleware
-        if (req.user.phone_number || req.user.email) {
+        // 2b. Fallback Strategy (Phone/Email) - ONLY if NO specific childId was requested
+        // If childId IS provided, skip this to respect the filter.
+        if (!childId && (req.user.phone_number || req.user.email)) {
             // Find external parent profile
             const externalParentCheck = await externalQuery(
                 `SELECT id FROM parents WHERE telephone = $1`,
@@ -466,7 +484,6 @@ exports.getUserAppointments = async (req, res) => {
         const externalChildIds = Array.from(uniqueExternalChildIds);
 
         // 4. Fetch Appointments from External DB
-        // Fix: Use TO_CHAR for date to avoid timezone issues causing appointments to appear in past
         let query = `
             SELECT 
                 a.id,
@@ -857,75 +874,121 @@ exports.createGuestAppointment = async (req, res) => {
 
         if (!childId) {
             // Create New Child
-            // Critical Requirement: registration_number MUST be NULL.
+            // Format: GUEST-{timestamp}-{random}
+            const timestamp = Math.floor(Date.now() / 1000);
+            const random = Math.floor(1000 + Math.random() * 9000); // 4 digit random
+            const generatedRegNumber = `GUEST-${timestamp}-${random}`;
+
             const insertChildQuery = `
                 INSERT INTO children (fullname, dob, gender_id, registration_number, insurance_provider_id, insurance_number, created_at, updated_at)
-                VALUES ($1, $2, $3, NULL, NULL, NULL, NOW(), NOW())
+                VALUES ($1, $2, $3, $4, NULL, NULL, NOW(), NOW())
                 RETURNING id
             `;
 
             const newChild = await externalQuery(insertChildQuery, [
                 childFullnameJson,
                 child_dob,
-                childGenderId
+                childGenderId,
+                generatedRegNumber // Save the generated number!
             ]);
             childId = newChild.rows[0].id;
             isNewChild = true;
-            console.log('[GuestAppointment] Created new child:', childId);
-        }
+            console.log('[GuestAppointment] Created new child:', childId, 'with reg:', generatedRegNumber);
 
-        // 3. Link Child and Parent (If new child or link missing)
-        if (isNewChild) {
-            // Insert into child_parent
-            const linkQuerySimple = `
-                INSERT INTO child_parent (parent_id, child_id, created_at, updated_at)
-                VALUES ($1, $2, NOW(), NOW())
-            `;
-            await externalQuery(linkQuerySimple, [parentId, childId]);
-            console.log('[GuestAppointment] Linked parent', parentId, 'and child', childId);
-        }
-
-        // 4. Create Appointment
-        // appointment_title: [NEW PATIENT] {First Name} {Middle Name} {Last Name}
-        const apptTitle = `[NEW PATIENT] ${child_first_name}  ${child_last_name}`; // Middle name empty
-
-        // staff_id: 1 (System/Reception user ID)
-        const staffId = 1;
-
-        const insertAppointmentQuery = `
-            INSERT INTO appointments (
-                child_id, doctor_id, staff_id,
-                appointment_title, appointment_date,
-                start_time, end_time,
-                status, appointment_type,
-                created_at, updated_at
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', 'IN_PERSON', NOW(), NOW())
-            RETURNING id
-        `;
-
-        const appointmentResult = await externalQuery(insertAppointmentQuery, [
-            childId,
-            doctor_id,
-            staffId, // Fixed to 1
-            apptTitle,
-            appointment_date,
-            start_time,
-            finalEndTime
-        ]);
-
-        const appointmentId = appointmentResult.rows[0].id;
-        console.log('[GuestAppointment] Created appointment:', appointmentId);
-
-        res.status(201).json({
-            success: true,
-            message: 'Appointment booked successfully',
-            data: {
-                appointment_id: appointmentId,
-                child_id: childId,
-                registration_number: null // Explicitly null as per new logic
+            // 3. Link Child and Parent (If new child or link missing)
+            if (isNewChild) {
+                // Insert into child_parent
+                const linkQuerySimple = `
+                    INSERT INTO child_parent (parent_id, child_id, created_at, updated_at)
+                    VALUES ($1, $2, NOW(), NOW())
+                `;
+                await externalQuery(linkQuerySimple, [parentId, childId]);
+                console.log('[GuestAppointment] Linked parent', parentId, 'and child', childId);
             }
-        });
+
+            // 4. Create Appointment
+            // appointment_title: [NEW PATIENT] {First Name} {Middle Name} {Last Name}
+            const apptTitle = `[NEW PATIENT] ${child_first_name}  ${child_last_name}`; // Middle name empty
+
+            // staff_id: 1 (System/Reception user ID)
+            const staffId = 1;
+
+            const insertAppointmentQuery = `
+                INSERT INTO appointments (
+                    child_id, doctor_id, staff_id,
+                    appointment_title, appointment_date,
+                    start_time, end_time,
+                    status, appointment_type,
+                    created_at, updated_at
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', 'IN_PERSON', NOW(), NOW())
+                RETURNING id
+            `;
+
+            const appointmentResult = await externalQuery(insertAppointmentQuery, [
+                childId,
+                doctor_id,
+                staffId, // Fixed to 1
+                apptTitle,
+                appointment_date,
+                start_time,
+                finalEndTime
+            ]);
+
+            const appointmentId = appointmentResult.rows[0].id;
+            console.log('[GuestAppointment] Created appointment:', appointmentId);
+
+            res.status(201).json({
+                success: true,
+                message: 'Appointment booked successfully',
+                data: {
+                    appointment_id: appointmentId,
+                    child_id: childId,
+                    registration_number: generatedRegNumber // Return the generated number
+                }
+            });
+            return; // Exit after successful creation
+        }
+
+        // If child existed, we still need to book appointment (simplified logic for existing child match not fully requested but good to have)
+        // For now, based on flow, if childId existed, we just book the appointment.
+        if (childId && !isNewChild) {
+            const apptTitle = `[NEW PATIENT] ${child_first_name}  ${child_last_name}`;
+            const staffId = 1;
+
+            const insertAppointmentQuery = `
+                INSERT INTO appointments (
+                    child_id, doctor_id, staff_id,
+                    appointment_title, appointment_date,
+                    start_time, end_time,
+                    status, appointment_type,
+                    created_at, updated_at
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', 'IN_PERSON', NOW(), NOW())
+                RETURNING id
+            `;
+
+            const appointmentResult = await externalQuery(insertAppointmentQuery, [
+                childId,
+                doctor_id,
+                staffId,
+                apptTitle,
+                appointment_date,
+                start_time,
+                finalEndTime
+            ]);
+            const appointmentId = appointmentResult.rows[0].id;
+
+            res.status(201).json({
+                success: true,
+                message: 'Appointment booked successfully for existing child',
+                data: {
+                    appointment_id: appointmentId,
+                    child_id: childId,
+                    registration_number: null // No new reg number generated
+                }
+            });
+        }
 
     } catch (error) {
         console.error('Error creating guest appointment:', error);

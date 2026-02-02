@@ -202,19 +202,23 @@ class AppointmentService {
     }
 
     // Get user's appointments (cached)
-    async getAppointments(status = null, forceRefresh = false) {
+    async getAppointments(status = null, forceRefresh = false, childId = null) {
         try {
             const token = await this.getToken();
             if (!token) throw new Error('No authentication token');
 
-            const cacheKey = status ? `appointments_${status}` : 'appointments_all';
+            const cacheKey = `appointments_${status || 'all'}_${childId || 'all'}`;
 
             const result = await cacheService.fetchWithCache(
                 cacheKey,
                 async () => {
                     let url = `${API_URL}/appointments`;
-                    if (status) {
-                        url += `?status=${status}`;
+                    const params = [];
+                    if (status) params.push(`status=${status}`);
+                    if (childId) params.push(`childId=${childId}`);
+
+                    if (params.length > 0) {
+                        url += `?${params.join('&')}`;
                     }
 
                     const response = await fetch(url, {
