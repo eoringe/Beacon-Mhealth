@@ -94,13 +94,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     const token = await firebaseUser.getIdToken();
                     await authService.storeToken(token);
 
-                    // 2. Set user to unblock UI immediately
-                    setUser(firebaseUser);
+                    // 2. Fetch full profile from backend to get phone number etc.
+                    let backendUser = null;
+                    try {
+                        const profileData = await authService.getProfile();
+                        backendUser = profileData.user;
+                        console.log('Fetched backend profile:', backendUser);
+                    } catch (e) {
+                        console.log('Failed to fetch backend profile, using firebase only', e);
+                    }
 
-                    // 3. Sync with backend in background (fire-and-forget)
-                    authService.registerUser(firebaseUser).catch(error => {
-                        console.error('Background sync error:', error);
-                    });
+                    // 3. Merge Firebase user with Backend data
+                    const mergedUser = {
+                        ...firebaseUser,
+                        // Prefer backend data if available, fallback to firebase
+                        displayName: backendUser?.display_name || firebaseUser.displayName,
+                        photoURL: backendUser?.photo_url || firebaseUser.photoURL,
+                        phoneNumber: backendUser?.phone_number || firebaseUser.phoneNumber,
+                        // Add custom fields
+                        dbId: backendUser?.id,
+                        firstName: backendUser?.first_name,
+                        lastName: backendUser?.last_name
+                    };
+
+                    setUser(mergedUser as User);
+
+                    // 4. Background sync (optional now since we just fetched)
+                    if (!backendUser) {
+                        authService.registerUser(firebaseUser).catch(error => {
+                            console.error('Background sync error:', error);
+                        });
+                    }
                 } catch (error) {
                     console.error('Error in auth state change:', error);
                     setUser(null);
