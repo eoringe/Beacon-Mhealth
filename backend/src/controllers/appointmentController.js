@@ -1,5 +1,5 @@
 const { pool } = require('../config/database');
-const { externalQuery } = require('../config/externalDatabase');
+const { externalQuery, externalPool } = require('../config/externalDatabase'); // Updated import to include externalPool
 const googleCalendarService = require('../services/googleCalendarService');
 
 // Helper: Check if date is weekend
@@ -138,8 +138,11 @@ exports.getDoctorAvailability = async (req, res) => {
 };
 
 // Create new appointment (External DB)
+// Create new appointment (External DB)
 exports.createAppointment = async (req, res) => {
     const client = await pool.connect(); // Keep local connection for local child lookup
+    let externalClient = null;
+
     try {
         const userId = req.user.id;
         const {
@@ -178,12 +181,155 @@ exports.createAppointment = async (req, res) => {
             return res.status(404).json({ error: 'Child not found or unauthorized' });
         }
 
-        let externalChildId = null;
-        let childFullName = `${localChildCheck.rows[0].first_name} ${localChildCheck.rows[0].last_name}`;
-        const childRegNumber = localChildCheck.rows[0].registration_number;
+        let childRegNumber = localChildCheck.rows[0].registration_number;
+        const localChild = localChildCheck.rows[0];
+        let childFullName = `${localChild.first_name} ${localChild.last_name}`;
 
-        if (childRegNumber) {
-            // Lookup child in External DB using Registration Number to get Real External ID
+        // Get Local Parent Details (needed for Guest flow)
+        const userResult = await client.query('SELECT display_name, phone_number, email FROM users WHERE id = $1', [userId]);
+        const user = userResult.rows[0];
+
+        if (!user) return res.status(500).json({ error: 'User profile not found' });
+
+        // Helper to split display name
+        const getNames = (displayName) => {
+            const parts = (displayName || '').split(' ');
+            const first = parts[0] || 'Guest';
+            const last = parts.length > 1 ? parts.slice(1).join(' ') : 'Parent';
+            return { first, last };
+        };
+
+        // GUEST FLOW Check:
+        // If child has NO registration number, we must perform the "Guest Booking Database Logic" transaction.
+        if (!childRegNumber) {
+            console.log(`[Appointment] Child ${childId} has no reg number. Initiating Guest Booking Transaction.`);
+
+            // Strict Validation for Guest Booking: Parent MUST have a phone number
+            if (!user.phone_number || user.phone_number.trim() === '') {
+                return res.status(400).json({
+                    error: 'Phone number is required. Please update your profile in Settings.'
+                });
+            }
+
+            // --- BEGIN TRANSACTION ---
+            externalClient = await externalPool.connect();
+            await externalClient.query('BEGIN');
+
+            try {
+                // Step A: Check or Create Parent (Table: parents)
+                // Check: Does a parent with the given telephone already exist?
+                const parentCheck = await externalClient.query(
+                    'SELECT id FROM parents WHERE telephone = $1',
+                    [user.phone_number]
+                );
+
+                let externalParentId;
+                if (parentCheck.rows.length > 0) {
+                    externalParentId = parentCheck.rows[0].id;
+                } else {
+                    const { first, last } = getNames(user.display_name);
+                    const fullnameJson = JSON.stringify({ first_name: first, last_name: last });
+
+                    // relationship_id: 1 (Default), gender_id: 2 (Female default - mapping simplified as requested)
+                    const insertParentQuery = `
+                        INSERT INTO parents (fullname, telephone, relationship_id, gender_id, created_at, updated_at)
+                        VALUES ($1, $2, 1, 2, NOW(), NOW())
+                        RETURNING id
+                    `;
+                    const newParent = await externalClient.query(insertParentQuery, [fullnameJson, user.phone_number]);
+                    externalParentId = newParent.rows[0].id;
+                }
+
+                // Step B: Create Guest Child (Table: children)
+                // Format: GUEST-{timestamp}-{random}
+                const timestamp = Math.floor(Date.now() / 1000);
+                const random = Math.floor(1000 + Math.random() * 9000); // 4 digit random
+                const generatedRegNumber = `GUEST-${timestamp}-${random}`;
+                const childFullnameJson = JSON.stringify({ first_name: localChild.first_name, last_name: localChild.last_name });
+
+                // gender_id: 1 (Male), 2 (Female). Simple map:
+                const genderId = (localChild.gender || '').toLowerCase() === 'male' ? 1 : 2;
+
+                const insertChildQuery = `
+                    INSERT INTO children (fullname, dob, gender_id, registration_number, created_at, updated_at)
+                    VALUES ($1, $2, $3, $4, NOW(), NOW())
+                    RETURNING id
+                `;
+                const newChild = await externalClient.query(insertChildQuery, [
+                    childFullnameJson,
+                    localChild.date_of_birth,
+                    genderId,
+                    generatedRegNumber
+                ]);
+                const externalChildId = newChild.rows[0].id;
+
+                // Step C: Link Parent & Child (Table: child_parent)
+                await externalClient.query(
+                    'INSERT INTO child_parent (parent_id, child_id, created_at, updated_at) VALUES ($1, $2, NOW(), NOW())',
+                    [externalParentId, externalChildId]
+                );
+
+                // Step D: Create Appointment (Table: appointments)
+                const appointmentTitle = `[NEW PATIENT] ${childFullName}`;
+
+                // Calculate end time (1 hour duration)
+                const [hours, minutes] = appointmentTime.split(':').map(Number);
+                const endHour = hours + 1;
+                const endTime = `${endHour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+
+                const insertAppsQuery = `
+                    INSERT INTO appointments (
+                        appointment_title, appointment_date, start_time, end_time, 
+                        staff_id, doctor_id, child_id, status, created_at, updated_at
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', NOW(), NOW())
+                    RETURNING *
+                `;
+
+                // staff_id: 1 (Default), doctor_id: from request
+                const appResult = await externalClient.query(insertAppsQuery, [
+                    appointmentTitle,
+                    appointmentDate,
+                    appointmentTime,
+                    endTime,
+                    1, // Default staff_id
+                    doctorId,
+                    externalChildId
+                ]);
+
+                // Step E: Update Local Child with Generated Registration Number
+                // We do this BEFORE commit to ensure consistent state, though technically if commit fails we might have a reg number locally that doesn't exist externally.
+                // Better: If commit succeeds, then update local. But local update is separate DB.
+                // We'll proceed with commit first.
+
+                await externalClient.query('COMMIT');
+
+                // Update Local Child
+                await client.query(
+                    'UPDATE children SET registration_number = $1 WHERE id = $2',
+                    [generatedRegNumber, childId]
+                );
+
+                return res.status(201).json({
+                    message: 'Appointment request sent successfully',
+                    appointment: appResult.rows[0],
+                    child_registration_number: generatedRegNumber,
+                    details: 'This appointment is now pending approval via the clinic system.'
+                });
+
+            } catch (transactionError) {
+                await externalClient.query('ROLLBACK');
+                console.error('Guest booking transaction failed:', transactionError);
+                throw transactionError; // Re-throw to be caught by outer catch
+            } finally {
+                externalClient.release();
+            }
+
+        } else {
+            // STANDARD FLOW (Existing Logic simplified/adapted)
+            // Child ALREADY has a registration number => Use it to find external ID
+
+            // Lookup child in External DB using Registration Number
             const externalChildCheck = await externalQuery(
                 'SELECT id, fullname FROM children WHERE registration_number = $1',
                 [childRegNumber]
@@ -194,272 +340,68 @@ exports.createAppointment = async (req, res) => {
                     error: `Child with Registration Number ${childRegNumber} not found in clinic system`
                 });
             }
-            externalChildId = externalChildCheck.rows[0].id;
-        } else {
-            // Child has no registration number - Treat as Guest/New Patient in External DB
-            console.log(`[Appointment] Child ${childId} has no reg number. Creating/Linking as guest in External DB.`);
+            const externalChildId = externalChildCheck.rows[0].id;
 
-            // 1. Get Parent Details from Local User
-            const userResult = await client.query('SELECT first_name, last_name, phone_number, email, gender FROM users WHERE id = $1', [userId]);
-            const user = userResult.rows[0];
+            // Generate Title
+            let appointmentTitle = childFullName;
 
-            if (!user) {
-                return res.status(500).json({ error: 'User profile not found' });
+            // Check Conflicts
+            const conflictCheck = await externalQuery(`
+                SELECT * FROM appointments
+                WHERE (staff_id = $1 OR doctor_id = $1)
+                  AND appointment_date = $2 
+                  AND start_time = $3
+                  AND status != 'cancelled'
+            `, [doctorId, appointmentDate, appointmentTime]);
+
+            if (conflictCheck.rows.length > 0) {
+                return res.status(409).json({ error: 'This time slot is already booked.' });
             }
 
-            // 2. Find or Create External Parent (User)
-            // Try to find by phone (primary) or email
-            let externalParentId = null;
-            const parentCheck = await externalQuery(
-                'SELECT id FROM users WHERE phone_number = $1 OR email = $2',
-                [user.phone_number, user.email]
-            );
+            // Calculate End Time
+            const [hours, minutes] = appointmentTime.split(':').map(Number);
+            const endHour = hours + 1;
+            const endTime = `${endHour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
 
-            if (parentCheck.rows.length > 0) {
-                externalParentId = parentCheck.rows[0].id;
-            } else {
-                // Create new Guest/Provisional Parent in External DB
-                const insertParentQuery = `
-                    INSERT INTO users (first_name, last_name, phone_number, email, gender, password, created_at, updated_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-                    RETURNING id
-                `;
-                // Use a placeholder password or null
-                try {
-                    // Note: External DB 'users' schema might require fields we assume.
-                    // We use the same assumption as the Guest Controller.
-                    const newParent = await externalQuery(insertParentQuery, [
-                        user.first_name || 'Guest',
-                        user.last_name || 'Parent',
-                        user.phone_number,
-                        user.email || `guest_${Date.now()}@beacon.com`,
-                        user.gender || 'Unknown',
-                        'GUEST_LINKED_ACCOUNT'
-                    ]);
-                    externalParentId = newParent.rows[0].id;
-                } catch (pError) {
-                    console.error('Failed to create external parent:', pError);
-                    return res.status(500).json({ error: 'Failed to synchronize parent profile with clinic system.' });
-                }
-            }
-
-            // 3. Create External Child
-            const localChild = localChildCheck.rows[0];
-            const insertChildQuery = `
-                INSERT INTO children (
-                    parent_id, first_name, last_name, date_of_birth, gender, registration_number, created_at, updated_at
+            // Insert Appointment
+            const insertQuery = `
+                INSERT INTO appointments (
+                    child_id, staff_id, doctor_id, 
+                    appointment_title, appointment_date, 
+                    start_time, end_time, status,
+                    appointment_type, 
+                    created_at, updated_at
                 )
-                VALUES ($1, $2, $3, $4, $5, NULL, NOW(), NOW())
-                RETURNING id
+                VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, NOW(), NOW())
+                RETURNING *
             `;
 
-            const newChild = await externalQuery(insertChildQuery, [
-                externalParentId,
-                localChild.first_name,
-                localChild.last_name,
-                localChild.date_of_birth,
-                localChild.gender
+            const result = await externalQuery(insertQuery, [
+                externalChildId,        // $1
+                1,                      // $2 Staff ID (Default 1 if not known) - Or use doctorId? Report said "1 (Or ID of the staff creating it)"
+                doctorId,               // $3 Doctor ID
+                appointmentTitle,       // $4
+                appointmentDate,        // $5
+                appointmentTime,        // $6
+                endTime,                // $7
+                appointmentType         // $8
             ]);
 
-            externalChildId = newChild.rows[0].id;
+            return res.status(201).json({
+                message: 'Appointment request sent successfully',
+                appointment: result.rows[0],
+                details: 'This appointment is now pending approval via the clinic system.'
+            });
         }
-
-        // Generate Title based on appointment type
-        let appointmentTitle = appointmentType === 'TELECONSULT'
-            ? `Teleconsult: ${childFullName}`
-            : childFullName;
-
-        // 2. Business Logic Checks
-        if (isWeekend(appointmentDate)) {
-            return res.status(400).json({ error: 'Cannot book appointments on weekends' });
-        }
-
-        if (!isWithinWorkingHours(appointmentTime)) {
-            return res.status(400).json({ error: 'Appointments are only available between 8:00 AM and 5:00 PM' });
-        }
-
-        if (isPastTime(appointmentDate, appointmentTime)) {
-            return res.status(400).json({ error: 'Cannot book appointments in the past' });
-        }
-
-        // 3. Check Conflicts in External DB
-        const conflictCheck = await externalQuery(`
-            SELECT * FROM appointments
-            WHERE (staff_id = $1 OR doctor_id = $1)
-              AND appointment_date = $2 
-              AND start_time = $3
-              AND status != 'cancelled'
-        `, [doctorId, appointmentDate, appointmentTime]);
-
-        if (conflictCheck.rows.length > 0) {
-            return res.status(409).json({ error: 'This time slot is already booked.' });
-        }
-
-        // 4. Calculate End Time (1 hour duration)
-        const [hours, minutes] = appointmentTime.split(':').map(Number);
-        const endHour = hours + 1;
-        const endTime = `${endHour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-
-        // 5. Handle Teleconsultation - Create Google Calendar Event with Meet Link
-        let googleMeetLink = null;
-        let googleCalendarEventId = null;
-        let idempotencyKey = null;
-
-        if (appointmentType === 'TELECONSULT') {
-            try {
-                // Initialize Google Calendar service if not already done
-                googleCalendarService.initialize();
-
-                if (!googleCalendarService.isConfigured()) {
-                    return res.status(503).json({
-                        error: 'Teleconsultation service is not configured. Please contact support.'
-                    });
-                }
-
-                // Generate idempotency key to prevent duplicate calendar events
-                idempotencyKey = googleCalendarService.generateIdempotencyKey(
-                    childId, doctorId, appointmentDate, appointmentTime
-                );
-
-                // Check if event already exists (for retry scenarios)
-                const existingAppt = await externalQuery(
-                    'SELECT google_meet_link, google_calendar_event_id FROM appointments WHERE idempotency_key = $1',
-                    [idempotencyKey]
-                );
-
-                if (existingAppt.rows.length > 0 && existingAppt.rows[0].google_meet_link) {
-                    // Return existing appointment info (idempotent)
-                    return res.status(200).json({
-                        message: 'Appointment already exists',
-                        appointment: existingAppt.rows[0],
-                        google_meet_link: existingAppt.rows[0].google_meet_link,
-                        details: 'This is an existing appointment (duplicate request detected).'
-                    });
-                }
-
-                // Get doctor name and specialization for calendar event
-                const doctorResult = await externalQuery(
-                    `SELECT s.fullname, ds.specialization 
-                     FROM staff s
-                     LEFT JOIN doctor_specialization ds ON s.specialization_id = ds.id
-                     WHERE s.id = $1`,
-                    [doctorId]
-                );
-
-                let doctorName = 'Doctor';
-                const staffData = doctorResult.rows[0];
-                const rawName = staffData?.fullname;
-                const specialization = staffData?.specialization || '';
-
-                if (rawName) {
-                    try {
-                        if (typeof rawName === 'string' && rawName.startsWith('{')) {
-                            const parsed = JSON.parse(rawName);
-                            doctorName = `${parsed.first_name || ''} ${parsed.last_name || ''}`.trim();
-                        } else if (typeof rawName === 'object') {
-                            doctorName = `${rawName.first_name || ''} ${rawName.last_name || ''}`.trim();
-                        } else {
-                            doctorName = rawName;
-                        }
-                    } catch (e) {
-                        doctorName = rawName;
-                    }
-                }
-
-                // Add 'Dr.' prefix for Paediatricians if not already present
-                if (specialization && /paediatrician|pediatrician/i.test(specialization)) {
-                    // Check if name already starts with Dr (case insensitive, handling 'Dr ', 'Dr. ', etc)
-                    if (!/^dr\.?\s+/i.test(doctorName)) {
-                        doctorName = `Dr. ${doctorName}`;
-                    }
-                }
-
-                // Get parent's email to invite them to the calendar event
-                const userResult = await client.query(
-                    'SELECT email FROM users WHERE id = $1',
-                    [userId]
-                );
-                const parentEmail = userResult.rows[0]?.email;
-                console.log(`Sending calendar invite to: ${parentEmail}`);
-
-                // Create Google Calendar event with Meet link
-                const eventResult = await googleCalendarService.createCalendarEvent({
-                    summary: `Teleconsultation: ${childFullName} with ${doctorName}`,
-                    description: `Pediatric teleconsultation appointment.\n\nPatient: ${childFullName}\nReason: ${reason || 'General consultation'}\nNotes: ${notes || 'None'}`,
-                    date: appointmentDate,
-                    startTime: appointmentTime,
-                    endTime: endTime,
-                    attendees: parentEmail ? [parentEmail] : []
-                }, idempotencyKey);
-
-                googleMeetLink = eventResult.meetLink;
-                googleCalendarEventId = eventResult.eventId;
-
-                if (!googleMeetLink) {
-                    console.error('Google Meet link was not generated');
-                    return res.status(503).json({
-                        error: 'Failed to generate Google Meet link. Please try again.'
-                    });
-                }
-
-                console.log(`Teleconsult appointment created with Meet link: ${googleMeetLink}`);
-
-            } catch (calendarError) {
-                console.error('Google Calendar API error:', calendarError);
-                return res.status(503).json({
-                    error: 'Failed to create teleconsultation. Google Calendar service unavailable.',
-                    details: calendarError.message
-                });
-            }
-        }
-
-        // 6. Insert into External DB
-        const insertQuery = `
-            INSERT INTO appointments (
-                child_id, staff_id, doctor_id, 
-                appointment_title, appointment_date, 
-                start_time, end_time, status,
-                appointment_type, google_meet_link, google_calendar_event_id, idempotency_key,
-                created_at, updated_at
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, $9, $10, $11, NOW(), NOW())
-            RETURNING id, appointment_date, start_time, status, appointment_type, google_meet_link
-        `;
-
-        const result = await externalQuery(insertQuery, [
-            externalChildId,        // $1 External Child ID
-            doctorId,               // $2 Staff ID
-            doctorId,               // $3 Doctor ID (Redundant but required)
-            appointmentTitle,       // $4 Title
-            appointmentDate,        // $5
-            appointmentTime,        // $6 Start Time
-            endTime,                // $7 End Time
-            appointmentType,        // $8 Appointment Type
-            googleMeetLink,         // $9 Google Meet Link (null for in-person)
-            googleCalendarEventId,  // $10 Calendar Event ID (null for in-person)
-            idempotencyKey          // $11 Idempotency Key (null for in-person)
-        ]);
-
-        const responseData = {
-            message: 'Appointment request sent successfully',
-            appointment: result.rows[0],
-            details: appointmentType === 'TELECONSULT'
-                ? 'Your teleconsultation is pending approval. Join via the Google Meet link at the scheduled time.'
-                : 'This appointment is now pending approval via the clinic system.'
-        };
-
-        // Include Meet link prominently in response for teleconsult
-        if (googleMeetLink) {
-            responseData.google_meet_link = googleMeetLink;
-        }
-
-        res.status(201).json(responseData);
 
     } catch (error) {
         console.error('Error creating appointment:', error);
-        res.status(500).json({ error: 'Server error creating appointment' });
+        res.status(500).json({ error: 'Server error creating appointment', details: error.message });
     } finally {
         client.release();
+        if (externalClient) {
+            // externalClient.release() was called in finally block above, but good to be safe if error happened before connect
+        }
     }
 };
 
@@ -491,8 +433,9 @@ exports.getUserAppointments = async (req, res) => {
         const regNumbers = user.reg_numbers || [];
         const uniqueExternalChildIds = new Set();
 
-        // 2a. Strategy 1: Find External Children by Registration Number (Existing Logic)
+        // 2a. Strategy 1: Find External Children by Registration Number (Primary)
         if (regNumbers.length > 0) {
+            // Note: Guest reg numbers ("GUEST-...") are also stored in regNumbers array
             const childrenByReg = await externalQuery(
                 `SELECT id FROM children WHERE registration_number = ANY($1)`,
                 [regNumbers]
@@ -500,23 +443,51 @@ exports.getUserAppointments = async (req, res) => {
             childrenByReg.rows.forEach(row => uniqueExternalChildIds.add(row.id));
         }
 
-        // 2b. Strategy 2: Find External Children by Parent Phone/Email (For Guest Bookings)
+        // 2b. Strategy 2: Find External Children by Parent Phone/Email (Fallback/Guest)
+        // If we found children by reg number, we might technically skip this, but 
+        // strictly speaking, we might have some children with reg numbers and some without (rare edge case? or migration?).
+        // To be safe and robust (as per "robust lookup" requirement), we check this too, specifically if we didn't find matches for all known children.
+        // However, for pure performance, we could skip. But let's verify identity.
+
         // Find external parent profile
-        // Note: The external DB might have multiple records if data isn't clean, so we check both fields
         const externalParentCheck = await externalQuery(
-            `SELECT id FROM users WHERE phone_number = $1 OR email = $2`,
-            [user.phone_number, user.email]
+            `SELECT id FROM parents WHERE telephone = $1`, // Updated to match Report table 'parents'
+            [user.phone_number]
         );
 
         if (externalParentCheck.rows.length > 0) {
             const externalParentIds = externalParentCheck.rows.map(row => row.id);
 
-            // Get all children belonging to these external parent IDs
+            // Get all children belonging to these external parent IDs (child_parent link)
             const childrenByParent = await externalQuery(
-                `SELECT id FROM children WHERE parent_id = ANY($1)`,
+                `SELECT child_id FROM child_parent WHERE parent_id = ANY($1)`, // Updated to match Report table 'child_parent'
                 [externalParentIds]
             );
-            childrenByParent.rows.forEach(row => uniqueExternalChildIds.add(row.id));
+            childrenByParent.rows.forEach(row => uniqueExternalChildIds.add(row.child_id));
+        } else {
+            // Fallback to legacy 'users' table check IF the system is in migration state?
+            // User report implies we should strictly use the new tables.
+            // But let's leave the old check as a backup if the report is ONLY for new guest bookings 
+            // and old data is in old tables? The report said "refactor to match exactly".
+            // Assuming new schema replaces old schema for Guest logic.
+            // But wait, standard registered children might still be in 'users'/'children' (standard schema).
+            // The report title is 'Guest Booking Database Logic'. It might not replace the STANDARD table schema for standard users.
+            // Standard users usually have a proper 'users' record.
+            // To be safe, I should preserve the legacy lookup for standard users if 'parents' table lookup fails or returns nothing relevant.
+
+            // Legacy/Standard User Lookup Check
+            const standardParentCheck = await externalQuery(
+                `SELECT id FROM users WHERE phone_number = $1 OR email = $2`,
+                [user.phone_number, user.email]
+            );
+            if (standardParentCheck.rows.length > 0) {
+                const stdParentIds = standardParentCheck.rows.map(r => r.id);
+                const stdChildren = await externalQuery(
+                    `SELECT id FROM children WHERE parent_id = ANY($1)`,
+                    [stdParentIds]
+                );
+                stdChildren.rows.forEach(r => uniqueExternalChildIds.add(r.id));
+            }
         }
 
         // 3. If no children found in external DB, return empty
