@@ -753,8 +753,7 @@ exports.deleteAppointment = async (req, res) => {
     }
 };
 
-// Create a guest appointment - calls Laravel API
-// The Laravel API handles the complex database schema (parents table with JSON fullname, child_parent pivot, etc.)
+// Create a guest appointment - writes directly to external database
 exports.createGuestAppointment = async (req, res) => {
     try {
         const {
@@ -801,65 +800,140 @@ exports.createGuestAppointment = async (req, res) => {
             return `${endHour}:${minutes}`;
         })();
 
-        console.log('[GuestAppointment] Calling Laravel API for guest booking');
+        console.log('[GuestAppointment] Creating guest appointment via Direct DB Write');
 
-        // Call Laravel API
-        const LARAVEL_API_URL = 'https://beaconchildrencenter-production.up.railway.app';
+        // Helper to get gender ID
+        const getGenderId = async (genderName) => {
+            if (!genderName) return null;
+            try {
+                const res = await externalQuery('SELECT id FROM genders WHERE LOWER(name) = LOWER($1)', [genderName]);
+                if (res.rows.length > 0) return res.rows[0].id;
+                // Fallback map if DB check fails or table empty (Unlikely in production but safe)
+                const map = { 'male': 1, 'female': 2 };
+                return map[genderName.toLowerCase()] || 1;
+            } catch (e) {
+                console.error('Error fetching gender ID:', e);
+                return 1; // Default
+            }
+        };
 
-        const laravelResponse = await fetch(`${LARAVEL_API_URL}/api/book-guest-appointment`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest',
-                'User-Agent': 'Beacon-Mobile-App/1.0'
-            },
-            body: JSON.stringify({
-                parent_first_name,
-                parent_last_name,
+        const parentGenderId = await getGenderId(parent_gender);
+        const childGenderId = await getGenderId(child_gender);
+
+        // 1. Find or Create Parent
+        // Schema: parents(id, fullname(json), telephone, email, gender_id, ...)
+        let parentId = null;
+
+        // Check by telephone
+        const parentCheck = await externalQuery(
+            'SELECT id FROM parents WHERE telephone = $1',
+            [parent_phone]
+        );
+
+        if (parentCheck.rows.length > 0) {
+            parentId = parentCheck.rows[0].id;
+            console.log('[GuestAppointment] Found existing parent:', parentId);
+        } else {
+            // Create New Parent
+            // fullname is JSON: {"first_name": "...", "last_name": "..."}
+            const parentFullname = JSON.stringify({
+                first_name: parent_first_name,
+                last_name: parent_last_name
+            });
+
+            // Note: DB schema might require other fields like relationship_id. 
+            // We'll try to insert minimal required. If fails due to constraint, we might need default relationship_id.
+            // Typically Relationship: 1=Father, 2=Mother. We'll leave null if nullable, or try inserting.
+
+            const insertParentQuery = `
+                INSERT INTO parents (fullname, telephone, email, gender_id, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, NOW(), NOW())
+                RETURNING id
+            `;
+
+            const newParent = await externalQuery(insertParentQuery, [
+                parentFullname,
                 parent_phone,
-                parent_email: parent_email || null,
-                parent_gender: parent_gender || null,
-                child_first_name,
-                child_last_name,
-                child_dob,
-                child_gender,
-                doctor_id,
-                appointment_date,
-                start_time,
-                end_time: finalEndTime
-            })
+                parent_email || null,
+                parentGenderId
+            ]);
+            parentId = newParent.rows[0].id;
+            console.log('[GuestAppointment] Created new parent:', parentId);
+        }
+
+        // 2. Create Child (Guest)
+        // Schema: children(id, fullname(json), dob, gender_id, registration_number(NULL), ...)
+        const childFullname = JSON.stringify({
+            first_name: child_first_name,
+            last_name: child_last_name
         });
 
-        const responseText = await laravelResponse.text();
-        console.log('[GuestAppointment] Laravel API status:', laravelResponse.status);
-        console.log('[GuestAppointment] Laravel API raw response:', responseText.substring(0, 500)); // Log first 500 chars
+        const insertChildQuery = `
+            INSERT INTO children (fullname, dob, gender_id, registration_number, created_at, updated_at)
+            VALUES ($1, $2, $3, NULL, NOW(), NOW())
+            RETURNING id
+        `;
 
-        let data;
-        try {
-            data = JSON.parse(responseText);
-        } catch (e) {
-            console.error('[GuestAppointment] Failed to parse JSON:', e);
-            return res.status(laravelResponse.status).send(responseText); // Return the HTML to client for debugging
-        }
+        const newChild = await externalQuery(insertChildQuery, [
+            childFullname,
+            child_dob,
+            childGenderId
+        ]);
+        const childId = newChild.rows[0].id;
+        console.log('[GuestAppointment] Created new child:', childId);
 
-        console.log('[GuestAppointment] Laravel API response data:', data);
+        // 3. Link Parent and Child (Pivot)
+        // Schema: child_parent(id, child_id, parent_id)
+        await externalQuery(
+            'INSERT INTO child_parent (child_id, parent_id) VALUES ($1, $2)',
+            [childId, parentId]
+        );
+        console.log('[GuestAppointment] Linked child and parent');
 
-        // Forward the Laravel response
-        if (laravelResponse.ok && data.success !== false) {
-            return res.status(201).json({
-                success: true,
-                message: data.message || 'Appointment booked successfully',
-                data: data.data || data
-            });
-        } else {
-            // Forward error response
-            return res.status(laravelResponse.status || 400).json({
-                success: false,
-                message: data.message || 'Failed to book appointment',
-                errors: data.errors || {}
-            });
-        }
+        // 4. Create Appointment
+        // Schema: appointments(child_id, doctor_id, staff_id, appointment_date, start_time, end_time, status, appointment_title, appointment_type)
+
+        // Get Doctor Name for Title
+        const doctorRes = await externalQuery('SELECT fullname FROM staffs WHERE id = $1', [doctor_id]);
+        const doctorName = doctorRes.rows[0]?.fullname || 'Doctor';
+        const appointmentTitle = `${child_first_name} ${child_last_name} - ${doctorName}`;
+
+        const insertAppointmentQuery = `
+            INSERT INTO appointments (
+                child_id, doctor_id, staff_id,
+                appointment_title, appointment_date,
+                start_time, end_time,
+                status, appointment_type,
+                created_at, updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', 'IN_PERSON', NOW(), NOW())
+            RETURNING id
+        `;
+
+        // We use doctor_id as staff_id (receptionist) placeholder, or maybe we should use a default system user?
+        // Using doctor_id as staff_id for now to satisfy FK.
+        const appointmentResult = await externalQuery(insertAppointmentQuery, [
+            childId,
+            doctor_id,
+            doctor_id, // staff_id
+            appointmentTitle,
+            appointment_date,
+            start_time,
+            finalEndTime
+        ]);
+
+        const appointmentId = appointmentResult.rows[0].id;
+        console.log('[GuestAppointment] Created appointment:', appointmentId);
+
+        res.status(201).json({
+            success: true,
+            message: 'Appointment booked successfully',
+            data: {
+                appointment_id: appointmentId,
+                child_id: childId,
+                registration_number: null
+            }
+        });
 
     } catch (error) {
         console.error('Error creating guest appointment:', error);

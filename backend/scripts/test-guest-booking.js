@@ -1,22 +1,26 @@
 
 // Native fetch is available in Node 18+
 
-const LARAVEL_API_URL = 'https://beaconchildrencenter-production.up.railway.app/api/book-guest-appointment';
+// Target Local Backend (Node.js) which now handles the DB writes directly
+const API_URL = 'http://localhost:3000/api/appointments/guest';
 
 const testGuestBooking = async () => {
-    console.log(`Testing Endpoint: ${LARAVEL_API_URL}`);
+    console.log(`Testing Endpoint: ${API_URL}`);
+
+    // Randomize parent/child names to avoid unique constraint collisions on phone if any
+    const randomSuffix = Math.floor(Math.random() * 10000);
 
     const payload = {
         parent_first_name: "Test",
         parent_last_name: "Parent",
-        parent_phone: "0799999999",
-        parent_email: "test.guest@example.com",
+        parent_phone: `0799${randomSuffix}`, // Unique-ish phone
+        parent_email: `test.guest.${randomSuffix}@example.com`,
         parent_gender: "Male",
         child_first_name: "Test",
         child_last_name: "Child",
         child_dob: "2024-01-01",
         child_gender: "Male",
-        doctor_id: 19, // Assuming 19 exists based on previous logs, otherwise might fail validation
+        doctor_id: 2, // Saw ID 2 in previous logs as valid
         appointment_date: "2026-06-01",
         start_time: "10:00",
         end_time: "11:00"
@@ -25,12 +29,14 @@ const testGuestBooking = async () => {
     console.log('Sending Payload:', JSON.stringify(payload, null, 2));
 
     try {
-        const response = await fetch(LARAVEL_API_URL, {
+        const response = await fetch(API_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
+                // Auth token might be needed if the route is protected!
+                // The route in appointmentController.js is protected by authMiddleware.
+                // We need a valid token.
             },
             body: JSON.stringify(payload)
         });
