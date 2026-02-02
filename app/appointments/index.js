@@ -201,11 +201,17 @@ export default function AppointmentsScreen() {
     const isUpcoming = (dateStr, timeStr) => {
         if (!dateStr) return false;
 
+        // Manually parse YYYY-MM-DD to avoid UTC conversion issues
+        // format: "2024-05-20"
+        const [year, month, day] = dateStr.split('-').map(Number);
+
+        // Create date in LOCAL time (Month is 0-indexed in JS Date)
+        const date = new Date(year, month - 1, day);
+
         // Use provided time or default to end of day if checking just date
         const time = timeStr || '23:59';
         const [hours, minutes] = time.split(':').map(Number);
 
-        const date = new Date(dateStr);
         date.setHours(hours, minutes, 0, 0);
 
         return date >= new Date();

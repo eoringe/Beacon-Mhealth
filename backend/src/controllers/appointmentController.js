@@ -471,39 +471,62 @@ exports.getUserAppointments = async (req, res) => {
         const userId = req.user.id;
         const { status } = req.query;
 
-        // 1. Get all local children for this user
-        const localChildrenResult = await client.query(
-            'SELECT id, registration_number, first_name, last_name FROM children WHERE parent_id = $1',
-            [userId]
-        );
+        // 1. Get local user details and children
+        const userQuery = `
+            SELECT u.first_name, u.last_name, u.phone_number, u.email,
+                   json_agg(c.registration_number) FILTER (WHERE c.registration_number IS NOT NULL) as reg_numbers
+            FROM users u
+            LEFT JOIN children c ON u.id = c.parent_id
+            WHERE u.id = $1
+            GROUP BY u.id
+        `;
 
-        if (localChildrenResult.rows.length === 0) {
-            return res.json([]); // No children, no appointments
+        const userResult = await client.query(userQuery, [userId]);
+
+        if (userResult.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
         }
 
-        // Filter children with registration numbers
-        const childrenWithReg = localChildrenResult.rows.filter(c => c.registration_number);
+        const user = userResult.rows[0];
+        const regNumbers = user.reg_numbers || [];
+        const uniqueExternalChildIds = new Set();
 
-        if (childrenWithReg.length === 0) {
-            return res.json([]); // No linked children
+        // 2a. Strategy 1: Find External Children by Registration Number (Existing Logic)
+        if (regNumbers.length > 0) {
+            const childrenByReg = await externalQuery(
+                `SELECT id FROM children WHERE registration_number = ANY($1)`,
+                [regNumbers]
+            );
+            childrenByReg.rows.forEach(row => uniqueExternalChildIds.add(row.id));
         }
 
-        const regNumbers = childrenWithReg.map(c => c.registration_number);
-
-        // 2. Resolve to External Child IDs
-        // Postgres ANY() expects an array
-        const externalChildrenResult = await externalQuery(
-            `SELECT id, registration_number, fullname FROM children WHERE registration_number = ANY($1)`,
-            [regNumbers]
+        // 2b. Strategy 2: Find External Children by Parent Phone/Email (For Guest Bookings)
+        // Find external parent profile
+        // Note: The external DB might have multiple records if data isn't clean, so we check both fields
+        const externalParentCheck = await externalQuery(
+            `SELECT id FROM users WHERE phone_number = $1 OR email = $2`,
+            [user.phone_number, user.email]
         );
 
-        if (externalChildrenResult.rows.length === 0) {
+        if (externalParentCheck.rows.length > 0) {
+            const externalParentIds = externalParentCheck.rows.map(row => row.id);
+
+            // Get all children belonging to these external parent IDs
+            const childrenByParent = await externalQuery(
+                `SELECT id FROM children WHERE parent_id = ANY($1)`,
+                [externalParentIds]
+            );
+            childrenByParent.rows.forEach(row => uniqueExternalChildIds.add(row.id));
+        }
+
+        // 3. If no children found in external DB, return empty
+        if (uniqueExternalChildIds.size === 0) {
             return res.json([]);
         }
 
-        const externalChildIds = externalChildrenResult.rows.map(c => c.id);
+        const externalChildIds = Array.from(uniqueExternalChildIds);
 
-        // 3. Fetch Appointments from External DB
+        // 4. Fetch Appointments from External DB
         let query = `
             SELECT 
                 a.id,
@@ -538,14 +561,8 @@ exports.getUserAppointments = async (req, res) => {
 
         const appointmentsResult = await externalQuery(query, params);
 
-        // 4. Format Response to match frontend expectations
-        // Frontend expects: doctor_name, doctor_specialty, child_name, etc.
-        console.log('[Backend DEBUG] Raw appointmentsResult.rows:', JSON.stringify(appointmentsResult.rows.slice(0, 3), null, 2)); // Log first 3 raw appointments
-
+        // 5. Format Response to match frontend expectations
         const formattedAppointments = appointmentsResult.rows.map(appt => {
-            // DEBUG: Log raw IDs from the query result
-            console.log(`[Backend DEBUG] Appointment ID: ${appt.id}, Raw staff_id: ${appt.staff_id}, Raw doctor_id: ${appt.doctor_id}, Child: ${appt.child_fullname}`);
-
             // Helper to parsing names from JSON or String
             const parseName = (nameField) => {
                 if (!nameField) return 'Unknown';
@@ -569,15 +586,13 @@ exports.getUserAppointments = async (req, res) => {
                 doctor_name: parseName(appt.doctor_name),
                 doctor_specialty: appt.doctor_specialty || 'General',
                 child_name: parseName(appt.child_fullname),
-                doctor_id: appt.doctor_id || appt.staff_id, // Use real doctor_id, fallback to staff_id if null
-                // Add dummy photo since external DB doesn't have it easily accessible yet
-                doctor_photo: null,
-                // Teleconsultation fields
+                doctor_id: appt.doctor_id || appt.staff_id,
+                doctor_photo: null, // Placeholder
                 appointment_type: appt.appointment_type || 'IN_PERSON',
                 google_meet_link: appt.google_meet_link || null
             };
 
-            // Normalize status to 'cancelled' (British English with double L) to match clinic's Laravel system
+            // Normalize status to 'cancelled'
             if (appt.status === 'canceled' || appt.status === 'rejected') {
                 formatted.status = 'cancelled';
             }
