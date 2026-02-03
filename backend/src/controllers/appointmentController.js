@@ -809,14 +809,26 @@ exports.createGuestAppointment = async (req, res) => {
         try {
             // Step A: Check or Create Parent
             let parentId = null;
+            // Check by Phone OR Email (case-insensitive)
             const parentCheck = await externalClient.query(
-                'SELECT id FROM parents WHERE telephone = $1',
-                [parent_phone]
+                'SELECT id FROM parents WHERE telephone = $1 OR ($2::text IS NOT NULL AND LOWER(email) = LOWER($2))',
+                [parent_phone, parent_email]
             );
 
             if (parentCheck.rows.length > 0) {
                 parentId = parentCheck.rows[0].id;
                 console.log('[GuestAppointment] Found existing parent:', parentId);
+
+                // Update existing parent with latest details
+                // We update phone and email to ensure they are current
+                await externalClient.query(
+                    `UPDATE parents 
+                     SET telephone = $1, 
+                         email = COALESCE($2, email), 
+                         updated_at = NOW() 
+                     WHERE id = $3`,
+                    [parent_phone, parent_email, parentId]
+                );
             } else {
                 const parentFullname = JSON.stringify({
                     first_name: parent_first_name,
