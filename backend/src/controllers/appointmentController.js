@@ -214,16 +214,21 @@ exports.createAppointment = async (req, res) => {
 
             try {
                 // Step A: Check or Create Parent (Table: parents)
+                console.log(`[Appointment] Checking parent: Phone=${user.phone_number}, Email=${user.email}`);
+
                 // Check: Does a parent with the given telephone OR email already exist?
+                // Using LOWER(email) to handle case-sensitivity issues
                 const parentCheck = await externalClient.query(
-                    'SELECT id FROM parents WHERE telephone = $1 OR email = $2',
+                    'SELECT id FROM parents WHERE telephone = $1 OR LOWER(email) = LOWER($2)',
                     [user.phone_number, user.email]
                 );
 
                 let externalParentId;
                 if (parentCheck.rows.length > 0) {
                     externalParentId = parentCheck.rows[0].id;
+                    console.log(`[Appointment] Found existing parent ID: ${externalParentId}`);
                 } else {
+                    console.log(`[Appointment] Creating NEW parent record...`);
                     const { first, last } = getNames(user.display_name);
                     const fullnameJson = JSON.stringify({ first_name: first, last_name: last });
 
