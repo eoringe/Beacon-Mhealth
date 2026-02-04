@@ -162,7 +162,7 @@ export default function ChildProfileScreen() {
     };
 
     const handleViewChart = () => {
-        router.push({ pathname: '/growth-chart', params: { childId: selectedChild.id } });
+        router.push({ pathname: '/dashboard/growth-chart', params: { childId: selectedChild.id } });
     };
 
     const getActivityIcon = (type) => {
@@ -236,7 +236,7 @@ export default function ChildProfileScreen() {
 
                     <TouchableOpacity
                         style={[styles.editProfileButton, { borderColor: colorScheme.border }]}
-                        onPress={() => router.push({ pathname: '/children/edit', params: { id: selectedChild.id } })}
+                        onPress={() => router.push({ pathname: '/profile/children/edit', params: { id: selectedChild.id } })}
                     >
                         <MaterialIcons name="edit" size={18} color={colorScheme.primary} />
                         <Text style={[styles.editProfileText, { color: colorScheme.primary }]}>
@@ -443,7 +443,7 @@ export default function ChildProfileScreen() {
 
                         <TouchableOpacity
                             style={[styles.quickActionButton, { backgroundColor: colorScheme.surface }]}
-                            onPress={() => router.push('/milestone-checklist')}
+                            onPress={() => router.push('/dashboard/milestone-checklist')}
                         >
                             <MaterialIcons name="check-circle" size={24} color={colorScheme.primary} />
                             <Text style={[styles.quickActionLabel, { color: colorScheme.textPrimary }]}>

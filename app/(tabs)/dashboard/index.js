@@ -226,21 +226,21 @@ export default function DashboardScreen() {
             title: 'Growth Chart',
             icon: 'show-chart',
             color: colorScheme.chartHeight,
-            route: '/growth-chart',
+            route: '/dashboard/growth-chart',
         },
         {
             id: 'vaccinations',
             title: 'Vaccinations',
             icon: 'vaccines',
             color: colorScheme.vaccineCompleted,
-            route: '/vaccinations',
+            route: '/dashboard/vaccinations',
         },
         {
             id: 'checklist',
             title: 'Milestone Checker',
             icon: 'checklist',
             color: '#4CAF50',
-            route: '/milestone-checklist',
+            route: '/dashboard/milestone-checklist',
             description: 'Track development'
         },
         {
@@ -255,14 +255,14 @@ export default function DashboardScreen() {
             title: 'Prescriptions',
             icon: 'medication',
             color: '#E91E63',
-            route: '/prescriptions',
+            route: '/dashboard/prescriptions',
         },
         {
             id: 'medical_reports',
             title: 'Reports',
             icon: 'folder-open',
             color: '#9C27B0',
-            route: '/medical-reports',
+            route: '/dashboard/medical-reports',
         },
         // Notifications moved to Tab Bar
     ];
@@ -281,7 +281,7 @@ export default function DashboardScreen() {
 
         if (action.id === 'growth_chart') {
             if (selectedChild) {
-                router.push({ pathname: '/growth-chart', params: { childId: selectedChild.id } });
+                router.push({ pathname: '/dashboard/growth-chart', params: { childId: selectedChild.id } });
             } else {
                 Alert.alert('Select Child', 'Please select a child to view their growth chart.');
             }
@@ -327,7 +327,7 @@ export default function DashboardScreen() {
                         <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, marginBottom: 0 }]}>
                             Current Child
                         </Text>
-                        <TouchableOpacity onPress={() => router.push('/children')}>
+                        <TouchableOpacity onPress={() => router.push('/profile/children')}>
                             <Text style={{ color: colorScheme.primary, fontWeight: '600' }}>Switch / Add</Text>
                         </TouchableOpacity>
                     </View>
@@ -335,7 +335,7 @@ export default function DashboardScreen() {
                     {selectedChild ? (
                         <TouchableOpacity
                             style={[styles.childCard, { backgroundColor: colorScheme.surface }]}
-                            onPress={() => router.push('/children')}
+                            onPress={() => router.push('/profile/children')}
                         >
                             <View style={[styles.avatarContainer, { backgroundColor: `${colorScheme.primary}20` }]}>
                                 <MaterialIcons name="face" size={32} color={colorScheme.primary} />
@@ -353,7 +353,7 @@ export default function DashboardScreen() {
                     ) : (
                         <TouchableOpacity
                             style={[styles.addChildCard, { borderColor: colorScheme.border }]}
-                            onPress={() => router.push('/children/add')}
+                            onPress={() => router.push('/profile/children/add')}
                         >
                             <MaterialIcons name="add-circle-outline" size={32} color={colorScheme.primary} />
                             <Text style={[styles.addChildText, { color: colorScheme.textSecondary }]}>

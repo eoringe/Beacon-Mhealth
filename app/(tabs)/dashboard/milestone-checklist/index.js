@@ -8,7 +8,7 @@ import {
   MILESTONE_AGES,
   getMilestonesForAge,
   calculateAgeInMonths as calculateAgeHelper
-} from '../../constants/milestones';
+} from '@/constants/milestones';
 import { SafeHeader } from '@/components/SafeHeader';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useChild } from '@/contexts/ChildContext';

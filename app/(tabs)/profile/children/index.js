@@ -44,7 +44,7 @@ export default function ChildrenListScreen() {
         // The user said "when I press profile is when I see the child profile".
         // Let's assume /child-profile reads from context selectChild.
         await selectChild(child);
-        router.push('/child-profile');
+        router.push('/profile/child-profile');
     };
 
     const handleDelete = (child) => {
@@ -134,7 +134,7 @@ export default function ChildrenListScreen() {
                 <View style={[styles.actionDivider, { backgroundColor: colorScheme.border }]} />
                 <TouchableOpacity
                     style={styles.actionButton}
-                    onPress={() => router.push({ pathname: '/children/edit', params: { id: item.id } })}
+                    onPress={() => router.push({ pathname: '/profile/children/edit', params: { id: item.id } })}
                 >
                     <MaterialIcons name="edit" size={20} color={colorScheme.textSecondary} />
                     <Text style={[styles.actionText, { color: colorScheme.textSecondary }]}>Edit</Text>
@@ -163,10 +163,10 @@ export default function ChildrenListScreen() {
                 </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: colorScheme.textPrimary }]}>My Children</Text>
                 <View style={styles.headerActions}>
-                    <TouchableOpacity onPress={() => router.push('/children/lookup')} style={styles.headerButton}>
+                    <TouchableOpacity onPress={() => router.push('/profile/children/lookup')} style={styles.headerButton}>
                         <MaterialIcons name="search" size={24} color={colorScheme.primary} />
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={() => router.push('/children/add')} style={styles.headerButton}>
+                    <TouchableOpacity onPress={() => router.push('/profile/children/add')} style={styles.headerButton}>
                         <MaterialIcons name="add" size={28} color={colorScheme.primary} />
                     </TouchableOpacity>
                 </View>
@@ -183,14 +183,14 @@ export default function ChildrenListScreen() {
                     </Text>
                     <TouchableOpacity
                         style={[styles.addButton, { backgroundColor: colorScheme.primary }]}
-                        onPress={() => router.push('/children/lookup')}
+                        onPress={() => router.push('/profile/children/lookup')}
                     >
                         <MaterialIcons name="search" size={20} color="#FFFFFF" />
                         <Text style={styles.addButtonText}>Find Patient from Clinic</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[styles.secondaryButton, { borderColor: colorScheme.primary }]}
-                        onPress={() => router.push('/children/add')}
+                        onPress={() => router.push('/profile/children/add')}
                     >
                         <MaterialIcons name="edit" size={20} color={colorScheme.primary} />
                         <Text style={[styles.secondaryButtonText, { color: colorScheme.primary }]}>Add Manually</Text>

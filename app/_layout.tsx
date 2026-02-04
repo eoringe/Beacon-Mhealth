@@ -134,10 +134,6 @@ function NavigationWrapper() {
           <Stack.Screen name="index" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
           <Stack.Screen name="(tabs)" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
           <Stack.Screen name="auth" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
-          <Stack.Screen name="children/add" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
-          <Stack.Screen name="children/index" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
-          <Stack.Screen name="teleconsult/index" options={{ headerShown: false, contentStyle: { backgroundColor: colorScheme.background } }} />
-          <Stack.Screen name="teleconsultation" options={{ headerShown: false, contentStyle: { backgroundColor: colorScheme.background } }} />
           <Stack.Screen name="+not-found" />
         </Stack>
       </View>

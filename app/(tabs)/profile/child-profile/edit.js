@@ -59,7 +59,7 @@ export default function EditProfileScreen() {
                 {/* Profile Photo */}
                 <View style={styles.photoSection}>
                     <Image
-                        source={require('../../assets/images/beacon.jpg')}
+                        source={require('../../../../assets/images/beacon.jpg')}
                         style={styles.profilePhoto}
                     />
                     <TouchableOpacity style={[styles.changePhotoButton, { backgroundColor: colorScheme.primary }]}>

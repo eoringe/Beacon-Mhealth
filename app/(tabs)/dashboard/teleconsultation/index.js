@@ -303,7 +303,7 @@ export default function TeleconsultationScreen() {
                                             { backgroundColor: colorScheme.primary },
                                         ]}
                                         onPress={() =>
-                                            router.push(`/teleconsultation/payment?doctorId=${doctor.id}`)
+                                            router.push(`/dashboard/teleconsultation/payment?doctorId=${doctor.id}`)
                                         }
                                         activeOpacity={0.8}
                                     >
