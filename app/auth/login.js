@@ -44,6 +44,7 @@ export default function AuthScreen() {
     const [showSignupPassword, setShowSignupPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [passwordStrength, setPasswordStrength] = useState(null);
+    const [termsAccepted, setTermsAccepted] = useState(false);
 
     const handleLogin = async () => {
         if (!email || !password) {
@@ -365,14 +366,31 @@ export default function AuthScreen() {
                                     </View>
                                 </View>
 
+                                {/* Terms & Privacy Consent */}
+                                <View style={styles.termsContainer}>
+                                    <TouchableOpacity
+                                        style={styles.termsCheckbox}
+                                        onPress={() => setTermsAccepted(!termsAccepted)}
+                                    >
+                                        <View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>
+                                            {termsAccepted && <MaterialIcons name="check" size={14} color="#FFFFFF" />}
+                                        </View>
+                                    </TouchableOpacity>
+                                    <Text style={styles.termsText}>
+                                        I agree to the
+                                        <Text style={styles.linkText} onPress={() => router.push('/legal/terms')}> Terms of Service</Text> and
+                                        <Text style={styles.linkText} onPress={() => router.push('/legal/privacy')}> Privacy Policy</Text>
+                                    </Text>
+                                </View>
+
                                 {/* Sign Up Button */}
                                 <TouchableOpacity
-                                    style={styles.primaryButton}
+                                    style={[styles.primaryButton, !termsAccepted && styles.disabledButton]}
                                     onPress={handleSignup}
-                                    disabled={loading}
+                                    disabled={loading || !termsAccepted}
                                 >
                                     {loading ? (
-                                        <ActivityIndicator color="#FFFFFF" />
+                                        <CustomLoading size={20} color="#FFFFFF" />
                                     ) : (
                                         <Text style={styles.primaryButtonText}>Sign Up</Text>
                                     )}
@@ -597,5 +615,26 @@ const styles = StyleSheet.create({
     strengthText: {
         fontSize: Typography.fontSize.xs,
         fontWeight: Typography.fontWeight.semibold,
+    },
+    termsContainer: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        marginBottom: Spacing.md,
+    },
+    termsCheckbox: {
+        marginTop: 2,
+    },
+    termsText: {
+        flex: 1,
+        fontSize: Typography.fontSize.sm,
+        color: Colors.textSecondary,
+        lineHeight: 20,
+    },
+    linkText: {
+        color: Colors.primary,
+        fontWeight: Typography.fontWeight.medium,
+    },
+    disabledButton: {
+        opacity: 0.6,
     },
 });

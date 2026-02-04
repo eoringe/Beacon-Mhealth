@@ -41,6 +41,7 @@ class AppointmentService {
                     }
 
                     const json = await response.json();
+                    return json.data || [];
                 },
                 { forceRefresh, ttl: 3600000 } // 60 minutes cache
             );
@@ -79,6 +80,7 @@ class AppointmentService {
                     }
 
                     const json = await response.json();
+                    return json.data || [];
                 },
                 { forceRefresh, ttl: 3600000 } // 60 minutes cache
             );

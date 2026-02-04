@@ -38,6 +38,8 @@ const getDoctors = async (req, res) => {
             data: doctors
         });
 
+        console.log(`[DoctorController] Fetched ${doctors.length} doctors:`, doctors.map(d => d.name));
+
     } catch (error) {
         console.error('Error fetching doctors:', error);
         res.status(500).json({

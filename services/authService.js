@@ -239,6 +239,40 @@ class AuthService {
         }
         await this.removeToken();
     }
+
+    // Delete account
+    async deleteAccount() {
+        try {
+            const token = await this.getToken();
+            if (!token) throw new Error('No authentication token');
+
+            const response = await fetch(`${API_URL}/auth/delete`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(errorText || 'Failed to delete account');
+            }
+
+            // Also delete from Firebase
+            const user = auth.currentUser;
+            if (user) {
+                await user.delete();
+            }
+
+            // Cleanup local
+            await this.removeToken();
+
+            return await response.json();
+        } catch (error) {
+            console.error('Error deleting account:', error);
+            throw error;
+        }
+    }
 }
 
 export default new AuthService();

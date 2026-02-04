@@ -138,6 +138,32 @@ class AuthController {
             user: req.user
         });
     }
+
+    // Delete user account
+    async deleteAccount(req, res, next) {
+        try {
+            const { uid } = req.user;
+            console.log('[AuthController] Deleting account:', uid);
+
+            // Delete from database
+            const result = await query(
+                'DELETE FROM users WHERE firebase_uid = $1 RETURNING id',
+                [uid]
+            );
+
+            if (result.rowCount === 0) {
+                return res.status(404).json({ error: 'User not found' });
+            }
+
+            // Note: Firebase user deletion is usually handled by the client or a separate admin script,
+            // but deleting from our DB removes their app data access.
+
+            res.json({ message: 'Account deleted successfully' });
+        } catch (error) {
+            console.error('[AuthController] Error deleting account:', error);
+            next(error);
+        }
+    }
 }
 
 module.exports = new AuthController();

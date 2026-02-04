@@ -12,7 +12,7 @@ import {
     FlatList,
 } from 'react-native';
 import { CustomLoading } from '@/components/CustomLoading';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { useChild } from '@/contexts/ChildContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -23,6 +23,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 
 export default function AddChildScreen() {
     const router = useRouter();
+    const params = useLocalSearchParams();
     const { colorScheme, isDark } = useTheme();
     const { addChild } = useChild();
     const { showAlert } = useAlert();
@@ -34,43 +35,67 @@ export default function AddChildScreen() {
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [dateOfBirth, setDateOfBirth] = useState(new Date());
+    const [gender, setGender] = useState('Male');
+    const [registrationNumber, setRegistrationNumber] = useState('');
+
     const [showDatePicker, setShowDatePicker] = useState(false);
-    const [gender, setGender] = useState('Male'); // Default
-    const [bloodType, setBloodType] = useState('');
-    const [allergies, setAllergies] = useState('');
 
     // Secure Verification Specific State
     const [verifyRegNumber, setVerifyRegNumber] = useState('');
     const [verifyDob, setVerifyDob] = useState(new Date());
     const [showVerifyDobPicker, setShowVerifyDobPicker] = useState(false);
 
+    // If coming from lookup, populate data
+    useEffect(() => {
+        if (params.data) {
+            try {
+                const childData = JSON.parse(params.data);
+                setFirstName(childData.first_name || '');
+                setLastName(childData.last_name || '');
+                setGender(childData.gender || '');
+                setRegistrationNumber(childData.registration_number || '');
 
-    const handleManualSave = async () => {
-        if (!firstName || !gender) {
-            showAlert('Error', 'First Name and Gender are required', [], 'error');
+                if (childData.date_of_birth) {
+                    setDateOfBirth(new Date(childData.date_of_birth));
+                }
+            } catch (e) {
+                console.error('Error parsing child data:', e);
+            }
+        }
+    }, [params.data]);
+
+    const handleDateChange = (event, selectedDate) => {
+        setShowDatePicker(false);
+        if (selectedDate) {
+            setDateOfBirth(selectedDate);
+        }
+    };
+
+    const handleAddChild = async () => {
+        if (!firstName || !lastName || !dateOfBirth || !gender) {
+            Alert.alert('Error', 'Please fill in all required fields');
             return;
         }
 
-        setLoading(true);
         try {
-            // Format date as YYYY-MM-DD using local time
-            const year = dateOfBirth.getFullYear();
-            const month = String(dateOfBirth.getMonth() + 1).padStart(2, '0');
-            const day = String(dateOfBirth.getDate()).padStart(2, '0');
-            const formattedDob = `${year}-${month}-${day}`;
+            setLoading(true);
 
-            await addChild({
+            // If we have a verified child from lookup (with ID), we might need different handling
+            // But usually we just create a new record linked to this parent
+
+            const childData = {
                 firstName,
                 lastName,
-                dateOfBirth: formattedDob,
+                dateOfBirth: dateOfBirth.toISOString(),
                 gender,
-                bloodType,
-                allergies,
-                registrationNumber: ''
-            });
-            showAlert('Success', 'Child added successfully', [
+                registrationNumber
+            };
+
+            await childService.addChild(childData);
+
+            Alert.alert('Success', 'Child profile created successfully', [
                 { text: 'OK', onPress: () => router.back() }
-            ], 'success');
+            ]);
         } catch (error) {
             showAlert('Error', error.message, [], 'error');
         } finally {
@@ -221,41 +246,11 @@ export default function AddChildScreen() {
                     </View>
                 </View>
 
-                <View style={styles.inputGroup}>
-                    <Text style={[styles.label, { color: colorScheme.textPrimary }]}>Blood Type</Text>
-                    <TextInput
-                        style={[styles.input, {
-                            backgroundColor: colorScheme.inputBackground || colorScheme.surface,
-                            borderColor: colorScheme.border,
-                            color: colorScheme.textPrimary
-                        }]}
-                        value={bloodType}
-                        onChangeText={setBloodType}
-                        placeholder="e.g. A+"
-                        placeholderTextColor={colorScheme.textTertiary}
-                    />
-                </View>
 
-                <View style={styles.inputGroup}>
-                    <Text style={[styles.label, { color: colorScheme.textPrimary }]}>Allergies</Text>
-                    <TextInput
-                        style={[styles.input, styles.textArea, {
-                            backgroundColor: colorScheme.inputBackground || colorScheme.surface,
-                            borderColor: colorScheme.border,
-                            color: colorScheme.textPrimary
-                        }]}
-                        value={allergies}
-                        onChangeText={setAllergies}
-                        placeholder="List any allergies"
-                        placeholderTextColor={colorScheme.textTertiary}
-                        multiline
-                        numberOfLines={3}
-                    />
-                </View>
 
                 <TouchableOpacity
                     style={[styles.saveButton, { backgroundColor: colorScheme.primary }]}
-                    onPress={handleManualSave}
+                    onPress={handleAddChild}
                     disabled={loading}
                 >
                     {loading ? (

@@ -5,7 +5,7 @@ exports.addChild = async (req, res) => {
     console.log('[ChildController] Adding new child for user:', req.user.id);
     const client = await pool.connect();
     try {
-        const { firstName, lastName, dateOfBirth, gender, bloodType, allergies, registrationNumber } = req.body;
+        const { firstName, lastName, dateOfBirth, gender, registrationNumber } = req.body;
         const userId = req.user.id; // From auth middleware
 
         console.log('[ChildController] Child data:', { firstName, lastName, dateOfBirth, gender, registrationNumber });
@@ -17,11 +17,11 @@ exports.addChild = async (req, res) => {
         }
 
         const query = `
-            INSERT INTO children (parent_id, first_name, last_name, date_of_birth, gender, blood_type, allergies, registration_number)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            INSERT INTO children (parent_id, first_name, last_name, date_of_birth, gender, registration_number)
+            VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING *
         `;
-        const values = [userId, firstName, lastName, dateOfBirth, gender, bloodType, allergies, registrationNumber];
+        const values = [userId, firstName, lastName, dateOfBirth, gender, registrationNumber];
 
         const result = await client.query(query, values);
         console.log('[ChildController] Child added successfully:', result.rows[0].id);
@@ -57,7 +57,7 @@ exports.updateChild = async (req, res) => {
     const client = await pool.connect();
     try {
         const { id } = req.params;
-        const { firstName, lastName, dateOfBirth, gender, bloodType, allergies } = req.body;
+        const { firstName, lastName, dateOfBirth, gender } = req.body;
         const userId = req.user.id;
 
         // Verify ownership
@@ -69,11 +69,11 @@ exports.updateChild = async (req, res) => {
 
         const updateQuery = `
             UPDATE children 
-            SET first_name = $1, last_name = $2, date_of_birth = $3, gender = $4, blood_type = $5, allergies = $6, updated_at = NOW()
-            WHERE id = $7
+            SET first_name = $1, last_name = $2, date_of_birth = $3, gender = $4, updated_at = NOW()
+            WHERE id = $5
             RETURNING *
         `;
-        const values = [firstName, lastName, dateOfBirth, gender, bloodType, allergies, id];
+        const values = [firstName, lastName, dateOfBirth, gender, id];
         const result = await client.query(updateQuery, values);
         res.json(result.rows[0]);
     } catch (error) {

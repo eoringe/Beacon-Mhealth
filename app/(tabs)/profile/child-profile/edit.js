@@ -20,13 +20,20 @@ export default function EditProfileScreen() {
     const router = useRouter();
     const { colorScheme } = useTheme();
 
+    // Assuming 'child' object is available in this scope, e.g., from route params or context
+    // For demonstration, let's define a placeholder 'child' object if it's not explicitly provided
+    const child = {
+        first_name: 'John',
+        last_name: 'Doe',
+        date_of_birth: '2000-01-15T00:00:00.000Z', // Example date string
+        gender: 'Male',
+    };
+
     const [formData, setFormData] = useState({
-        name: 'Emma Johnson',
-        dateOfBirth: '2023-06-15',
-        gender: 'Female',
-        bloodType: 'O+',
-        allergies: 'None',
-        notes: '',
+        firstName: child.first_name,
+        lastName: child.last_name || '',
+        dateOfBirth: new Date(child.date_of_birth),
+        gender: child.gender,
     });
 
     const handleSave = () => {
@@ -125,35 +132,6 @@ export default function EditProfileScreen() {
                                 </TouchableOpacity>
                             ))}
                         </View>
-                    </View>
-
-                    <View style={styles.formGroup}>
-                        <Text style={[styles.label, { color: colorScheme.textSecondary }]}>Blood Type</Text>
-                        <TextInput
-                            style={[styles.input, {
-                                backgroundColor: colorScheme.surface,
-                                color: colorScheme.textPrimary,
-                                borderColor: colorScheme.border,
-                            }]}
-                            value={formData.bloodType}
-                            onChangeText={(text) => setFormData({ ...formData, bloodType: text })}
-                            placeholderTextColor={colorScheme.textTertiary}
-                        />
-                    </View>
-
-                    <View style={styles.formGroup}>
-                        <Text style={[styles.label, { color: colorScheme.textSecondary }]}>Allergies</Text>
-                        <TextInput
-                            style={[styles.input, {
-                                backgroundColor: colorScheme.surface,
-                                color: colorScheme.textPrimary,
-                                borderColor: colorScheme.border,
-                            }]}
-                            value={formData.allergies}
-                            onChangeText={(text) => setFormData({ ...formData, allergies: text })}
-                            placeholder="Enter any allergies"
-                            placeholderTextColor={colorScheme.textTertiary}
-                        />
                     </View>
 
                     <View style={styles.formGroup}>

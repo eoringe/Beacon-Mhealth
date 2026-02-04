@@ -30,8 +30,6 @@ export default function EditChildScreen() {
     const [dateOfBirth, setDateOfBirth] = useState(new Date());
     const [showDatePicker, setShowDatePicker] = useState(false);
     const [gender, setGender] = useState('');
-    const [bloodType, setBloodType] = useState('');
-    const [allergies, setAllergies] = useState('');
 
     useEffect(() => {
         if (id && children.length > 0) {
@@ -41,8 +39,6 @@ export default function EditChildScreen() {
                 setLastName(child.last_name || '');
                 setDateOfBirth(new Date(child.date_of_birth));
                 setGender(child.gender);
-                setBloodType(child.blood_type || '');
-                setAllergies(child.allergies || '');
             } else {
                 showAlert('Error', 'Child not found', [{ text: 'OK', onPress: () => router.back() }], 'error');
                 // Note: router.back() is called in onPress to ensure user sees error
@@ -62,9 +58,7 @@ export default function EditChildScreen() {
                 firstName,
                 lastName,
                 dateOfBirth: dateOfBirth.toISOString().split('T')[0],
-                gender,
-                bloodType,
-                allergies
+                gender
             });
             showAlert('Success', 'Child profile updated successfully', [
                 { text: 'OK', onPress: () => router.back() }
@@ -166,28 +160,6 @@ export default function EditChildScreen() {
                                 </TouchableOpacity>
                             ))}
                         </View>
-                    </View>
-
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Blood Type</Text>
-                        <TextInput
-                            style={styles.input}
-                            value={bloodType}
-                            onChangeText={setBloodType}
-                            placeholder="e.g. A+"
-                        />
-                    </View>
-
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Allergies</Text>
-                        <TextInput
-                            style={[styles.input, styles.textArea]}
-                            value={allergies}
-                            onChangeText={setAllergies}
-                            placeholder="List any allergies"
-                            multiline
-                            numberOfLines={3}
-                        />
                     </View>
 
                     <TouchableOpacity

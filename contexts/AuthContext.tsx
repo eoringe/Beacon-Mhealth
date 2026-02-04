@@ -55,6 +55,7 @@ interface AuthContextType {
     resendVerificationEmail: () => Promise<{ success: boolean; message: string }>;
     forgotPassword: (email: string) => Promise<{ success: boolean; message: string }>;
     changePassword: (newPassword: string) => Promise<{ success: boolean; message: string }>;
+    deleteAccount: () => Promise<{ success: boolean; message: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -402,6 +403,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
     };
 
+    const deleteAccount = async () => {
+        try {
+            setLoading(true);
+            if (!auth.currentUser) throw new Error('No user logged in');
+
+            await authService.deleteAccount();
+
+            // Clean up Google Sign-In if needed
+            if (GoogleSignin) {
+                try {
+                    await GoogleSignin.revokeAccess();
+                    await GoogleSignin.signOut();
+                } catch (e) {
+                    console.log('Google cleanup failed during delete:', e);
+                }
+            }
+
+            await cacheService.clearAll();
+            setUser(null);
+
+            return { success: true, message: 'Account deleted successfully' };
+        } catch (error: any) {
+            console.error('Delete account error:', error);
+            throw new Error(error.message || 'Failed to delete account');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const value: AuthContextType = {
         user,
         loading,
@@ -412,7 +442,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         logout,
         resendVerificationEmail,
         forgotPassword,
-        changePassword
+        changePassword,
+        deleteAccount
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
