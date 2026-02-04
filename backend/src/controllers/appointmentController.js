@@ -467,8 +467,8 @@ exports.getUserAppointments = async (req, res) => {
             } else {
                 // Fallback to legacy 'users' table check for migration/standard users
                 const standardParentCheck = await externalQuery(
-                    `SELECT id FROM users WHERE phone_number = $1 OR email = $2`,
-                    [req.user.phone_number, req.user.email]
+                    `SELECT id FROM users WHERE email = $1`,
+                    [req.user.email]
                 );
                 if (standardParentCheck.rows.length > 0) {
                     const stdParentIds = standardParentCheck.rows.map(r => r.id);
@@ -530,10 +530,10 @@ exports.getUserAppointments = async (req, res) => {
                 try {
                     if (typeof nameField === 'string' && nameField.startsWith('{')) {
                         const parsed = JSON.parse(nameField);
-                        return `${parsed.first_name || ''} ${parsed.last_name || ''}`.trim();
+                        return `${parsed.first_name || ''} ${parsed.middle_name || ''} ${parsed.last_name || ''}`.trim().replace(/\s+/g, ' ');
                     }
                     if (typeof nameField === 'object') {
-                        return `${nameField.first_name || ''} ${nameField.last_name || ''}`.trim();
+                        return `${nameField.first_name || ''} ${nameField.middle_name || ''} ${nameField.last_name || ''}`.trim().replace(/\s+/g, ' ');
                     }
                 } catch (e) { }
                 return nameField;
