@@ -57,6 +57,11 @@ exports.lookupByRegistrationNumber = async (req, res) => {
             console.error('[PatientController] Error parsing patient fullname:', e);
         }
 
+        // Fix for missing last name: Use middle name if last name is empty
+        if ((!patientName.last_name || patientName.last_name.trim() === '') && patientName.middle_name) {
+            patientName.last_name = patientName.middle_name;
+        }
+
         // Get parent/guardian details
         const parentQuery = `
             SELECT 
@@ -91,6 +96,11 @@ exports.lookupByRegistrationNumber = async (req, res) => {
                 }
             } catch (e) {
                 console.error('[PatientController] Error parsing parent fullname:', e);
+            }
+
+            // Fix for missing last name: Use middle name if last name is empty
+            if ((!parentName.last_name || parentName.last_name.trim() === '') && parentName.middle_name) {
+                parentName.last_name = parentName.middle_name;
             }
 
             parentData = {
@@ -269,6 +279,11 @@ exports.searchPatients = async (req, res) => {
                 }
             } catch (e) { }
 
+            // Fix for missing last name: Use middle name if last name is empty
+            if ((!patientName.last_name || patientName.last_name.trim() === '') && patientName.middle_name) {
+                patientName.last_name = patientName.middle_name;
+            }
+
             return {
                 id: child.id,
                 registrationNumber: child.registration_number,
@@ -356,6 +371,11 @@ exports.verifyPatientSecure = async (req, res) => {
                 patientName = child.fullname;
             }
         } catch (e) { console.error('Error parsing name', e); }
+
+        // Fix for missing last name: Use middle name if last name is empty
+        if ((!patientName.last_name || patientName.last_name.trim() === '') && patientName.middle_name) {
+            patientName.last_name = patientName.middle_name;
+        }
 
         const responsePatient = {
             id: child.id,
