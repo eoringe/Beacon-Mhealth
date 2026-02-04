@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
     Alert,
     Image,
+    RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -25,6 +26,7 @@ export default function BookAppointmentScreen() {
 
     const [doctors, setDoctors] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [expandedSpecialty, setExpandedSpecialty] = useState(null);
 
     const isNavigating = React.useRef(false);
@@ -33,18 +35,24 @@ export default function BookAppointmentScreen() {
         fetchDoctors();
     }, []);
 
-    const fetchDoctors = async () => {
+    const fetchDoctors = async (forceRefresh = false) => {
         try {
-            setLoading(true);
-            const data = await appointmentService.getDoctors();
+            if (!forceRefresh) setLoading(true);
+            const data = await appointmentService.getDoctors(forceRefresh);
             setDoctors(data);
         } catch (error) {
             Alert.alert('Error', 'Failed to load doctors. Please try again.');
             console.error('Error fetching doctors:', error);
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
     };
+
+    const onRefresh = React.useCallback(() => {
+        setRefreshing(true);
+        fetchDoctors(true);
+    }, []);
 
     const handleDoctorSelect = (doctor) => {
         if (isNavigating.current) return;
@@ -73,7 +81,7 @@ export default function BookAppointmentScreen() {
 
     const specialties = Object.keys(groupedDoctors);
 
-    if (loading) {
+    if (loading && !refreshing) {
         return (
             <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
                 <SafeHeader title="Select Doctor" showBack={true} />
@@ -90,6 +98,14 @@ export default function BookAppointmentScreen() {
                 style={styles.content}
                 contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl }}
                 showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        colors={[colorScheme.primary]} // Android
+                        tintColor={colorScheme.primary} // iOS
+                    />
+                }
             >
                 {specialties.length === 0 ? (
                     <View style={styles.emptyContainer}>

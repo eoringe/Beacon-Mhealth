@@ -29,8 +29,9 @@ class CacheService {
      * @param {string} key - Cache key
      * @param {any} data - Data to cache
      * @param {string} [remoteTimestamp] - Optional server timestamp for sync tracking
+     * @param {number} [ttl] - Optional time-to-live in milliseconds
      */
-    async set(key, data, remoteTimestamp = null) {
+    async set(key, data, remoteTimestamp = null, ttl = null) {
         try {
             // Store the data
             await AsyncStorage.setItem(CACHE_PREFIX + key, JSON.stringify(data));
@@ -38,7 +39,8 @@ class CacheService {
             // Store metadata (timestamps for sync validation)
             const meta = {
                 cachedAt: new Date().toISOString(),
-                remoteTimestamp: remoteTimestamp || new Date().toISOString()
+                remoteTimestamp: remoteTimestamp || new Date().toISOString(),
+                expirationTime: ttl ? new Date(Date.now() + ttl).toISOString() : null
             };
             await AsyncStorage.setItem(CACHE_META_PREFIX + key, JSON.stringify(meta));
         } catch (error) {
@@ -62,7 +64,7 @@ class CacheService {
     }
 
     /**
-     * Check if local cache is stale compared to remote timestamp
+     * Check if local cache is stale compared to remote timestamp or expired
      * @param {string} key - Cache key
      * @param {string} remoteTimestamp - Remote server's last update timestamp
      * @returns {Promise<boolean>} - True if cache is stale and needs refresh
@@ -72,10 +74,23 @@ class CacheService {
             const meta = await this.getMeta(key);
             if (!meta) return true; // No cache = stale
 
-            const localTime = new Date(meta.remoteTimestamp).getTime();
-            const remoteTime = new Date(remoteTimestamp).getTime();
+            // Check expiration (TTL)
+            if (meta.expirationTime) {
+                const expirationTime = new Date(meta.expirationTime).getTime();
+                if (Date.now() > expirationTime) {
+                    console.log(`[CacheService] Cache expired for ${key}`);
+                    return true;
+                }
+            }
 
-            return remoteTime > localTime;
+            // Sync check (if remote timestamp provided)
+            if (remoteTimestamp) {
+                const localTime = new Date(meta.remoteTimestamp).getTime();
+                const remoteTime = new Date(remoteTimestamp).getTime();
+                return remoteTime > localTime;
+            }
+
+            return false;
         } catch (error) {
             console.error('[CacheService] Error checking staleness:', error);
             return true; // Assume stale on error
@@ -163,25 +178,17 @@ class CacheService {
      * @param {Object} options - Options
      * @param {boolean} options.forceRefresh - Skip cache and fetch fresh
      * @param {string} options.remoteTimestamp - Server timestamp for staleness check
+     * @param {number} options.ttl - Time to live in milliseconds
      * @returns {Promise<{data: any, fromCache: boolean}>}
      */
     async fetchWithCache(cacheKey, fetchFn, options = {}) {
-        const { forceRefresh = false, remoteTimestamp = null } = options;
+        const { forceRefresh = false, remoteTimestamp = null, ttl = null } = options;
 
         // Check if we should use cache
         if (!forceRefresh) {
-            // If we have a remote timestamp, check staleness
-            if (remoteTimestamp) {
-                const isStale = await this.isStale(cacheKey, remoteTimestamp);
-                if (!isStale) {
-                    const cached = await this.get(cacheKey);
-                    if (cached) {
-                        console.log(`📦 CACHE HIT: ${cacheKey} (loaded from local storage)`);
-                        return { data: cached, fromCache: true };
-                    }
-                }
-            } else {
-                // No remote timestamp, just return cache if exists
+            // Check staleness (expiration or remote timestamp)
+            const isStale = await this.isStale(cacheKey, remoteTimestamp);
+            if (!isStale) {
                 const cached = await this.get(cacheKey);
                 if (cached) {
                     console.log(`📦 CACHE HIT: ${cacheKey} (loaded from local storage)`);
@@ -194,11 +201,11 @@ class CacheService {
         try {
             console.log(`🌐 API FETCH: ${cacheKey} (fetching from remote database...)`);
             const freshData = await fetchFn();
-            await this.set(cacheKey, freshData, remoteTimestamp);
+            await this.set(cacheKey, freshData, remoteTimestamp, ttl);
             console.log(`💾 CACHED: ${cacheKey} (saved to local storage)`);
             return { data: freshData, fromCache: false };
         } catch (error) {
-            // On network error, try to return cached data as fallback
+            // On network error, try to return cached data as fallback (even if expired)
             const cached = await this.get(cacheKey);
             if (cached) {
                 console.warn(`⚠️ NETWORK ERROR - FALLBACK: ${cacheKey} (using cached data)`);
