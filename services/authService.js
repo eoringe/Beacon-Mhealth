@@ -151,9 +151,9 @@ class AuthService {
                 }
             });
 
-            if (response.status === 401) {
-                // Double retry logic could go here if needed, but getToken handles mostly
-                throw new Error('Unauthorized');
+            if (response.status === 401 || response.status === 404) {
+                // Profile doesn't exist yet or unauthorized
+                return { user: null };
             }
 
             if (!response.ok) {
@@ -162,8 +162,9 @@ class AuthService {
 
             return await response.json();
         } catch (error) {
-            console.error('Error getting profile:', error);
-            throw error;
+            console.log('AuthService: Profile fetch skipped or failed', error.message);
+            // Return empty user object properly structure
+            return { user: null };
         }
     }
 

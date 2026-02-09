@@ -47,6 +47,8 @@ try {
 interface AuthContextType {
     user: User | null;
     loading: boolean;
+    authLoading: boolean;
+    actionLoading: boolean;
     initializing: boolean;
     signup: (email: string, password: string, displayName?: string) => Promise<{ success: boolean; message: string; requiresEmailVerification?: boolean }>;
     login: (email: string, password: string) => Promise<{ success: boolean; user?: User; requiresVerification?: boolean }>;
@@ -94,6 +96,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
+                // Check if we're in the middle of a signup action (special case)
+                // If the user isn't verified yet, we might want to hold off on setting the global 'user' state
+                // OR we just ensure the NavigationWrapper handles 'user exists but not verified' correctly.
+
+                // Current issue: NavigationWrapper redirects to Dashboard if 'user' is present and emailVerified is true.
+                // But for a new signup, emailVerified is false initially.
+                // NavigationWrapper line 93: if (user.emailVerified) -> dashboard, else -> valid states are only Auth screens.
+                // So if we set 'user' here, NavigationWrapper should technically keep them on Auth/Login.
+
+                // However, the error "Invalid or expired token" suggests something is trying to fetch data.
+                // The user is being redirected to Dashboard because maybe the local state update is slightly delayed or incorrect.
+
+                // Let's ensure we don't set the full 'user' state if they are not verified AND we are in the middle of a signup flow?
+                // Actually, the issue might be that we ARE setting the user, and some component (like ChildProvider?) is trying to fetch data immediately.
+
                 try {
                     // 1. Get and store token immediately so API calls work
                     const token = await firebaseUser.getIdToken();
@@ -121,6 +138,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                         firstName: backendUser?.first_name,
                         lastName: backendUser?.last_name
                     };
+
+                    // CRITICAL: Check if we are still authenticated as this user before updating state
+                    // This prevents a race condition where a delayed profile fetch during signup (followed by immediate signOut)
+                    // would overwrite the 'null' user state with a 'logged in' user state.
+                    if (auth.currentUser?.uid !== firebaseUser.uid) {
+                        console.log('AuthContext: User changed/logged out during profile fetch, aborting stale update');
+                        return;
+                    }
 
                     setUser(mergedUser as User);
 
@@ -210,6 +235,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 };
             }
 
+            // Optimistic update: Set user immediately to trigger NavigationWrapper redirect
+            // The onAuthStateChanged listener will update with full profile details later
+            setUser(userCredential.user);
+
             // Get Firebase token and register in backend
             console.log('AuthContext: Getting token and registering in backend...');
             const token = await userCredential.user.getIdToken();
@@ -259,10 +288,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 // Actually the mock signIn returns a rejected promise so the catch block handles it
             }
 
-            // Check if device has Google Play Services
-            console.log('AuthContext: Checking Play Services...');
-            await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-            console.log('AuthContext: Play Services available');
+            // Check if device has Google Play Services (optional, often causes delay)
+            // await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+            // console.log('AuthContext: Play Services available');
 
             // Get the ID token
             console.log('AuthContext: Calling GoogleSignin.signIn()...');
@@ -283,6 +311,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             console.log('AuthContext: Signing in to Firebase...');
             const userCredential = await signInWithCredential(auth, googleCredential);
             console.log('AuthContext: Firebase Sign-In successful');
+
+            // Optimistic update: Set user immediately to trigger NavigationWrapper redirect
+            setUser(userCredential.user);
 
             // Get Firebase token and register in backend
             const token = await userCredential.user.getIdToken();
@@ -439,6 +470,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const value: AuthContextType = {
         user,
         loading,
+        authLoading, // Expose for initial app load
+        actionLoading, // Expose for specific actions
         initializing,
         signup,
         login,

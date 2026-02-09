@@ -13,6 +13,7 @@ import {
     Image,
     Alert,
     Linking,
+    ActivityIndicator,
 } from 'react-native';
 import { CustomLoading } from '@/components/CustomLoading';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -27,7 +28,7 @@ import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme';
 export default function AuthScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const { login, loginWithGoogle, signup, loading, resendVerificationEmail, logout } = useAuth();
+    const { login, loginWithGoogle, signup, loading, actionLoading, resendVerificationEmail, logout } = useAuth();
     const { showAlert } = useAlert();
     const [activeTab, setActiveTab] = useState('login');
 
@@ -93,11 +94,8 @@ export default function AuthScreen() {
 
     const handleGoogleLogin = async () => {
         try {
-            const result = await loginWithGoogle();
-            if (result.success) {
-                // Determine redirect based on user role/status if needed
-                router.replace('/(tabs)/dashboard');
-            }
+            // Navigation is handled by AuthContext/RootLayout
+            await loginWithGoogle();
         } catch (error) {
             showAlert('Google Login Failed', error.message, [], 'error');
         }
@@ -249,7 +247,7 @@ export default function AuthScreen() {
                                     onPress={handleLogin}
                                     disabled={loading}
                                 >
-                                    {loading ? (
+                                    {loading && !actionLoading ? (
                                         <CustomLoading size={20} color="#FFFFFF" />
                                     ) : (
                                         <Text style={styles.primaryButtonText}>Log In</Text>
@@ -261,12 +259,22 @@ export default function AuthScreen() {
 
                                 {/* Social Login Buttons */}
                                 <View style={styles.socialButtonsContainer}>
-                                    <TouchableOpacity style={styles.socialButton} onPress={handleGoogleLogin}>
-                                        <Image
-                                            source={require('../../assets/images/google-logo.png')}
-                                            style={{ width: 40, height: 40 }}
-                                        />
-                                        <Text style={styles.socialButtonText}>Continue with Google</Text>
+                                    <TouchableOpacity
+                                        style={[styles.socialButton, actionLoading && { opacity: 0.7 }]}
+                                        onPress={handleGoogleLogin}
+                                        disabled={loading || actionLoading}
+                                    >
+                                        {actionLoading ? (
+                                            <ActivityIndicator size="small" color="#333" />
+                                        ) : (
+                                            <>
+                                                <Image
+                                                    source={require('../../assets/images/google-logo.png')}
+                                                    style={{ width: 40, height: 40 }}
+                                                />
+                                                <Text style={styles.socialButtonText}>Continue with Google</Text>
+                                            </>
+                                        )}
                                     </TouchableOpacity>
                                 </View>
                             </Animated.View>

@@ -16,7 +16,7 @@ export const ChildProvider = ({ children }) => {
 
     // Load children when user logs in
     useEffect(() => {
-        if (user) {
+        if (user && user.emailVerified) {
             refreshChildren();
         } else {
             setChildrenList([]);

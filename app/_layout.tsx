@@ -53,13 +53,13 @@ export default function RootLayout() {
 
 function NavigationWrapper() {
   const { isDark, colorScheme } = useTheme();
-  const { user, loading, initializing } = useAuth();
+  const { user, loading, authLoading, initializing } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
     // Don't navigate while still loading or initializing
-    if (loading || initializing) return;
+    if (authLoading || initializing) return;
 
     const inAuthGroup = segments[0] === 'auth';
     const inWelcomeScreen = (segments as string[]).length === 0;
@@ -67,17 +67,12 @@ function NavigationWrapper() {
     if (!user && !inAuthGroup && !inWelcomeScreen) {
       // Redirect to the welcome page if not logged in and not in a public area
       router.replace('/');
-    } else if (user && (inAuthGroup || inWelcomeScreen)) {
+    } else if (user && !user.emailVerified && !inAuthGroup) {
+      // FORCE REDIRECT: If logged in but not verified, and trying to access protected area, send to login
+      router.replace('/auth/login');
+    } else if (user && user.emailVerified && (inAuthGroup || inWelcomeScreen)) {
       // Only redirect to dashboard if email is verified
-      if (user.emailVerified) {
-        router.replace('/(tabs)/dashboard');
-      } else {
-        // If logged in but not verified, valid states are only Auth screens
-        if (!inAuthGroup) {
-          // Force them back to login if they try to access protected areas
-          router.replace('/auth/login');
-        }
-      }
+      router.replace('/(tabs)/dashboard');
     }
   }, [user, loading, initializing, segments]);
 
@@ -94,7 +89,7 @@ function NavigationWrapper() {
   };
 
   // Show loading during initialization or auth state changes
-  if (loading || initializing) {
+  if (authLoading || initializing) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colorScheme.background }}>
         <ActivityIndicator size="large" color={Colors.primary} />
