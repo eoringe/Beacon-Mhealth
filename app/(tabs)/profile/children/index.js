@@ -158,9 +158,6 @@ export default function ChildrenListScreen() {
                 borderBottomColor: colorScheme.border,
                 paddingTop: insets.top + Spacing.md
             }]}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <MaterialIcons name="arrow-back" size={24} color={colorScheme.textPrimary} />
-                </TouchableOpacity>
                 <Text style={[styles.headerTitle, { color: colorScheme.textPrimary }]}>My Children</Text>
                 <View style={styles.headerActions}>
                     <TouchableOpacity onPress={() => router.push('/profile/children/lookup')} style={styles.headerButton}>
@@ -300,6 +297,8 @@ const styles = StyleSheet.create({
     addButton: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
         paddingHorizontal: Spacing.xl,
         paddingVertical: Spacing.md,
         borderRadius: BorderRadius.md,
@@ -313,6 +312,8 @@ const styles = StyleSheet.create({
     secondaryButton: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
         paddingHorizontal: Spacing.xl,
         paddingVertical: Spacing.md,
         borderRadius: BorderRadius.md,

@@ -16,9 +16,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useChild } from '@/contexts/ChildContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { lookupPatient } from '@/services/patientService';
+import { verifyPatient } from '@/services/patientService';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
-
+import DateTimePicker from '@react-native-community/datetimepicker';
 export default function PatientLookupScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
@@ -26,6 +26,8 @@ export default function PatientLookupScreen() {
     const { addChild } = useChild();
 
     const [registrationNumber, setRegistrationNumber] = useState('');
+    const [dateOfBirth, setDateOfBirth] = useState(new Date());
+    const [showDatePicker, setShowDatePicker] = useState(false);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [patientData, setPatientData] = useState(null);
@@ -42,13 +44,22 @@ export default function PatientLookupScreen() {
         setPatientData(null);
 
         try {
-            const data = await lookupPatient(registrationNumber.trim());
+            // Format date as YYYY-MM-DD using local time
+            const year = dateOfBirth.getFullYear();
+            const month = String(dateOfBirth.getMonth() + 1).padStart(2, '0');
+            const day = String(dateOfBirth.getDate()).padStart(2, '0');
+            const formattedDob = `${year}-${month}-${day}`;
+
+            const data = await verifyPatient({
+                registrationNumber: registrationNumber.trim(),
+                dateOfBirth: formattedDob
+            });
             setPatientData(data);
         } catch (err) {
-            if (err.message.includes('not found')) {
-                setError('Patient not found. You can still create a new profile manually.');
+            if (err.message.includes('not found') || err.message.includes('do not match')) {
+                setError('Patient not found or details do not match. Please verify the registration number and date of birth.');
             } else {
-                setError(err.message || 'Failed to lookup patient');
+                setError(err.message || 'Failed to verify patient');
             }
         } finally {
             setLoading(false);
@@ -114,13 +125,19 @@ export default function PatientLookupScreen() {
                 >
                     {/* Search Section */}
                     <View style={[styles.searchCard, { backgroundColor: colorScheme.surface }]}>
-                        <Text style={[styles.searchTitle, { color: colorScheme.textPrimary }]}>
-                            Enter Registration Number
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm }}>
+                            <MaterialIcons name="security" size={24} color={colorScheme.primary} />
+                            <Text style={[styles.searchTitle, { color: colorScheme.textPrimary, marginBottom: 0 }]}>
+                                Secure Verification
+                            </Text>
+                        </View>
                         <Text style={[styles.searchSubtitle, { color: colorScheme.textSecondary }]}>
-                            Search for your child's profile from Beacon Children Center
+                            Enter your child's registration number and date of birth to verify and link their account.
                         </Text>
-                        <View style={styles.searchRow}>
+
+                        {/* Registration Number */}
+                        <View style={styles.inputGroup}>
+                            <Text style={[styles.inputLabel, { color: colorScheme.textPrimary }]}>Registration Number *</Text>
                             <TextInput
                                 style={[styles.searchInput, {
                                     backgroundColor: colorScheme.background,
@@ -128,23 +145,65 @@ export default function PatientLookupScreen() {
                                     color: colorScheme.textPrimary
                                 }]}
                                 value={registrationNumber}
-                                onChangeText={setRegistrationNumber}
+                                onChangeText={(text) => {
+                                    let formattedText = text;
+                                    if (text.length === 3 && registrationNumber.length === 2) {
+                                        formattedText = text + '-';
+                                    }
+                                    setRegistrationNumber(formattedText);
+                                }}
                                 placeholder="e.g. 008-2025"
                                 placeholderTextColor={colorScheme.textTertiary}
                                 autoCapitalize="characters"
                             />
-                            <TouchableOpacity
-                                style={[styles.searchButton, { backgroundColor: colorScheme.primary }]}
-                                onPress={handleLookup}
-                                disabled={loading}
-                            >
-                                {loading ? (
-                                    <CustomLoading size={20} color="#FFFFFF" />
-                                ) : (
-                                    <MaterialIcons name="search" size={24} color="#FFFFFF" />
-                                )}
-                            </TouchableOpacity>
                         </View>
+
+                        {/* Date of Birth */}
+                        <View style={styles.inputGroup}>
+                            <Text style={[styles.inputLabel, { color: colorScheme.textPrimary }]}>Date of Birth *</Text>
+                            <TouchableOpacity
+                                style={[styles.dateInput, {
+                                    backgroundColor: colorScheme.background,
+                                    borderColor: colorScheme.border
+                                }]}
+                                onPress={() => setShowDatePicker(true)}
+                            >
+                                <Text style={[styles.dateText, { color: colorScheme.textPrimary }]}>
+                                    {dateOfBirth.toLocaleDateString()}
+                                </Text>
+                                <MaterialIcons name="calendar-today" size={20} color={colorScheme.textSecondary} />
+                            </TouchableOpacity>
+                            {showDatePicker && (
+                                <DateTimePicker
+                                    value={dateOfBirth}
+                                    mode="date"
+                                    display="default"
+                                    onChange={(event, selectedDate) => {
+                                        setShowDatePicker(Platform.OS === 'ios');
+                                        if (selectedDate) {
+                                            setDateOfBirth(selectedDate);
+                                        }
+                                    }}
+                                    maximumDate={new Date()}
+                                />
+                            )}
+                        </View>
+
+                        {/* Search Button */}
+                        <TouchableOpacity
+                            style={[styles.searchButton, { backgroundColor: colorScheme.primary }]}
+                            onPress={handleLookup}
+                            disabled={loading}
+                        >
+                            {loading ? (
+                                <CustomLoading size={20} color="#FFFFFF" />
+                            ) : (
+                                <>
+                                    <MaterialIcons name="verified-user" size={20} color="#FFFFFF" />
+                                    <Text style={styles.searchButtonText}>Verify Patient</Text>
+                                </>
+                            )}
+                        </TouchableOpacity>
                     </View>
 
                     {/* Error Message */}
@@ -330,7 +389,7 @@ export default function PatientLookupScreen() {
                     {/* Manual Add Option */}
                     <TouchableOpacity
                         style={[styles.manualAddButton, { borderColor: colorScheme.primary }]}
-                        onPress={() => router.push('/children/add')}
+                        onPress={() => router.push('/profile/children/add')}
                     >
                         <MaterialIcons name="edit" size={20} color={colorScheme.primary} />
                         <Text style={[styles.manualAddText, { color: colorScheme.primary }]}>
@@ -385,17 +444,43 @@ const styles = StyleSheet.create({
         gap: Spacing.sm,
     },
     searchInput: {
-        flex: 1,
         borderWidth: 1,
         borderRadius: BorderRadius.md,
         padding: Spacing.md,
         fontSize: Typography.fontSize.md,
     },
     searchButton: {
-        width: 50,
+        flexDirection: 'row',
+        paddingVertical: Spacing.md,
+        paddingHorizontal: Spacing.lg,
         borderRadius: BorderRadius.md,
         justifyContent: 'center',
         alignItems: 'center',
+        gap: Spacing.sm,
+    },
+    searchButtonText: {
+        color: '#FFFFFF',
+        fontSize: Typography.fontSize.md,
+        fontWeight: '600',
+    },
+    inputGroup: {
+        marginBottom: Spacing.lg,
+    },
+    inputLabel: {
+        fontSize: Typography.fontSize.sm,
+        fontWeight: Typography.fontWeight.medium,
+        marginBottom: Spacing.xs,
+    },
+    dateInput: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderRadius: BorderRadius.md,
+        padding: Spacing.md,
+    },
+    dateText: {
+        fontSize: Typography.fontSize.md,
     },
     errorCard: {
         flexDirection: 'row',

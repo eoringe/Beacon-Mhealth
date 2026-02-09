@@ -6,12 +6,14 @@ import {
     ScrollView,
     TouchableOpacity,
     Alert,
+    Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAlert } from '@/contexts/AlertContext';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import { SafeHeader } from '@/components/SafeHeader';
 
@@ -22,13 +24,17 @@ export default function ProfileScreen() {
     const router = useRouter();
     const { colorScheme, isDark, toggleTheme } = useTheme();
     const { user, logout } = useAuth();
+    const { showAlert } = useAlert(); // Added this line
 
     const handleLogout = () => {
-        Alert.alert(
+        showAlert(
             'Logout',
             'Are you sure you want to logout?',
             [
-                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Cancel',
+                    style: 'cancel'
+                },
                 {
                     text: 'Logout',
                     style: 'destructive',
@@ -37,12 +43,25 @@ export default function ProfileScreen() {
                             await logout();
                         } catch (error) {
                             console.error('Logout failed:', error);
-                            Alert.alert('Error', 'Failed to logout');
+                            showAlert('Error', 'Failed to logout', [], 'error');
                         }
                     }
-                },
-            ]
+                }
+            ],
+            'warning'
         );
+    };
+
+    const isNavigating = React.useRef(false);
+
+    const handleNavigation = (path: string) => {
+        if (isNavigating.current) return;
+        isNavigating.current = true;
+        router.push(path as any);
+        // Reset navigation lock after a delay
+        setTimeout(() => {
+            isNavigating.current = false;
+        }, 1000);
     };
 
     const profileSections: Array<{
@@ -64,7 +83,7 @@ export default function ProfileScreen() {
                         label: 'Edit Profile',
                         color: colorScheme.primary,
                         onPress: () => {
-                            router.push('/profile/edit');
+                            handleNavigation('/profile/edit');
                         },
                     },
                     {
@@ -72,7 +91,7 @@ export default function ProfileScreen() {
                         label: 'Settings',
                         color: colorScheme.info,
                         onPress: () => {
-                            router.push('/settings');
+                            handleNavigation('/settings');
                         },
                     },
                     {
@@ -80,7 +99,7 @@ export default function ProfileScreen() {
                         label: 'Help & Support',
                         color: colorScheme.success,
                         onPress: () => {
-                            router.push('/help');
+                            handleNavigation('/help');
                         },
                     },
                 ],
@@ -94,7 +113,7 @@ export default function ProfileScreen() {
                         color: colorScheme.warning,
                         hasArrow: true,
                         onPress: () => {
-                            router.push('/notifications');
+                            handleNavigation('/notifications');
                         },
                     },
                     {
@@ -128,7 +147,7 @@ export default function ProfileScreen() {
                         color: colorScheme.textSecondary,
                         hasArrow: true,
                         onPress: () => {
-                            router.push('/legal/terms');
+                            Linking.openURL('https://beaconchildrencenter.co.ke/terms-of-use?token=mobile-app-secure-access');
                         },
                     },
                     {
@@ -137,7 +156,7 @@ export default function ProfileScreen() {
                         color: colorScheme.textSecondary,
                         hasArrow: true,
                         onPress: () => {
-                            router.push('/legal/privacy');
+                            Linking.openURL('https://beaconchildrencenter.co.ke/privacy-policy?token=mobile-app-secure-access');
                         },
                     },
                     {

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
     View,
     Text,
@@ -11,6 +11,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useChild } from '@/contexts/ChildContext';
+import { useAlert } from '@/contexts/AlertContext';
 import { SafeHeader } from '@/components/SafeHeader';
 import { LoadingScreen } from '@/components/LoadingComponents';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
@@ -23,6 +25,8 @@ export default function GrowthChartScreen() {
     const router = useRouter();
     const { childId } = useLocalSearchParams();
     const { colorScheme, isDark } = useTheme();
+    const { selectedChild } = useChild();
+    const { showAlert } = useAlert();
 
     const [selectedTab, setSelectedTab] = useState('height');
     const [loading, setLoading] = useState(true);

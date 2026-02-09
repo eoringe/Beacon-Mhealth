@@ -74,8 +74,12 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
-    const [loading, setLoading] = useState<boolean>(true);
+    const [authLoading, setAuthLoading] = useState<boolean>(true);
+    const [actionLoading, setActionLoading] = useState<boolean>(false);
     const [initializing, setInitializing] = useState<boolean>(true);
+
+    // Derived loading state
+    const loading = authLoading || actionLoading;
 
     // Configure Google Sign-In on mount
     useEffect(() => {
@@ -138,7 +142,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             if (initializing) {
                 setInitializing(false);
             }
-            setLoading(false);
+            setAuthLoading(false);
         });
 
         return unsubscribe;
@@ -146,7 +150,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const signup = async (email: string, password: string, displayName?: string) => {
         try {
-            setLoading(true);
+            setActionLoading(true);
 
             // Create user in Firebase
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -182,13 +186,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
             throw new Error(message);
         } finally {
-            setLoading(false);
+            setActionLoading(false);
         }
     };
 
     const login = async (email: string, password: string) => {
         try {
-            setLoading(true);
+            setActionLoading(true);
             console.log('AuthContext: Starting login for', email);
 
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -240,13 +244,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
             throw new Error(message);
         } finally {
-            setLoading(false);
+            setActionLoading(false);
         }
     };
 
     const loginWithGoogle = async () => {
         try {
-            setLoading(true);
+            setActionLoading(true);
             console.log('AuthContext: loginWithGoogle started');
 
             // Check if Google Sign-In is mocked (Expo Go)
@@ -303,7 +307,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 throw new Error(error.message || 'Google Sign-In failed');
             }
         } finally {
-            setLoading(false);
+            setActionLoading(false);
         }
     };
 
@@ -368,7 +372,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const forgotPassword = async (email: string) => {
         try {
-            setLoading(true);
+            setActionLoading(true);
             await sendPasswordResetEmail(auth, email);
             return { success: true, message: 'Password reset email sent!' };
         } catch (error: any) {
@@ -378,13 +382,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             if (error.code === 'auth/invalid-email') message = 'Invalid email address';
             throw new Error(message);
         } finally {
-            setLoading(false);
+            setActionLoading(false);
         }
     };
 
     const changePassword = async (newPassword: string) => {
         try {
-            setLoading(true);
+            setActionLoading(true);
             if (!auth.currentUser) throw new Error('No user logged in');
 
             await updatePassword(auth.currentUser, newPassword);
@@ -399,13 +403,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }
             throw new Error(message);
         } finally {
-            setLoading(false);
+            setActionLoading(false);
         }
     };
 
     const deleteAccount = async () => {
         try {
-            setLoading(true);
+            setActionLoading(true);
             if (!auth.currentUser) throw new Error('No user logged in');
 
             await authService.deleteAccount();
@@ -428,7 +432,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             console.error('Delete account error:', error);
             throw new Error(error.message || 'Failed to delete account');
         } finally {
-            setLoading(false);
+            setActionLoading(false);
         }
     };
 

@@ -1,41 +1,65 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SafeHeader } from '@/components/SafeHeader';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAlert } from '@/contexts/AlertContext';
 import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme';
+
+// External URLs for legal pages
+const TERMS_URL = 'https://beaconchildrencenter.co.ke/terms-of-use?token=mobile-app-secure-access';
+const PRIVACY_URL = 'https://beaconchildrencenter.co.ke/privacy-policy?token=mobile-app-secure-access';
 
 export default function SettingsScreen() {
     const { colorScheme } = useTheme();
     const router = useRouter();
     const { deleteAccount, logout } = useAuth();
+    const { showAlert } = useAlert();
     const [isDeleting, setIsDeleting] = React.useState(false);
 
     const handleDeleteAccount = () => {
-        Alert.alert(
+        showAlert(
             'Delete Account',
             'Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently removed.',
             [
-                { text: 'Cancel', style: 'cancel' },
+                { text: 'Cancel' },
                 {
                     text: 'Delete',
-                    style: 'destructive',
                     onPress: async () => {
                         try {
                             setIsDeleting(true);
                             await deleteAccount();
                             // AuthContext handles redirect after logout/delete
-                        } catch (error) {
-                            Alert.alert('Error', error.message);
+                        } catch (error: any) {
+                            // Handle Firebase requires-recent-login error
+                            if (error?.code === 'auth/requires-recent-login') {
+                                showAlert(
+                                    'Session Expired',
+                                    'For your security, please log out and log back in before deleting your account.',
+                                    [{ text: 'OK' }],
+                                    'warning'
+                                );
+                            } else {
+                                showAlert('Error', error?.message || 'Failed to delete account. Please try again.', [], 'error');
+                            }
                         } finally {
                             setIsDeleting(false);
                         }
                     }
                 }
-            ]
+            ],
+            'warning'
         );
+    };
+
+    const openExternalLink = async (url: string) => {
+        try {
+            await Linking.openURL(url);
+        } catch (error) {
+            showAlert('Error', 'Could not open the link. Please try again.', [], 'error');
+        }
     };
 
     const SettingItem = ({ icon, title, onPress, destructive = false }: { icon: keyof typeof MaterialIcons.glyphMap; title: string; onPress: () => void; destructive?: boolean }) => (
@@ -82,12 +106,12 @@ export default function SettingsScreen() {
                         <SettingItem
                             icon="description"
                             title="Terms of Service"
-                            onPress={() => router.push('/legal/terms')}
+                            onPress={() => openExternalLink(TERMS_URL)}
                         />
                         <SettingItem
                             icon="privacy-tip"
                             title="Privacy Policy"
-                            onPress={() => router.push('/legal/privacy')}
+                            onPress={() => openExternalLink(PRIVACY_URL)}
                         />
                     </View>
                 </View>

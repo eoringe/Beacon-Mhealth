@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useChild } from '@/contexts/ChildContext';
+import { useAlert } from '@/contexts/AlertContext';
 import { SafeHeader } from '@/components/SafeHeader';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import {
@@ -27,8 +28,10 @@ const STORAGE_KEY = 'completed_vaccines';
 
 export default function VaccinationsScreen() {
     const insets = useSafeAreaInsets();
+    const router = require('expo-router').useRouter();
     const { colorScheme } = useTheme();
     const { selectedChild } = useChild();
+    const { showAlert } = useAlert();
 
     const [selectedFilter, setSelectedFilter] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
@@ -458,7 +461,7 @@ export default function VaccinationsScreen() {
 
                                         {/* Action Buttons */}
                                         <View style={styles.actionButtons}>
-                                            {vaccine.status !== 'completed' ? (
+                                            {vaccine.status === 'due' || vaccine.status === 'overdue' ? (
                                                 <TouchableOpacity
                                                     style={[styles.markButton, { backgroundColor: colorScheme.vaccineCompleted }]}
                                                     onPress={() => handleMarkAsGiven(vaccine)}
@@ -466,7 +469,7 @@ export default function VaccinationsScreen() {
                                                     <MaterialIcons name="check" size={18} color="#FFFFFF" />
                                                     <Text style={styles.markButtonText}>Mark as Given</Text>
                                                 </TouchableOpacity>
-                                            ) : (
+                                            ) : vaccine.status === 'completed' ? (
                                                 <TouchableOpacity
                                                     style={[styles.markButton, { backgroundColor: '#999' }]}
                                                     onPress={() => handleMarkAsNotGiven(vaccine)}
@@ -474,7 +477,7 @@ export default function VaccinationsScreen() {
                                                     <MaterialIcons name="undo" size={18} color="#FFFFFF" />
                                                     <Text style={styles.markButtonText}>Undo</Text>
                                                 </TouchableOpacity>
-                                            )}
+                                            ) : null}
                                         </View>
                                     </View>
                                 )}

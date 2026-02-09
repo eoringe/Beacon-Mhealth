@@ -10,6 +10,7 @@ import {
     Platform,
     ActivityIndicator,
     FlatList,
+    Alert,
 } from 'react-native';
 import { CustomLoading } from '@/components/CustomLoading';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -73,7 +74,7 @@ export default function AddChildScreen() {
 
     const handleAddChild = async () => {
         if (!firstName || !lastName || !dateOfBirth || !gender) {
-            Alert.alert('Error', 'Please fill in all required fields');
+            showAlert('Error', 'Please fill in all required fields', [], 'error');
             return;
         }
 
@@ -91,11 +92,11 @@ export default function AddChildScreen() {
                 registrationNumber
             };
 
-            await childService.addChild(childData);
+            await addChild(childData);
 
-            Alert.alert('Success', 'Child profile created successfully', [
+            showAlert('Success', 'Child profile created successfully', [
                 { text: 'OK', onPress: () => router.back() }
-            ]);
+            ], 'success');
         } catch (error) {
             showAlert('Error', error.message, [], 'error');
         } finally {
@@ -105,7 +106,7 @@ export default function AddChildScreen() {
 
     const handleVerifyAndAdd = async () => {
         if (!verifyRegNumber) {
-            Alert.alert('Error', 'Please enter the Registration Number');
+            showAlert('Error', 'Please enter the Registration Number', [], 'error');
             return;
         }
 
@@ -131,8 +132,6 @@ export default function AddChildScreen() {
                 lastName: verifiedPatient.fullname?.last_name || lastName,
                 dateOfBirth: verifiedPatient.dob,
                 gender: verifiedPatient.gender || 'Unknown',
-                bloodType: '', // Not verified
-                allergies: '', // Not verified
                 registrationNumber: verifiedPatient.registrationNumber
             });
 

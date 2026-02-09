@@ -67,6 +67,16 @@ const notificationService = {
             console.error('Failed to delete notification', e);
             throw e;
         }
+    },
+
+    async clearAll() {
+        try {
+            await AsyncStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify([]));
+            return [];
+        } catch (e) {
+            console.error('Failed to clear notifications', e);
+            throw e;
+        }
     }
 };
 

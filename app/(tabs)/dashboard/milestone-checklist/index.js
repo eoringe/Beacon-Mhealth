@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -12,6 +12,7 @@ import {
 import { SafeHeader } from '@/components/SafeHeader';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useChild } from '@/contexts/ChildContext';
+import { useAlert } from '@/contexts/AlertContext';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 
 export default function MilestoneChecklist() {
@@ -19,6 +20,7 @@ export default function MilestoneChecklist() {
   const insets = useSafeAreaInsets();
   const { colorScheme } = useTheme();
   const { selectedChild } = useChild();
+  const { showAlert } = useAlert();
   const { age } = useLocalSearchParams();
 
   // Calculate default age from child's date of birth or use provided age

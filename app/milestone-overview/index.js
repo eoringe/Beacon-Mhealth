@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import {
 import { SafeHeader } from '@/components/SafeHeader';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useChild } from '@/contexts/ChildContext';
+import { useAlert } from '@/contexts/AlertContext';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 
 export default function MilestoneOverview() {
@@ -28,6 +29,7 @@ export default function MilestoneOverview() {
   const insets = useSafeAreaInsets();
   const { colorScheme } = useTheme();
   const { selectedChild } = useChild();
+  const { showAlert } = useAlert();
   const { age } = useLocalSearchParams();
 
   const [selectedAgeIndex, setSelectedAgeIndex] = useState(null);

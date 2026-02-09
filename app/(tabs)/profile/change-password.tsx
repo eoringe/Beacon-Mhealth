@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, DarkColors, Spacing, Typography, BorderRadius } from '@/constants/theme';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useAlert } from '@/contexts/AlertContext';
 import { SafeHeader } from '@/components/SafeHeader';
 import { Feather } from '@expo/vector-icons';
 import { validatePassword, getPasswordStrength } from '@/utils/validation';
@@ -12,8 +13,9 @@ import { validatePassword, getPasswordStrength } from '@/utils/validation';
 export default function ChangePasswordScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const { colorScheme } = useTheme();
+    const { colorScheme, isDark } = useTheme();
     const { changePassword } = useAuth();
+    const { showAlert } = useAlert();
 
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -22,7 +24,7 @@ export default function ChangePasswordScreen() {
     const [loading, setLoading] = useState(false);
     const [passwordStrength, setPasswordStrength] = useState<any>(null);
 
-    const handlePasswordChange = (text) => {
+    const handlePasswordChange = (text: string) => {
         setNewPassword(text);
         if (text) {
             setPasswordStrength(getPasswordStrength(text));
@@ -33,42 +35,51 @@ export default function ChangePasswordScreen() {
 
     const handleSave = async () => {
         if (!newPassword || !confirmPassword) {
-            Alert.alert('Error', 'Please fill in all fields');
+            showAlert('Missing Fields', 'Please fill in all fields.', [], 'warning');
             return;
         }
 
         if (newPassword !== confirmPassword) {
-            Alert.alert('Error', 'Passwords do not match');
+            showAlert('Passwords Mismatch', 'The passwords you entered do not match. Please try again.', [], 'error');
             return;
         }
 
         const validation = validatePassword(newPassword);
         if (!validation.isValid) {
-            Alert.alert('Weak Password', validation.errors.join('\n'));
+            showAlert('Weak Password', validation.errors.join('\n'), [], 'warning');
             return;
         }
 
         setLoading(true);
         try {
             const result = await changePassword(newPassword);
-            Alert.alert('Success', result.message, [
+            showAlert('Success', result.message, [
                 { text: 'OK', onPress: () => router.back() }
-            ]);
-        } catch (error) {
-            Alert.alert('Error', error.message);
+            ], 'success');
+        } catch (error: any) {
+            // Handle Firebase requires-recent-login error with user-friendly message
+            if (error?.code === 'auth/requires-recent-login') {
+                showAlert(
+                    'Session Expired',
+                    'For your security, please log out and log back in before changing your password.',
+                    [{ text: 'OK' }],
+                    'warning'
+                );
+            } else {
+                showAlert('Error', error?.message || 'Failed to change password. Please try again.', [], 'error');
+            }
         } finally {
             setLoading(false);
         }
     };
 
-    const isDark = colorScheme === 'dark';
-    const textColor = isDark ? Colors.white : Colors.textPrimary;
+    const textColor = colorScheme.textPrimary;
     const placeholderColor = isDark ? '#888' : '#999';
-    const inputBg = isDark ? '#333' : Colors.white;
-    const borderColor = isDark ? '#444' : Colors.border;
+    const inputBg = colorScheme.surface;
+    const borderColor = colorScheme.border;
 
     return (
-        <View style={[styles.container, { backgroundColor: isDark ? DarkColors.background : Colors.background }]}>
+        <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
             <SafeHeader title="Change Password" showBack={true} />
 
             <KeyboardAvoidingView

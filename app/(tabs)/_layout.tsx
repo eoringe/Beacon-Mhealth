@@ -1,13 +1,18 @@
 import { useEffect, useState, useRef } from 'react';
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Platform, AppState, AppStateStatus } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useChild } from '@/contexts/ChildContext';
+import { useAlert } from '@/contexts/AlertContext';
 
 export default function TabLayout() {
   const insets = useSafeAreaInsets();
   const { colorScheme } = useTheme();
+  const router = useRouter();
+  const { selectedChild } = useChild() as { selectedChild: any };
+  const { showAlert } = useAlert();
   const [key, setKey] = useState(0);
   const appState = useRef<AppStateStatus>(AppState.currentState);
 
@@ -59,6 +64,34 @@ export default function TabLayout() {
           backgroundColor: colorScheme.background,
         },
       }}
+      screenListeners={({ navigation, route }) => ({
+        tabPress: (e) => {
+          // Check if navigating to appointments tab without a child selected
+          if (route.name === 'appointments' && !selectedChild) {
+            e.preventDefault();
+            showAlert(
+              'No Child Selected',
+              'Please select a child from the dashboard to access appointments.',
+              [{ text: 'OK' }],
+              'warning'
+            );
+            return;
+          }
+
+          // Only reset when pressing a tab that has nested screens
+          const state = navigation.getState();
+          const currentTabState = state.routes.find((r: any) => r.name === route.name)?.state;
+
+          // If the tab has a nested stack with more than 1 screen, reset to first screen
+          if (currentTabState && typeof currentTabState.index === 'number' && currentTabState.index > 0) {
+            e.preventDefault();
+            navigation.reset({
+              index: 0,
+              routes: [{ name: route.name }],
+            });
+          }
+        },
+      })}
     >
 
       <Tabs.Screen

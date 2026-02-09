@@ -1,15 +1,40 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { CustomAlert } from '@/components/CustomAlert';
 
-const AlertContext = createContext({
+interface AlertButton {
+    text: string;
+    onPress?: () => void;
+    style?: 'default' | 'cancel' | 'destructive';
+}
+
+type AlertType = 'success' | 'error' | 'warning' | 'info';
+
+interface AlertState {
+    visible: boolean;
+    title: string;
+    message: string;
+    type: AlertType;
+    buttons: AlertButton[];
+}
+
+interface AlertContextType {
+    showAlert: (title: string, message: string, buttons?: AlertButton[], type?: AlertType) => void;
+    hideAlert: () => void;
+}
+
+const AlertContext = createContext<AlertContextType>({
     showAlert: () => { },
     hideAlert: () => { },
 });
 
 export const useAlert = () => useContext(AlertContext);
 
-export const AlertProvider = ({ children }) => {
-    const [alertState, setAlertState] = useState({
+interface AlertProviderProps {
+    children: ReactNode;
+}
+
+export const AlertProvider: React.FC<AlertProviderProps> = ({ children }) => {
+    const [alertState, setAlertState] = useState<AlertState>({
         visible: false,
         title: '',
         message: '',
@@ -17,16 +42,9 @@ export const AlertProvider = ({ children }) => {
         buttons: [],
     });
 
-    const showAlert = useCallback((title, message, buttons = [], type = 'info') => {
-        // Map native Alert buttons to our format if needed, or handle custom ones
-        // Native: [{ text: 'Cancel', onPress: ..., style: 'cancel' }]
-        // Our component expects basically the same
-
-        // If buttons is empty but we want a default OK, we handle that in component
-        // But for clarity let's just pass what we get.
-
+    const showAlert = useCallback((title: string, message: string, buttons: AlertButton[] = [], type: AlertType = 'info') => {
         // Wrap onPress to close alert
-        const wrappedButtons = buttons.map(btn => ({
+        const wrappedButtons: AlertButton[] = buttons.map(btn => ({
             ...btn,
             onPress: () => {
                 setAlertState(prev => ({ ...prev, visible: false }));
@@ -35,7 +53,7 @@ export const AlertProvider = ({ children }) => {
         }));
 
         // If no buttons provided, provide a default OK that closes it
-        const finalButtons = wrappedButtons.length > 0 ? wrappedButtons : [
+        const finalButtons: AlertButton[] = wrappedButtons.length > 0 ? wrappedButtons : [
             {
                 text: 'OK',
                 onPress: () => setAlertState(prev => ({ ...prev, visible: false })),
@@ -46,7 +64,7 @@ export const AlertProvider = ({ children }) => {
             visible: true,
             title,
             message,
-            type, // 'success' | 'error' | 'warning' | 'info'
+            type,
             buttons: finalButtons,
         });
     }, []);

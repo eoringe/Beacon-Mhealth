@@ -8,9 +8,10 @@ import { useAuth } from '@/contexts/AuthContext';
 export default function WelcomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user, loading } = useAuth();
+  const { user, loading, initializing } = useAuth();
 
-  if (loading) {
+  // Show loading spinner while auth is initializing to prevent any flash
+  if (initializing || loading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
         <ActivityIndicator size="large" color={Colors.primary} />
@@ -18,6 +19,7 @@ export default function WelcomeScreen() {
     );
   }
 
+  // After initialization, redirect if user exists - no welcome screen content will render
   if (user) {
     return <Redirect href="/(tabs)/dashboard" />;
   }

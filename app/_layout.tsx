@@ -23,8 +23,6 @@ export default function RootLayout() {
   const [loaded] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
-  const [key, setKey] = useState(0);
-  const appState = useRef(AppState.currentState);
 
   useEffect(() => {
     if (loaded) {
@@ -32,31 +30,12 @@ export default function RootLayout() {
     }
   }, [loaded]);
 
-
-  // Handle app state changes - force re-render on resume
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', nextAppState => {
-      if (
-        appState.current.match(/inactive|background/) &&
-        nextAppState === 'active'
-      ) {
-        // Force SafeAreaProvider to recalculate insets
-        setKey(prev => prev + 1);
-      }
-      appState.current = nextAppState;
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, []);
-
   if (!loaded) {
     return null;
   }
 
   return (
-    <SafeAreaProvider key={key}>
+    <SafeAreaProvider>
       <ThemeProvider>
         <AlertProvider>
           <AuthProvider>
@@ -74,12 +53,13 @@ export default function RootLayout() {
 
 function NavigationWrapper() {
   const { isDark, colorScheme } = useTheme();
-  const { user, loading } = useAuth();
+  const { user, loading, initializing } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    if (loading) return;
+    // Don't navigate while still loading or initializing
+    if (loading || initializing) return;
 
     const inAuthGroup = segments[0] === 'auth';
     const inWelcomeScreen = (segments as string[]).length === 0;
@@ -99,7 +79,7 @@ function NavigationWrapper() {
         }
       }
     }
-  }, [user, loading, segments]);
+  }, [user, loading, initializing, segments]);
 
   // Create custom navigation theme based on current theme
   const navigationTheme = {
@@ -113,7 +93,8 @@ function NavigationWrapper() {
     },
   };
 
-  if (loading) {
+  // Show loading during initialization or auth state changes
+  if (loading || initializing) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colorScheme.background }}>
         <ActivityIndicator size="large" color={Colors.primary} />

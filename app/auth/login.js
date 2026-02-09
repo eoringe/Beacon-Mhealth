@@ -12,6 +12,7 @@ import {
     Keyboard,
     Image,
     Alert,
+    Linking,
 } from 'react-native';
 import { CustomLoading } from '@/components/CustomLoading';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -378,8 +379,8 @@ export default function AuthScreen() {
                                     </TouchableOpacity>
                                     <Text style={styles.termsText}>
                                         I agree to the
-                                        <Text style={styles.linkText} onPress={() => router.push('/legal/terms')}> Terms of Service</Text> and
-                                        <Text style={styles.linkText} onPress={() => router.push('/legal/privacy')}> Privacy Policy</Text>
+                                        <Text style={styles.linkText} onPress={() => Linking.openURL('https://beaconchildrencenter.co.ke/terms-of-use?token=mobile-app-secure-access')}> Terms of Service</Text> and
+                                        <Text style={styles.linkText} onPress={() => Linking.openURL('https://beaconchildrencenter.co.ke/privacy-policy?token=mobile-app-secure-access')}> Privacy Policy</Text>
                                     </Text>
                                 </View>
 

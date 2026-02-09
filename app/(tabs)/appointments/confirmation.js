@@ -228,34 +228,6 @@ export default function AppointmentConfirmationScreen() {
                 {/* Action Buttons */}
                 <View style={styles.actionsSection}>
 
-
-                    {/* View in Calendar Button (Always Visible) */}
-                    <TouchableOpacity
-                        style={[
-                            styles.actionButton,
-                            { backgroundColor: colorScheme.primary },
-                        ]}
-                        activeOpacity={0.8}
-                        onPress={() => {
-                            // Try to open specific event or just the calendar
-                            const eventUrl = params.eventId
-                                ? `https://www.google.com/calendar/event?eid=${params.eventId}`
-                                : 'content://com.android.calendar/time/'; // Fallback to general calendar
-
-                            Linking.canOpenURL(eventUrl).then(supported => {
-                                if (supported) {
-                                    Linking.openURL(eventUrl);
-                                } else {
-                                    // Fallback for when specific event link fails or not supported
-                                    Linking.openURL('https://calendar.google.com');
-                                }
-                            });
-                        }}
-                    >
-                        <MaterialIcons name="calendar-today" size={20} color="#FFFFFF" />
-                        <Text style={styles.actionButtonText}>View in Calendar</Text>
-                    </TouchableOpacity>
-
                     <TouchableOpacity
                         style={[
                             styles.actionButton,
@@ -318,7 +290,7 @@ const styles = StyleSheet.create({
     },
     successContainer: {
         alignItems: 'center',
-        paddingVertical: Spacing.xxxl,
+        paddingVertical: Spacing.xl,
     },
     successCircle: {
         width: 120,

@@ -18,6 +18,7 @@ import { useNotifications } from '@/contexts/NotificationContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChild } from '@/contexts/ChildContext';
+import { useAlert } from '@/contexts/AlertContext';
 import appointmentService from '@/services/appointmentService';
 import { milestoneService } from '@/services/milestoneService';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -31,7 +32,8 @@ export default function DashboardScreen() {
     const { colorScheme } = useTheme();
     const { logout, user } = useAuth();
     const { selectedChild } = useChild();
-    const { notifications } = useNotifications();
+    const { notifications, clearAll } = useNotifications();
+    const { showAlert } = useAlert();
 
     // Milestone concern state
     const [milestoneConcern, setMilestoneConcern] = useState(false);
@@ -192,13 +194,14 @@ export default function DashboardScreen() {
     }, [user]);
 
     const handleLogout = () => {
-        Alert.alert(
-            "Logout",
-            "Are you sure you want to logout?",
+        showAlert(
+            'Logout',
+            'Are you sure you want to logout?',
             [
-                { text: "Cancel", style: "cancel" },
-                { text: "Logout", style: "destructive", onPress: () => logout() }
-            ]
+                { text: 'Cancel' },
+                { text: 'Logout', onPress: () => logout() }
+            ],
+            'warning'
         );
     };
 
@@ -279,12 +282,23 @@ export default function DashboardScreen() {
             isNavigating.current = false;
         }, 1000);
 
+        // List of screens that require a child to be selected
+        const childRequiredScreens = ['growth_chart', 'vaccinations', 'checklist', 'prescriptions', 'medical_reports', 'appointments'];
+
+        // Check if this action requires a child and none is selected
+        if (childRequiredScreens.includes(action.id) && !selectedChild) {
+            isNavigating.current = false; // Reset navigation lock
+            showAlert(
+                'No Child Selected',
+                'Please select a child from the dashboard to access this feature.',
+                [{ text: 'OK' }],
+                'warning'
+            );
+            return;
+        }
+
         if (action.id === 'growth_chart') {
-            if (selectedChild) {
-                router.push({ pathname: '/dashboard/growth-chart', params: { childId: selectedChild.id } });
-            } else {
-                Alert.alert('Select Child', 'Please select a child to view their growth chart.');
-            }
+            router.push({ pathname: '/dashboard/growth-chart', params: { childId: selectedChild.id } });
         } else {
             router.push(action.route);
         }
@@ -476,7 +490,23 @@ export default function DashboardScreen() {
 
                 {/* Recent Activity */}
                 <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>Recent Activity</Text>
+                    <View style={styles.headerRow}>
+                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, marginBottom: 0 }]}>Recent Activity</Text>
+                        {recentActivity.length > 0 && (
+                            <TouchableOpacity onPress={() => {
+                                Alert.alert(
+                                    'Clear Activity',
+                                    'Are you sure you want to clear all recent activity?',
+                                    [
+                                        { text: 'Cancel', style: 'cancel' },
+                                        { text: 'Clear', style: 'destructive', onPress: () => clearAll() }
+                                    ]
+                                );
+                            }}>
+                                <Text style={{ color: colorScheme.error || '#FF5252', fontWeight: '600' }}>Clear</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
                     {recentActivity.length > 0 ? (
                         <View style={[styles.card, { backgroundColor: colorScheme.surface, padding: 0 }]}>
                             {recentActivity.map((activity, index) => (

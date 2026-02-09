@@ -13,22 +13,28 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { SafeHeader } from '@/components/SafeHeader';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import { useChild } from '@/contexts/ChildContext';
+import { useAlert } from '@/contexts/AlertContext';
+import { useRouter } from 'expo-router';
 import patientService from '@/services/patientService';
 
 export default function PrescriptionsScreen() {
     const insets = useSafeAreaInsets();
     const { colorScheme } = useTheme();
     const { selectedChild } = useChild();
+    const { showAlert } = useAlert();
+    const router = useRouter();
     const [prescriptions, setPrescriptions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    // Load prescriptions when child changes
     useEffect(() => {
+        if (!selectedChild) return;
         if (selectedChild?.registration_number) {
             fetchPrescriptions();
         } else {
             setLoading(false);
-            setError('No child selected or child has no registration number');
+            setError('Child has no registration number');
         }
     }, [selectedChild]);
 

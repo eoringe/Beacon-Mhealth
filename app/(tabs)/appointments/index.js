@@ -624,6 +624,18 @@ export default function AppointmentsScreen() {
                 style={[styles.fab, { backgroundColor: colorScheme.primary }]}
                 onPress={() => {
                     if (isNavigating.current) return;
+
+                    // Check if child is selected
+                    if (!selectedChild) {
+                        showAlert(
+                            'No Child Selected',
+                            'Please select a child from the dashboard to book an appointment.',
+                            [{ text: 'OK' }],
+                            'warning'
+                        );
+                        return;
+                    }
+
                     isNavigating.current = true;
                     setTimeout(() => { isNavigating.current = false; }, 1000);
                     router.push('/appointments/book');

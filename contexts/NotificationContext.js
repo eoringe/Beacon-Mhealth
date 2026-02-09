@@ -56,6 +56,15 @@ export const NotificationProvider = ({ children }) => {
         }
     };
 
+    const clearAll = async () => {
+        try {
+            await notificationService.clearAll();
+            await refreshNotifications();
+        } catch (error) {
+            console.error('Clear all notifications failed', error);
+        }
+    };
+
     return (
         <NotificationContext.Provider value={{
             notifications,
@@ -64,6 +73,7 @@ export const NotificationProvider = ({ children }) => {
             markRead,
             markAllRead,
             deleteNotification,
+            clearAll,
             refreshNotifications
         }}>
             {children}
