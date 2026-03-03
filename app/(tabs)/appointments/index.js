@@ -454,32 +454,23 @@ export default function AppointmentsScreen() {
                             {/* Appointment Type Badge (Informational) */}
                             <View style={[
                                 styles.typeBadge,
-                                { backgroundColor: appointment.appointment_type === 'TELECONSULT' ? colorScheme.primaryLight : colorScheme.surfaceVariant, marginTop: 12, alignSelf: 'flex-start' }
+                                { backgroundColor: colorScheme.surfaceVariant, marginTop: 12, alignSelf: 'flex-start' }
                             ]}>
                                 <MaterialIcons
-                                    name={appointment.appointment_type === 'TELECONSULT' ? "videocam" : "person"}
+                                    name="person"
                                     size={14}
-                                    color={appointment.appointment_type === 'TELECONSULT' ? colorScheme.primary : colorScheme.textSecondary}
+                                    color={colorScheme.textSecondary}
                                 />
                                 <Text style={[
                                     styles.typeText,
-                                    { color: appointment.appointment_type === 'TELECONSULT' ? colorScheme.primary : colorScheme.textSecondary, marginLeft: 4, function: 'row' }
+                                    { color: colorScheme.textSecondary, marginLeft: 4 }
                                 ]}>
-                                    {appointment.appointment_type === 'TELECONSULT' ? 'Teleconsult' : 'In-Person'}
+                                    In-Person
                                 </Text>
                             </View>
                         </View>
 
-                        {/* Join Meeting Button for Teleconsult */}
-                        {isUpcomingItem && appointment.appointment_type === 'TELECONSULT' && appointment.google_meet_link && (
-                            <TouchableOpacity
-                                style={[styles.joinButton, { backgroundColor: colorScheme.primary, marginTop: 12 }]}
-                                onPress={() => Linking.openURL(appointment.google_meet_link)}
-                            >
-                                <MaterialIcons name="video-call" size={20} color="#FFFFFF" />
-                                <Text style={styles.joinButtonText}>Join Google Meet</Text>
-                            </TouchableOpacity>
-                        )}
+
                     </>
                 )}
             </TouchableOpacity >
@@ -489,7 +480,7 @@ export default function AppointmentsScreen() {
     if (loading) {
         return (
             <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
-                <SafeHeader title="Appointments" showBack={true} />
+                <SafeHeader title="Appointments" showBack={true} showMenu={true} />
                 <View style={styles.loadingContainer}>
                     <CustomLoading size={50} text="Loading appointments..." />
                 </View>
@@ -499,7 +490,7 @@ export default function AppointmentsScreen() {
 
     return (
         <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
-            <SafeHeader title="Appointments" showBack={true} />
+            <SafeHeader title="Appointments" showBack={true} showMenu={true} />
 
             <View style={styles.filterContainer}>
                 {/* ... existing filter code ... */}

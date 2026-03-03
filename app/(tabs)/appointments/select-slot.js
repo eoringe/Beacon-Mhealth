@@ -23,7 +23,7 @@ import { SafeHeader } from '@/components/SafeHeader';
 import { CustomLoading } from '@/components/CustomLoading';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import appointmentService from '@/services/appointmentService';
-import mpesaService from '@/services/mpesaService';
+
 
 export default function SelectSlotScreen() {
     const insets = useSafeAreaInsets();
@@ -46,8 +46,8 @@ export default function SelectSlotScreen() {
     const [reason, setReason] = useState('');
     const [notes, setNotes] = useState('');
     const [booking, setBooking] = useState(false);
-    const [processingPayment, setProcessingPayment] = useState(false);
-    const [phoneNumber, setPhoneNumber] = useState('');
+
+
     const [appointmentType, setAppointmentType] = useState('IN_PERSON');
 
     // Guest booking fields (parent/guardian details)
@@ -178,60 +178,7 @@ export default function SelectSlotScreen() {
             appointmentType: appointmentType,
         };
 
-        // IF TELECONSULT: Payment Flow
-        if (appointmentType === 'TELECONSULT') {
-            if (!phoneNumber) {
-                Alert.alert('Phone Required', 'Please enter your M-Pesa phone number for payment.');
-                return;
-            }
 
-            try {
-                setBooking(true);
-                setProcessingPayment(true);
-
-                // 1. Initiate Payment
-                const paymentResponse = await mpesaService.initiateAppointmentPayment(
-                    phoneNumber,
-                    1.00, // Testing Amount as requested
-                    appointmentData
-                );
-
-                // 2. Poll for Status
-                mpesaService.pollPaymentStatus(
-                    paymentResponse.checkout_request_id,
-                    (receipt) => {
-                        setBooking(false);
-                        setProcessingPayment(false);
-
-                        // Navigate to confirmation
-                        router.push({
-                            pathname: '/appointments/confirmation',
-                            params: {
-                                doctorName: doctor.name,
-                                specialty: doctor.specialty,
-                                date: selectedDate,
-                                time: selectedTime,
-                                appointmentType: appointmentType,
-                                meetLink: '',
-                                eventId: '',
-                            }
-                        });
-                        showAlert('Payment Successful', `Receipt: ${receipt}. Your appointment is booked.`, [], 'success');
-                    },
-                    (error) => {
-                        setBooking(false);
-                        setProcessingPayment(false);
-                        showAlert('Payment Failed', error, [], 'error');
-                    }
-                );
-
-            } catch (error) {
-                setBooking(false);
-                setProcessingPayment(false);
-                showAlert('Payment Error', error.message || 'Payment initiation failed', [], 'error');
-            }
-            return;
-        }
 
         try {
             setBooking(true);
@@ -377,8 +324,6 @@ export default function SelectSlotScreen() {
                                     In-Person
                                 </Text>
                             </TouchableOpacity>
-
-                            {/* TEMPORARILY DISABLED PER USER REQUEST
                             <TouchableOpacity
                                 style={[
                                     styles.typeOption,
@@ -395,7 +340,7 @@ export default function SelectSlotScreen() {
                                 activeOpacity={0.7}
                             >
                                 <MaterialIcons
-                                    name="video-call"
+                                    name="videocam"
                                     size={24}
                                     color={appointmentType === 'TELECONSULT' ? '#FFFFFF' : colorScheme.textSecondary}
                                 />
@@ -412,33 +357,9 @@ export default function SelectSlotScreen() {
                                     Teleconsult
                                 </Text>
                             </TouchableOpacity>
-                            */}
                         </View>
-                        {appointmentType === 'TELECONSULT' && (
-                            <View>
-                                <Text style={[styles.helperText, { color: colorScheme.info, marginBottom: Spacing.sm }]}>
-                                    📹 A Google Meet link will be generated for this appointment
-                                </Text>
-                                <Text style={[styles.label, { color: colorScheme.textPrimary, marginBottom: Spacing.xs }]}>
-                                    M-Pesa Phone Number for Payment
-                                </Text>
-                                <TextInput
-                                    style={[
-                                        styles.input,
-                                        {
-                                            backgroundColor: colorScheme.surface,
-                                            color: colorScheme.textPrimary,
-                                            borderColor: colorScheme.border,
-                                        },
-                                    ]}
-                                    placeholder="e.g., 0712345678"
-                                    placeholderTextColor={colorScheme.textTertiary}
-                                    value={phoneNumber}
-                                    onChangeText={setPhoneNumber}
-                                    keyboardType="phone-pad"
-                                />
-                            </View>
-                        )}
+
+
                     </View>
 
                     {/* Guest Booking Notice & Parent/Guardian Details */}

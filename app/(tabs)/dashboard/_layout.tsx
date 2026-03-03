@@ -17,6 +17,11 @@ export default function DashboardLayout() {
             <Stack.Screen name="milestone-checklist" />
             <Stack.Screen name="prescriptions" />
             <Stack.Screen name="medical-reports" />
+            <Stack.Screen name="feeding" />
+            <Stack.Screen name="sleep" />
+            <Stack.Screen name="teething" />
+            <Stack.Screen name="firsts" />
+            <Stack.Screen name="activities" />
         </Stack>
     );
 }

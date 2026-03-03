@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
     View,
     Text,
@@ -7,10 +7,12 @@ import {
     TouchableOpacity,
     Dimensions,
     Alert,
+    Animated,
+    Easing,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { formatDistanceToNow } from 'date-fns';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
@@ -19,491 +21,418 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChild } from '@/contexts/ChildContext';
 import { useAlert } from '@/contexts/AlertContext';
+import { useDrawer } from '@/contexts/DrawerContext';
 import appointmentService from '@/services/appointmentService';
 import { milestoneService } from '@/services/milestoneService';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { getDailyPick } from '@/constants/activitiesData';
+import { calculateAgeInMonths, getMilestonesForAge } from '@/constants/milestones';
 import { Spacing, Typography, BorderRadius, Shadow, Colors } from '@/constants/theme';
 
-const { width } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const CARD_WIDTH = SCREEN_WIDTH - Spacing.lg * 2;
+
+// ─── Feature Discovery Slides ───
+const FEATURE_SLIDES = [
+    { id: 'track', icon: 'show-chart', title: 'Track Growth', desc: 'Monitor height & weight with WHO charts', color: '#2196F3', route: '/dashboard/growth-chart' },
+    { id: 'vaccine', icon: 'vaccines', title: 'Vaccination Schedule', desc: 'Never miss an immunization date', color: '#4CAF50', route: '/dashboard/vaccinations' },
+    { id: 'appt', icon: 'calendar-today', title: 'Book Appointments', desc: 'Schedule doctor visits in seconds', color: '#FF9800', route: '/(tabs)/appointments' },
+    { id: 'miles', icon: 'checklist', title: 'Milestone Checker', desc: 'Track developmental milestones by age', color: '#9C27B0', route: '/dashboard/milestone-checklist' },
+    { id: 'feed', icon: 'restaurant', title: 'Feeding Tracker', desc: 'Log breastfeeding, bottles & solids', color: '#E91E63', route: '/dashboard/feeding' },
+    { id: 'sleep', icon: 'bedtime', title: 'Sleep Tracker', desc: 'Track naps and nighttime sleep', color: '#5C6BC0', route: '/dashboard/sleep' },
+];
+
+// ─── Smooth Crossfade Carousel Component ───
+function SmoothCarousel({ data, renderCard, autoScrollMs = 7000, cardHeight = 140 }) {
+    const [activeIndex, setActiveIndex] = useState(0);
+    const fadeAnim = useRef(new Animated.Value(1)).current;
+    const slideAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        if (data.length <= 1) return;
+        const timer = setInterval(() => {
+            // Fade out + slide left
+            Animated.parallel([
+                Animated.timing(fadeAnim, { toValue: 0, duration: 400, easing: Easing.ease, useNativeDriver: true }),
+                Animated.timing(slideAnim, { toValue: -30, duration: 400, easing: Easing.ease, useNativeDriver: true }),
+            ]).start(() => {
+                setActiveIndex(prev => (prev + 1) % data.length);
+                slideAnim.setValue(30); // Reset to right
+                // Fade in + slide from right
+                Animated.parallel([
+                    Animated.timing(fadeAnim, { toValue: 1, duration: 400, easing: Easing.ease, useNativeDriver: true }),
+                    Animated.timing(slideAnim, { toValue: 0, duration: 400, easing: Easing.ease, useNativeDriver: true }),
+                ]).start();
+            });
+        }, autoScrollMs);
+        return () => clearInterval(timer);
+    }, [data.length, autoScrollMs]);
+
+    if (data.length === 0) return null;
+
+    return (
+        <View>
+            <Animated.View style={{ opacity: fadeAnim, transform: [{ translateX: slideAnim }], minHeight: cardHeight }}>
+                {renderCard(data[activeIndex], activeIndex)}
+            </Animated.View>
+            {data.length > 1 && (
+                <View style={carouselStyles.dotsRow}>
+                    {data.map((_, i) => (
+                        <View key={i} style={[carouselStyles.dot, i === activeIndex && carouselStyles.dotActive]} />
+                    ))}
+                </View>
+            )}
+        </View>
+    );
+}
+
+const carouselStyles = StyleSheet.create({
+    dotsRow: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: Spacing.sm },
+    dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#D1D5DB' },
+    dotActive: { backgroundColor: Colors.primary, width: 18 },
+});
 
 export default function DashboardScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { colorScheme } = useTheme();
-    const { logout, user } = useAuth();
+    const { user } = useAuth();
     const { selectedChild } = useChild();
     const { notifications, clearAll } = useNotifications();
     const { showAlert } = useAlert();
+    const { openDrawer } = useDrawer();
 
-    // Milestone concern state
+    // State
     const [milestoneConcern, setMilestoneConcern] = useState(false);
     const [milestoneAlertDismissed, setMilestoneAlertDismissed] = useState(false);
-
-    // Appointments state
     const [upcomingAppointments, setUpcomingAppointments] = useState([]);
-    const [loadingAppointments, setLoadingAppointments] = useState(false);
+    const [milestoneProgress, setMilestoneProgress] = useState(null);
 
-    // Get latest 3 notifications
     const recentActivity = notifications.slice(0, 3);
 
-    // Schedule reminder notification
-    const scheduleReminder = async () => {
-        try {
-            const { status } = await Notifications.requestPermissionsAsync();
-            if (status !== 'granted') {
-                Alert.alert('Notifications', 'Please enable notifications to receive reminders!');
-                return;
-            }
-
-            await Notifications.scheduleNotificationAsync({
-                content: {
-                    title: '⚠️ Milestone Reminder',
-                    body: `Don't forget to book an appointment to discuss your child's development milestones.`,
-                    data: { type: 'milestone_reminder' },
-                    sound: true,
-                },
-                trigger: {
-                    type: 'timeInterval',
-                    seconds: 172800, // 2 days
-                },
-            });
-
-            console.log('Reminder notification scheduled for 2 days from now');
-        } catch (error) {
-            console.error('Error scheduling notification:', error);
-        }
+    // Time-of-day greeting
+    const getGreeting = () => {
+        const hour = new Date().getHours();
+        if (hour < 12) return 'Good morning';
+        if (hour < 17) return 'Good afternoon';
+        return 'Good evening';
     };
 
-    // Handle dismiss with reminder
-    const handleDismissWithReminder = async () => {
-        setMilestoneAlertDismissed(true);
-        // Store dismissal with timestamp to show again later
-        await AsyncStorage.setItem(
-            `milestone_alert_dismissed_${selectedChild?.id}`,
-            new Date().toISOString()
-        );
-        scheduleReminder();
-    };
-
-    // Check milestone progress for selected child
-    const checkMilestoneProgress = useCallback(async () => {
-        if (!selectedChild?.id) {
-            setMilestoneConcern(false);
-            return;
-        }
-
-        try {
-            // Check if alert was recently dismissed (within 2 days)
-            const dismissedAt = await AsyncStorage.getItem(
-                `milestone_alert_dismissed_${selectedChild.id}`
-            );
-            if (dismissedAt) {
-                const dismissedDate = new Date(dismissedAt);
-                const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
-                if (dismissedDate > twoDaysAgo) {
-                    setMilestoneAlertDismissed(true);
-                    return;
-                }
-            }
-            setMilestoneAlertDismissed(false);
-
-            // Fetch all milestone responses for this child
-            const allResponses = await milestoneService.getAllMilestoneResponsesForChild(selectedChild.id);
-
-            if (!allResponses || allResponses.length === 0) {
-                setMilestoneConcern(false);
-                return;
-            }
-
-            // Check if any category has < 50% yes responses
-            let hasConcern = false;
-            for (const categoryData of allResponses) {
-                const responses = categoryData.responses;
-                const totalAnswered = Object.keys(responses).length;
-                const yesCount = Object.values(responses).filter(r => r === 'yes').length;
-
-                if (totalAnswered > 0) {
-                    const yesPercentage = (yesCount / totalAnswered) * 100;
-                    if (yesPercentage < 50) {
-                        hasConcern = true;
-                        break;
-                    }
-                }
-            }
-
-            setMilestoneConcern(hasConcern);
-        } catch (error) {
-            console.error('Error checking milestone progress:', error);
-            setMilestoneConcern(false);
-        }
-    }, [selectedChild?.id]);
-
-    // Check milestones when child changes
-    useEffect(() => {
-        checkMilestoneProgress();
-        fetchUpcomingAppointments();
-    }, [checkMilestoneProgress]);
-
-    // Fetch upcoming appointments
-    const fetchUpcomingAppointments = async () => {
-        try {
-            setLoadingAppointments(true);
-            const allAppointments = await appointmentService.getAppointments('scheduled', true); // Force refresh
-
-            // Filter future appointments
-            const now = new Date();
-            const appointmentsArray = Array.isArray(allAppointments) ? allAppointments : [];
-            const future = appointmentsArray.filter(apt => {
-                if (apt.status !== 'scheduled' && apt.status !== 'pending') return false;
-
-                // Parse date and time
-                const aptDate = new Date(apt.appointment_date);
-                const [hours, minutes] = (apt.appointment_time || '00:00').split(':').map(Number);
-                aptDate.setHours(hours, minutes, 0, 0);
-
-                return aptDate >= now;
-            });
-
-            // Sort by date/time ascending
-            future.sort((a, b) => {
-                const dateA = new Date(a.appointment_date + 'T' + (a.appointment_time || '00:00'));
-                const dateB = new Date(b.appointment_date + 'T' + (b.appointment_time || '00:00'));
-                return dateA - dateB;
-            });
-
-            // Take top 2
-            setUpcomingAppointments(future.slice(0, 2));
-        } catch (error) {
-            console.error('Error fetching dashboard appointments:', error);
-        } finally {
-            setLoadingAppointments(false);
-        }
-    };
-
-    // Listen for focus to refresh appointments
-    useFocusEffect(
-        React.useCallback(() => {
-            fetchUpcomingAppointments();
-        }, [])
-    );
-
-    useEffect(() => {
-        if (user) {
-            console.log('Logged in user:', user.displayName || user.email);
-        }
-    }, [user]);
-
-    const handleLogout = () => {
-        showAlert(
-            'Logout',
-            'Are you sure you want to logout?',
-            [
-                { text: 'Cancel' },
-                { text: 'Logout', onPress: () => logout() }
-            ],
-            'warning'
-        );
-    };
-
+    // Calculate age display
     const calculateAge = (dob) => {
         if (!dob) return '';
         const birthDate = new Date(dob);
         const today = new Date();
         let age = today.getFullYear() - birthDate.getFullYear();
         const m = today.getMonth() - birthDate.getMonth();
-        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-            age--;
-        }
-
+        if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
         if (age === 0) {
             const months = (today.getFullYear() - birthDate.getFullYear()) * 12 + (today.getMonth() - birthDate.getMonth());
             return `${months} mo`;
         }
-
         return `${age} yr`;
     };
 
-    const quickActions = [
-        {
-            id: 'growth_chart',
-            title: 'Growth Chart',
-            icon: 'show-chart',
-            color: colorScheme.chartHeight,
-            route: '/dashboard/growth-chart',
-        },
-        {
-            id: 'vaccinations',
-            title: 'Vaccinations',
-            icon: 'vaccines',
-            color: colorScheme.vaccineCompleted,
-            route: '/dashboard/vaccinations',
-        },
-        {
-            id: 'checklist',
-            title: 'Milestone Checker',
-            icon: 'checklist',
-            color: '#4CAF50',
-            route: '/dashboard/milestone-checklist',
-            description: 'Track development'
-        },
-        {
-            id: 'appointments',
-            title: 'Appointments',
-            icon: 'calendar-today',
-            color: colorScheme.info,
-            route: '/(tabs)/appointments', // Navigate to tabbed version to show bottom nav bar
-        },
-        {
-            id: 'prescriptions',
-            title: 'Prescriptions',
-            icon: 'medication',
-            color: '#E91E63',
-            route: '/dashboard/prescriptions',
-        },
-        {
-            id: 'medical_reports',
-            title: 'Reports',
-            icon: 'folder-open',
-            color: '#9C27B0',
-            route: '/dashboard/medical-reports',
-        },
-        // Notifications moved to Tab Bar
-    ];
+    const ageInMonths = selectedChild?.date_of_birth ? calculateAgeInMonths(selectedChild.date_of_birth) : null;
 
-    // Navigation lock to prevent double-taps
-    const isNavigating = React.useRef(false);
-
-    const handleQuickAction = (action) => {
-        if (isNavigating.current) return;
-        isNavigating.current = true;
-
-        // Reset lock after delay
-        setTimeout(() => {
-            isNavigating.current = false;
-        }, 1000);
-
-        // List of screens that require a child to be selected
-        const childRequiredScreens = ['growth_chart', 'vaccinations', 'checklist', 'prescriptions', 'medical_reports', 'appointments'];
-
-        // Check if this action requires a child and none is selected
-        if (childRequiredScreens.includes(action.id) && !selectedChild) {
-            isNavigating.current = false; // Reset navigation lock
-            showAlert(
-                'No Child Selected',
-                'Please select a child from the dashboard to access this feature.',
-                [{ text: 'OK' }],
-                'warning'
-            );
-            return;
+    // Insight slides based on child's age
+    const getInsightSlides = () => {
+        if (ageInMonths == null) return [];
+        const name = selectedChild.first_name;
+        const all = [
+            { max: 3, icon: '👶', title: 'Newborn Phase', tip: `${name} is discovering the world! Lots of tummy time helps build neck strength.`, bg: '#6C63FF' },
+            { max: 6, icon: '🍼', title: 'Growing Fast', tip: `${name} may start reaching for toys and rolling over soon.`, bg: '#2196F3' },
+            { max: 9, icon: '🧸', title: 'Explorer Mode', tip: `${name} might be sitting up and babbling. Read together!`, bg: '#00897B' },
+            { max: 12, icon: '🎉', title: 'Almost One!', tip: `${name} may start standing or saying first words!`, bg: '#F4511E' },
+            { max: 18, icon: '🚶', title: 'On the Move', tip: `${name} is becoming more independent every day.`, bg: '#6D4C41' },
+            { max: 24, icon: '🗣️', title: 'Talking Time', tip: `${name}'s vocabulary is growing. Name everything!`, bg: '#5C6BC0' },
+            { max: 36, icon: '🎨', title: 'Creative Play', tip: `${name} loves pretend play and following instructions.`, bg: '#AB47BC' },
+            { max: 999, icon: '⭐', title: 'Growing Up', tip: `${name} is developing wonderfully!`, bg: '#FF7043' },
+        ];
+        const match = all.find(i => ageInMonths <= i.max) || all[all.length - 1];
+        const slides = [match];
+        const dailyActivity = getDailyPick(ageInMonths);
+        if (dailyActivity) {
+            slides.push({ icon: '🎯', title: "Today's Activity", tip: `Try: ${dailyActivity.title} — ${dailyActivity.description}`, bg: '#009688', route: '/dashboard/activities' });
         }
-
-        if (action.id === 'growth_chart') {
-            router.push({ pathname: '/dashboard/growth-chart', params: { childId: selectedChild.id } });
+        if (milestoneProgress != null) {
+            slides.push({ icon: '📊', title: 'Milestone Progress', tip: `${name} has achieved ${milestoneProgress}% of tracked milestones. Keep going!`, bg: '#7B1FA2', route: '/dashboard/milestone-checklist' });
         } else {
-            router.push(action.route);
+            slides.push({ icon: '📋', title: 'Start Tracking', tip: `Track ${name}'s developmental milestones to get personalized insights.`, bg: '#455A64', route: '/dashboard/milestone-checklist' });
         }
+        return slides;
     };
 
+    const insightSlides = getInsightSlides();
+
+    // Schedule reminder
+    const scheduleReminder = async () => {
+        try {
+            const { status } = await Notifications.requestPermissionsAsync();
+            if (status !== 'granted') { Alert.alert('Notifications', 'Please enable notifications!'); return; }
+            await Notifications.scheduleNotificationAsync({
+                content: { title: '⚠️ Milestone Reminder', body: "Don't forget to discuss your child's milestones.", sound: true },
+                trigger: { type: 'timeInterval', seconds: 172800 },
+            });
+        } catch (e) { console.error(e); }
+    };
+
+    const handleDismissWithReminder = async () => {
+        setMilestoneAlertDismissed(true);
+        await AsyncStorage.setItem(`milestone_alert_dismissed_${selectedChild?.id}`, new Date().toISOString());
+        scheduleReminder();
+    };
+
+    // Check milestones
+    const checkMilestoneProgress = useCallback(async () => {
+        if (!selectedChild?.id) { setMilestoneConcern(false); setMilestoneProgress(null); return; }
+        try {
+            const dismissedAt = await AsyncStorage.getItem(`milestone_alert_dismissed_${selectedChild.id}`);
+            if (dismissedAt) {
+                const d = new Date(dismissedAt);
+                if (d > new Date(Date.now() - 2 * 86400000)) { setMilestoneAlertDismissed(true); return; }
+            }
+            setMilestoneAlertDismissed(false);
+
+            // Get total milestones available for this child's age (across ALL categories)
+            const childAge = ageInMonths || 12;
+            const milestonesForAge = getMilestonesForAge(childAge);
+            let totalMilestones = 0;
+            if (milestonesForAge) {
+                for (const catId of Object.keys(milestonesForAge)) {
+                    const items = milestonesForAge[catId];
+                    totalMilestones += Array.isArray(items) ? items.length : 0;
+                }
+            }
+
+            const allResponses = await milestoneService.getAllMilestoneResponsesForChild(selectedChild.id);
+            if (!allResponses || allResponses.length === 0) { setMilestoneConcern(false); setMilestoneProgress(totalMilestones > 0 ? 0 : null); return; }
+
+            let achieved = 0, hasConcern = false;
+            for (const cat of allResponses) {
+                const r = cat.responses;
+                const t = Object.keys(r).length, y = Object.values(r).filter(v => v === 'yes').length;
+                achieved += y;
+                if (t > 0 && (y / t) < 0.5) hasConcern = true;
+            }
+            setMilestoneConcern(hasConcern);
+            // Percentage = yes answers / total milestones for this age across all categories
+            setMilestoneProgress(totalMilestones > 0 ? Math.round((achieved / totalMilestones) * 100) : null);
+        } catch (e) { console.error(e); setMilestoneConcern(false); setMilestoneProgress(null); }
+    }, [selectedChild?.id]);
+
+    useEffect(() => { checkMilestoneProgress(); fetchUpcomingAppointments(); }, [checkMilestoneProgress]);
+
+    const fetchUpcomingAppointments = async () => {
+        try {
+            const all = await appointmentService.getAppointments('scheduled', true);
+            const now = new Date();
+            const arr = Array.isArray(all) ? all : [];
+            const future = arr.filter(a => {
+                if (a.status !== 'scheduled' && a.status !== 'pending') return false;
+                const d = new Date(a.appointment_date);
+                const [h, m] = (a.appointment_time || '00:00').split(':').map(Number);
+                d.setHours(h, m, 0, 0);
+                return d >= now;
+            }).sort((a, b) => new Date(a.appointment_date + 'T' + (a.appointment_time || '00:00')) - new Date(b.appointment_date + 'T' + (b.appointment_time || '00:00')));
+            setUpcomingAppointments(future.slice(0, 2));
+        } catch (e) { console.error(e); }
+    };
+
+    useFocusEffect(React.useCallback(() => { fetchUpcomingAppointments(); }, []));
+
+    // Nav helper
+    const isNavigating = useRef(false);
+    const navigateTo = (route, params) => {
+        if (isNavigating.current) return;
+        if (!selectedChild) { showAlert('No Child Selected', 'Please select a child first.', [{ text: 'OK' }], 'warning'); return; }
+        isNavigating.current = true;
+        setTimeout(() => { isNavigating.current = false; }, 1000);
+        if (params) router.push({ pathname: route, params }); else router.push(route);
+    };
+
+    // ─── RENDER ───
     return (
         <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
-            {/* Header with Safe Area */}
-            <View style={[styles.header, {
-                paddingTop: insets.top + Spacing.lg,
-                backgroundColor: colorScheme.surface,
-                borderBottomColor: colorScheme.border,
-            }]}>
-                <View>
-                    <Text style={[styles.greeting, { color: colorScheme.textSecondary }]}>Welcome back!</Text>
-                    <Text style={[styles.userName, { color: colorScheme.textPrimary }]}>{user?.displayName || 'Parent'}</Text>
-                </View>
-                <View style={styles.headerButtons}>
-                    <TouchableOpacity style={styles.notificationButton} onPress={() => router.push('/notifications')}>
-                        <MaterialIcons name="notifications-none" size={24} color={colorScheme.textPrimary} />
+            {/* Header */}
+            <View style={[styles.header, { paddingTop: insets.top + Spacing.lg, backgroundColor: colorScheme.surface, borderBottomColor: colorScheme.border }]}>
+                <View style={styles.headerLeft}>
+                    <TouchableOpacity style={styles.menuButton} onPress={openDrawer}>
+                        <MaterialIcons name="menu" size={26} color={colorScheme.textPrimary} />
                     </TouchableOpacity>
-                    <ThemeToggle />
-                    <TouchableOpacity style={styles.notificationButton} onPress={handleLogout}>
-                        <MaterialIcons name="logout" size={24} color={colorScheme.error || '#FF5252'} />
-                    </TouchableOpacity>
+                    <View>
+                        <Text style={[styles.greeting, { color: colorScheme.textSecondary }]}>{getGreeting()},</Text>
+                        <Text style={[styles.userName, { color: colorScheme.textPrimary }]}>{user?.displayName || 'Parent'}</Text>
+                    </View>
                 </View>
+                <TouchableOpacity style={styles.notificationButton} onPress={() => router.push('/notifications')}>
+                    <MaterialIcons name="notifications-none" size={24} color={colorScheme.textPrimary} />
+                </TouchableOpacity>
             </View>
 
-            <ScrollView
-                style={styles.content}
-                contentContainerStyle={[
-                    styles.scrollContent,
-                    { paddingBottom: insets.bottom + Spacing.xxl },
-                ]}
-                showsVerticalScrollIndicator={false}
-            >
-                {/* Child Selector / Summary */}
+            <ScrollView style={styles.content} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + Spacing.xxl }]} showsVerticalScrollIndicator={false}>
+                {/* Child Selector */}
                 <View style={styles.section}>
-                    <View style={[styles.headerRow, { marginBottom: Spacing.md }]}>
-                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, marginBottom: 0 }]}>
-                            Current Child
-                        </Text>
-                        <TouchableOpacity onPress={() => router.push('/profile/children')}>
-                            <Text style={{ color: colorScheme.primary, fontWeight: '600' }}>Switch / Add</Text>
-                        </TouchableOpacity>
-                    </View>
-
                     {selectedChild ? (
-                        <TouchableOpacity
-                            style={[styles.childCard, { backgroundColor: colorScheme.surface }]}
-                            onPress={() => router.push('/profile/children')}
-                        >
+                        <TouchableOpacity style={[styles.childCard, { backgroundColor: colorScheme.surface }]} onPress={() => router.push('/profile/children')}>
                             <View style={[styles.avatarContainer, { backgroundColor: `${colorScheme.primary}20` }]}>
-                                <MaterialIcons name="face" size={32} color={colorScheme.primary} />
+                                <MaterialIcons name="face" size={30} color={colorScheme.primary} />
                             </View>
                             <View style={styles.childInfo}>
-                                <Text style={[styles.childName, { color: colorScheme.textPrimary }]}>
-                                    {selectedChild.first_name} {selectedChild.last_name}
-                                </Text>
-                                <Text style={[styles.childDetails, { color: colorScheme.textSecondary }]}>
-                                    {calculateAge(selectedChild.date_of_birth)} • {selectedChild.gender}
-                                </Text>
+                                <Text style={[styles.childName, { color: colorScheme.textPrimary }]}>{selectedChild.first_name} {selectedChild.last_name}</Text>
+                                <Text style={[styles.childDetails, { color: colorScheme.textSecondary }]}>{calculateAge(selectedChild.date_of_birth)} old  •  {selectedChild.gender}</Text>
                             </View>
                             <MaterialIcons name="chevron-right" size={24} color={colorScheme.textTertiary} />
                         </TouchableOpacity>
                     ) : (
-                        <TouchableOpacity
-                            style={[styles.addChildCard, { borderColor: colorScheme.border }]}
-                            onPress={() => router.push('/profile/children/add')}
-                        >
+                        <TouchableOpacity style={[styles.addChildCard, { borderColor: colorScheme.border }]} onPress={() => router.push('/profile/children/add')}>
                             <MaterialIcons name="add-circle-outline" size={32} color={colorScheme.primary} />
-                            <Text style={[styles.addChildText, { color: colorScheme.textSecondary }]}>
-                                Add a child to start tracking
-                            </Text>
+                            <Text style={[styles.addChildText, { color: colorScheme.textSecondary }]}>Add a child to start tracking</Text>
                         </TouchableOpacity>
                     )}
                 </View>
 
-                {/* Milestone Concern Warning - shows if child has < 50% milestones achieved */}
+                {/* Milestone Concern Warning */}
                 {milestoneConcern && !milestoneAlertDismissed && selectedChild && (
-                    <View style={[styles.milestoneWarningBanner, {
-                        backgroundColor: `${colorScheme.warning}15`,
-                        borderColor: colorScheme.warning
-                    }]}>
-                        <View style={styles.milestoneWarningContent}>
-                            <MaterialIcons name="warning" size={24} color={colorScheme.warning} />
-                            <View style={styles.milestoneWarningText}>
-                                <Text style={[styles.milestoneWarningTitle, { color: colorScheme.textPrimary }]}>
-                                    Developmental Concern
-                                </Text>
-                                <Text style={[styles.milestoneWarningMessage, { color: colorScheme.textSecondary }]}>
-                                    {selectedChild.first_name} has achieved less than half of expected milestones. Consider booking an appointment.
+                    <View style={[styles.warningBanner, { backgroundColor: `${colorScheme.warning}15`, borderColor: colorScheme.warning }]}>
+                        <View style={styles.warningRow}>
+                            <MaterialIcons name="warning" size={22} color={colorScheme.warning} />
+                            <View style={styles.warningTextWrap}>
+                                <Text style={[styles.warningTitle, { color: colorScheme.textPrimary }]}>Developmental Concern</Text>
+                                <Text style={[styles.warningMsg, { color: colorScheme.textSecondary }]}>
+                                    {selectedChild.first_name} has achieved less than half of expected milestones.
                                 </Text>
                             </View>
                         </View>
-                        <View style={styles.milestoneWarningButtons}>
-                            <TouchableOpacity
-                                style={[styles.milestoneWarningButton, { backgroundColor: colorScheme.warning }]}
-                                onPress={() => router.push('/appointments/book')}
-                            >
-                                <Text style={styles.milestoneWarningButtonText}>Book Appointment</Text>
+                        <View style={styles.warningButtons}>
+                            <TouchableOpacity style={[styles.warningBtn, { backgroundColor: colorScheme.warning }]} onPress={() => router.push('/appointments/book')}>
+                                <Text style={styles.warningBtnText}>Book Appointment</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.milestoneWarningButtonSecondary, { borderColor: colorScheme.warning }]}
-                                onPress={handleDismissWithReminder}
-                            >
-                                <Text style={[styles.milestoneWarningButtonSecondaryText, { color: colorScheme.warning }]}>
-                                    Remind Me Later
-                                </Text>
+                            <TouchableOpacity style={[styles.warningBtnSec, { borderColor: colorScheme.warning }]} onPress={handleDismissWithReminder}>
+                                <Text style={[styles.warningBtnSecText, { color: colorScheme.warning }]}>Remind Later</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
                 )}
 
-                {/* Upcoming Appointments */}
-                {upcomingAppointments.length > 0 && (
+                {/* 🌟 Insight Carousel — smooth crossfade */}
+                {insightSlides.length > 0 && selectedChild && (
                     <View style={styles.section}>
-                        <View style={styles.headerRow}>
-                            <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, marginBottom: Spacing.md }]}>
-                                Upcoming Appointments
-                            </Text>
-                            <TouchableOpacity onPress={() => router.push('/appointments')}>
-                                <Text style={{ color: colorScheme.primary, fontWeight: '600' }}>See All</Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        {upcomingAppointments.map((apt) => (
-                            <TouchableOpacity
-                                key={apt.id}
-                                style={[styles.appointmentCard, { backgroundColor: colorScheme.surface }]}
-                                onPress={() => router.push('/appointments')}
-                            >
-                                <View style={styles.appointmentHeader}>
-                                    <View style={styles.doctorInfo}>
-                                        <View style={[styles.doctorAvatarSmall, { backgroundColor: colorScheme.primaryLight }]}>
-                                            <MaterialIcons name="person" size={20} color={colorScheme.primary} />
-                                        </View>
-                                        <View>
-                                            <Text style={[styles.doctorName, { color: colorScheme.textPrimary }]}>
-                                                {apt.doctor_name || 'Doctor'}
-                                            </Text>
-                                            <Text style={[styles.specialty, { color: colorScheme.textSecondary }]}>
-                                                {apt.appointment_type === 'TELECONSULT' ? 'Teleconsult' : 'In-Person'}
-                                            </Text>
+                        <SmoothCarousel
+                            data={insightSlides}
+                            autoScrollMs={7000}
+                            cardHeight={130}
+                            renderCard={(item) => (
+                                <TouchableOpacity
+                                    style={[styles.insightCard, { backgroundColor: item.bg }]}
+                                    onPress={() => item.route ? navigateTo(item.route) : navigateTo('/dashboard/milestone-checklist')}
+                                    activeOpacity={0.85}
+                                >
+                                    <View style={styles.insightHeader}>
+                                        <Text style={styles.insightEmoji}>{item.icon}</Text>
+                                        <View style={styles.insightBadge}>
+                                            <Text style={styles.insightBadgeText}>{item.title}</Text>
                                         </View>
                                     </View>
-                                    <View style={[styles.dateBadge, { backgroundColor: colorScheme.surfaceVariant }]}>
-                                        <Text style={[styles.dateText, { color: colorScheme.textPrimary }]}>
-                                            {new Date(apt.appointment_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                        </Text>
-                                        <Text style={[styles.timeText, { color: colorScheme.textSecondary }]}>
-                                            {(() => {
-                                                const [h, m] = (apt.appointment_time || '00:00').split(':');
-                                                const hour = parseInt(h);
-                                                const ampm = hour >= 12 ? 'PM' : 'AM';
-                                                return `${hour % 12 || 12}:${m} ${ampm}`;
-                                            })()}
-                                        </Text>
-                                    </View>
-                                </View>
-                            </TouchableOpacity>
-                        ))}
+                                    <Text style={styles.insightTip}>{item.tip}</Text>
+                                </TouchableOpacity>
+                            )}
+                        />
                     </View>
                 )}
 
-                {/* Quick Actions */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>Quick Actions</Text>
-                    <View style={styles.quickActionsGrid}>
-                        {quickActions.map((action) => (
-                            <TouchableOpacity
-                                key={action.id}
-                                style={[styles.actionCard, { backgroundColor: colorScheme.surface }]}
-                                onPress={() => handleQuickAction(action)}
-                            >
-                                <View style={[styles.actionIconContainer, { backgroundColor: `${action.color}15` }]}>
-                                    <MaterialIcons name={action.icon} size={28} color={action.color} />
-                                </View>
-                                <Text
-                                    style={[styles.actionTitle, { color: colorScheme.textPrimary }]}
-                                    numberOfLines={2}
-                                >
-                                    {action.title}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
+                {/* 📊 Stats Row */}
+                {selectedChild && (
+                    <View style={styles.statsRow}>
+                        <TouchableOpacity style={[styles.statCard, { backgroundColor: colorScheme.surface }]} onPress={() => navigateTo('/dashboard/milestone-checklist')}>
+                            <View style={[styles.progressRing, { borderColor: milestoneProgress != null ? colorScheme.primary : colorScheme.border }]}>
+                                <Text style={[styles.progressText, { color: colorScheme.primary }]}>{milestoneProgress != null ? `${milestoneProgress}%` : '—'}</Text>
+                            </View>
+                            <Text style={[styles.statLabel, { color: colorScheme.textSecondary }]}>Milestones</Text>
+                            <Text style={[styles.statSub, { color: colorScheme.textTertiary }]}>{milestoneProgress != null ? 'achieved' : 'not started'}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.statCard, { backgroundColor: colorScheme.surface }]} onPress={() => router.push('/(tabs)/appointments')}>
+                            {upcomingAppointments.length > 0 ? (
+                                <>
+                                    <View style={[styles.statIcon, { backgroundColor: `${colorScheme.primary}15` }]}>
+                                        <MaterialIcons name="event" size={24} color={colorScheme.primary} />
+                                    </View>
+                                    <Text style={[styles.statLabel, { color: colorScheme.textSecondary }]}>Next Visit</Text>
+                                    <Text style={[styles.statDate, { color: colorScheme.textPrimary }]}>
+                                        {new Date(upcomingAppointments[0].appointment_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                    </Text>
+                                </>
+                            ) : (
+                                <>
+                                    <View style={[styles.statIcon, { backgroundColor: `${colorScheme.primary}15` }]}>
+                                        <MaterialIcons name="add-circle" size={24} color={colorScheme.primary} />
+                                    </View>
+                                    <Text style={[styles.statLabel, { color: colorScheme.textSecondary }]}>No Visits</Text>
+                                    <Text style={[styles.statSub, { color: colorScheme.primary }]}>Book one</Text>
+                                </>
+                            )}
+                        </TouchableOpacity>
                     </View>
+                )}
+
+                {/* 🔍 Discover — smooth crossfade */}
+                <View style={styles.section}>
+                    <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>Discover</Text>
+                    <SmoothCarousel
+                        data={FEATURE_SLIDES}
+                        autoScrollMs={6000}
+                        cardHeight={160}
+                        renderCard={(item) => (
+                            <TouchableOpacity
+                                style={[styles.featureCard, { backgroundColor: colorScheme.surface }]}
+                                onPress={() => {
+                                    if (item.route.includes('appointment')) router.push(item.route);
+                                    else navigateTo(item.route);
+                                }}
+                                activeOpacity={0.7}
+                            >
+                                <View style={[styles.featureIcon, { backgroundColor: `${item.color}15` }]}>
+                                    <MaterialIcons name={item.icon} size={28} color={item.color} />
+                                </View>
+                                <Text style={[styles.featureTitle, { color: colorScheme.textPrimary }]}>{item.title}</Text>
+                                <Text style={[styles.featureDesc, { color: colorScheme.textSecondary }]} numberOfLines={2}>{item.desc}</Text>
+                                <View style={styles.featureCta}>
+                                    <Text style={[styles.featureCtaText, { color: item.color }]}>Open</Text>
+                                    <MaterialIcons name="arrow-forward" size={14} color={item.color} />
+                                </View>
+                            </TouchableOpacity>
+                        )}
+                    />
                 </View>
 
-                {/* Recent Activity */}
+                {/* ⚡ Quick Links (3 most vital) */}
+                {selectedChild && (
+                    <View style={styles.section}>
+                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>Quick Links</Text>
+                        <View style={styles.quickLinksRow}>
+                            {[
+                                { icon: 'show-chart', label: 'Growth Chart', color: '#2196F3', route: '/dashboard/growth-chart', params: { childId: selectedChild?.id } },
+                                { icon: 'vaccines', label: 'Vaccinations', color: '#4CAF50', route: '/dashboard/vaccinations' },
+                                { icon: 'restaurant', label: 'Feeding', color: '#E91E63', route: '/dashboard/feeding' },
+                            ].map((link) => (
+                                <TouchableOpacity key={link.label} style={[styles.quickLink, { backgroundColor: colorScheme.surface }]} onPress={() => navigateTo(link.route, link.params)}>
+                                    <View style={[styles.quickLinkIcon, { backgroundColor: `${link.color}15` }]}>
+                                        <MaterialIcons name={link.icon} size={22} color={link.color} />
+                                    </View>
+                                    <Text style={[styles.quickLinkLabel, { color: colorScheme.textPrimary }]}>{link.label}</Text>
+                                    <MaterialIcons name="chevron-right" size={18} color={colorScheme.textTertiary} />
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </View>
+                )}
+
+                {/* 📋 Recent Activity */}
                 <View style={styles.section}>
                     <View style={styles.headerRow}>
                         <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, marginBottom: 0 }]}>Recent Activity</Text>
                         {recentActivity.length > 0 && (
-                            <TouchableOpacity onPress={() => {
-                                Alert.alert(
-                                    'Clear Activity',
-                                    'Are you sure you want to clear all recent activity?',
-                                    [
-                                        { text: 'Cancel', style: 'cancel' },
-                                        { text: 'Clear', style: 'destructive', onPress: () => clearAll() }
-                                    ]
-                                );
-                            }}>
-                                <Text style={{ color: colorScheme.error || '#FF5252', fontWeight: '600' }}>Clear</Text>
+                            <TouchableOpacity onPress={() => Alert.alert('Clear Activity', 'Clear all?', [{ text: 'Cancel', style: 'cancel' }, { text: 'Clear', style: 'destructive', onPress: () => clearAll() }])}>
+                                <Text style={{ color: colorScheme.error || '#FF5252', fontWeight: '600', fontSize: 12 }}>Clear</Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -512,48 +441,28 @@ export default function DashboardScreen() {
                             {recentActivity.map((activity, index) => (
                                 <TouchableOpacity
                                     key={activity.id}
-                                    style={[
-                                        styles.activityItem,
-                                        index !== recentActivity.length - 1 && { borderBottomWidth: 1, borderBottomColor: colorScheme.border }
-                                    ]}
+                                    style={[styles.recentItem, index !== recentActivity.length - 1 && { borderBottomWidth: 1, borderBottomColor: colorScheme.border }]}
                                     onPress={() => router.push('/notifications')}
                                 >
-                                    <View style={[styles.activityIcon, { backgroundColor: `${activity.category === 'appointments' ? colorScheme.appointmentScheduled : '#FF9800'}15` }]}>
-                                        <MaterialIcons
-                                            name={activity.category === 'appointments' ? 'event' : 'flag'}
-                                            size={20}
-                                            color={activity.category === 'appointments' ? colorScheme.appointmentScheduled : '#FF9800'}
-                                        />
+                                    <View style={[styles.recentIcon, { backgroundColor: `${activity.category === 'appointments' ? colorScheme.appointmentScheduled : '#FF9800'}15` }]}>
+                                        <MaterialIcons name={activity.category === 'appointments' ? 'event' : 'flag'} size={18} color={activity.category === 'appointments' ? colorScheme.appointmentScheduled : '#FF9800'} />
                                     </View>
-                                    <View style={styles.activityContent}>
-                                        <Text style={[styles.activityTitle, { color: colorScheme.textPrimary }]} numberOfLines={1}>
-                                            {activity.title}
-                                        </Text>
-                                        <Text style={[styles.activityTime, { color: colorScheme.textSecondary }]}>
-                                            {(() => {
-                                                try {
-                                                    const date = new Date(activity.time);
-                                                    return !isNaN(date.getTime())
-                                                        ? formatDistanceToNow(date, { addSuffix: true })
-                                                        : 'Just now';
-                                                } catch (e) {
-                                                    return 'Just now';
-                                                }
-                                            })()}
+                                    <View style={styles.recentContent}>
+                                        <Text style={[styles.recentTitle, { color: colorScheme.textPrimary }]} numberOfLines={1}>{activity.title}</Text>
+                                        <Text style={[styles.recentTime, { color: colorScheme.textSecondary }]}>
+                                            {(() => { try { const d = new Date(activity.time); return !isNaN(d.getTime()) ? formatDistanceToNow(d, { addSuffix: true }) : 'Just now'; } catch { return 'Just now'; } })()}
                                         </Text>
                                     </View>
-                                    <MaterialIcons name="chevron-right" size={20} color={colorScheme.textTertiary} />
+                                    <MaterialIcons name="chevron-right" size={18} color={colorScheme.textTertiary} />
                                 </TouchableOpacity>
                             ))}
                         </View>
                     ) : (
                         <View style={[styles.card, { backgroundColor: colorScheme.surface }]}>
                             <View style={styles.emptyState}>
-                                <MaterialIcons name="inbox" size={48} color={colorScheme.textTertiary} />
-                                <Text style={[styles.emptyStateText, { color: colorScheme.textPrimary }]}>No recent activity</Text>
-                                <Text style={[styles.emptyStateSubtext, { color: colorScheme.textSecondary }]}>
-                                    Your child's milestones and appointments will appear here
-                                </Text>
+                                <MaterialIcons name="inbox" size={40} color={colorScheme.textTertiary} />
+                                <Text style={[styles.emptyText, { color: colorScheme.textPrimary }]}>No recent activity</Text>
+                                <Text style={[styles.emptySub, { color: colorScheme.textSecondary }]}>Milestones and appointments will appear here</Text>
                             </View>
                         </View>
                     )}
@@ -564,254 +473,74 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    header: {
-        paddingHorizontal: Spacing.lg,
-        paddingBottom: Spacing.lg,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        borderBottomWidth: 1,
-    },
-    headerButtons: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: Spacing.xs,
-    },
-    greeting: {
-        fontSize: Typography.fontSize.sm,
-        marginBottom: 4,
-    },
-    userName: {
-        fontSize: Typography.fontSize.xl,
-        fontWeight: Typography.fontWeight.bold,
-    },
-    notificationButton: {
-        padding: Spacing.sm,
-    },
-    content: {
-        flex: 1,
-    },
-    scrollContent: {
-        padding: Spacing.lg,
-    },
-    section: {
-        marginBottom: Spacing.xxl,
-    },
-    headerRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    sectionTitle: {
-        fontSize: Typography.fontSize.lg,
-        fontWeight: Typography.fontWeight.semibold,
-        marginBottom: Spacing.md,
-    },
-    quickActionsGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        justifyContent: 'space-between',
-    },
-    actionCard: {
-        width: '31%',
-        borderRadius: BorderRadius.lg,
-        padding: Spacing.xs, // Reduced padding to give text more width
-        paddingVertical: Spacing.md,
-        marginBottom: Spacing.md,
-        alignItems: 'center',
-        ...Shadow.md,
-    },
-    actionIconContainer: {
-        width: 56,
-        height: 56,
-        borderRadius: BorderRadius.xl,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 4, // Reduced margin
-    },
-    actionTitle: {
-        fontSize: 10, // Reduced to 10 per user request
-        fontWeight: Typography.fontWeight.medium,
-        textAlign: 'center',
-    },
-    card: {
-        borderRadius: BorderRadius.lg,
-        padding: Spacing.xl,
-        ...Shadow.md,
-    },
-    childCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: Spacing.lg,
-        borderRadius: BorderRadius.lg,
-        // borderWidth: 1, // Removed per user request
-        // borderColor: Colors.border,
-        // borderStyle: 'solid',
-    },
-    addChildCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: Spacing.lg,
-        borderRadius: BorderRadius.lg,
-        borderWidth: 1,
-        borderColor: Colors.border,
-        borderStyle: 'solid', // Changed from dashed to solid per user request
-        gap: Spacing.md,
-    },
-    addChildText: {
-        fontSize: Typography.fontSize.md,
-        fontWeight: Typography.fontWeight.medium,
-    },
-    avatarContainer: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: Spacing.md,
-    },
-    childInfo: {
-        flex: 1,
-    },
-    childName: {
-        fontSize: Typography.fontSize.lg,
-        fontWeight: Typography.fontWeight.bold,
-        marginBottom: 2,
-    },
-    childDetails: {
-        fontSize: Typography.fontSize.sm,
-    },
-    emptyState: {
-        alignItems: 'center',
-        paddingVertical: Spacing.xxl,
-    },
-    emptyStateText: {
-        fontSize: Typography.fontSize.md,
-        fontWeight: Typography.fontWeight.semibold,
-        marginTop: Spacing.md,
-        marginBottom: Spacing.xs,
-    },
-    emptyStateSubtext: {
-        fontSize: Typography.fontSize.sm,
-        textAlign: 'center',
-        maxWidth: 250,
-    },
-    activityItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: Spacing.md,
-    },
-    activityIcon: {
-        width: 40,
-        height: 40,
-        borderRadius: BorderRadius.round,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: Spacing.md,
-    },
-    activityContent: {
-        flex: 1,
-        marginRight: Spacing.sm,
-    },
-    activityTitle: {
-        fontSize: Typography.fontSize.sm,
-        fontWeight: Typography.fontWeight.medium,
-        marginBottom: 2,
-    },
-    activityTime: {
-        fontSize: Typography.fontSize.xs,
-    },
-    // Milestone Warning Banner Styles
-    milestoneWarningBanner: {
-        marginBottom: Spacing.xxl,
-        padding: Spacing.md,
-        borderRadius: BorderRadius.lg,
-        borderWidth: 1,
-    },
-    milestoneWarningContent: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        marginBottom: Spacing.md,
-    },
-    milestoneWarningText: {
-        flex: 1,
-        marginLeft: Spacing.sm,
-    },
-    milestoneWarningTitle: {
-        fontSize: Typography.fontSize.md,
-        fontWeight: Typography.fontWeight.semibold,
-        marginBottom: Spacing.xs,
-    },
-    milestoneWarningMessage: {
-        fontSize: Typography.fontSize.sm,
-        lineHeight: 20,
-    },
-    milestoneWarningButtons: {
-        flexDirection: 'row',
-        gap: Spacing.sm,
-    },
-    milestoneWarningButton: {
-        flex: 1,
-        paddingVertical: Spacing.sm,
-        paddingHorizontal: Spacing.md,
-        borderRadius: BorderRadius.md,
-        alignItems: 'center',
-    },
-    milestoneWarningButtonText: {
-        color: '#FFFFFF',
-        fontSize: Typography.fontSize.sm,
-        fontWeight: Typography.fontWeight.semibold,
-    },
-    milestoneWarningButtonSecondary: {
-        flex: 1,
-        paddingVertical: Spacing.sm,
-        paddingHorizontal: Spacing.md,
-        borderRadius: BorderRadius.md,
-        borderWidth: 1,
-        alignItems: 'center',
-        backgroundColor: 'transparent',
-    },
-    milestoneWarningButtonSecondaryText: {
-        fontSize: Typography.fontSize.sm,
-        fontWeight: Typography.fontWeight.semibold,
-    },
-    // Appointment Card Styles
-    appointmentCard: {
-        borderRadius: BorderRadius.lg,
-        padding: Spacing.md,
-        marginBottom: Spacing.md,
-        ...Shadow.sm,
-        borderLeftWidth: 4,
-        borderLeftColor: Colors.primary,
-    },
-    appointmentHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    doctorAvatarSmall: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: Spacing.sm,
-    },
-    dateBadge: {
-        alignItems: 'center',
-        paddingHorizontal: Spacing.md,
-        paddingVertical: Spacing.xs,
-        borderRadius: BorderRadius.md,
-    },
-    dateText: {
-        fontSize: Typography.fontSize.sm,
-        fontWeight: Typography.fontWeight.bold,
-    },
-    timeText: {
-        fontSize: Typography.fontSize.xs,
-    },
+    container: { flex: 1 },
+    header: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1 },
+    headerLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+    menuButton: { padding: Spacing.xs },
+    greeting: { fontSize: Typography.fontSize.sm, marginBottom: 2 },
+    userName: { fontSize: Typography.fontSize.lg, fontWeight: Typography.fontWeight.bold },
+    notificationButton: { padding: Spacing.sm },
+    content: { flex: 1 },
+    scrollContent: { padding: Spacing.lg },
+    section: { marginBottom: Spacing.lg },
+    headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
+    sectionTitle: { fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.bold, textTransform: 'uppercase', letterSpacing: 1, marginBottom: Spacing.sm },
+    // Child Card
+    childCard: { flexDirection: 'row', alignItems: 'center', padding: Spacing.md, borderRadius: BorderRadius.lg, ...Shadow.sm },
+    addChildCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: Spacing.lg, borderRadius: BorderRadius.lg, borderWidth: 1, gap: Spacing.md },
+    addChildText: { fontSize: Typography.fontSize.md, fontWeight: Typography.fontWeight.medium },
+    avatarContainer: { width: 46, height: 46, borderRadius: 23, justifyContent: 'center', alignItems: 'center', marginRight: Spacing.md },
+    childInfo: { flex: 1 },
+    childName: { fontSize: Typography.fontSize.md, fontWeight: Typography.fontWeight.bold, marginBottom: 2 },
+    childDetails: { fontSize: Typography.fontSize.sm },
+    // Insight Card
+    insightCard: { borderRadius: BorderRadius.lg, padding: Spacing.lg, height: 120 },
+    insightHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.sm, gap: Spacing.sm },
+    insightEmoji: { fontSize: 28 },
+    insightBadge: { backgroundColor: 'rgba(255,255,255,0.25)', paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: BorderRadius.md },
+    insightBadgeText: { color: '#FFF', fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.bold },
+    insightTip: { color: 'rgba(255,255,255,0.95)', fontSize: Typography.fontSize.sm, lineHeight: 22 },
+    // Stats
+    statsRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.lg },
+    statCard: { flex: 1, borderRadius: BorderRadius.lg, padding: Spacing.md, alignItems: 'center', ...Shadow.sm },
+    progressRing: { width: 54, height: 54, borderRadius: 27, borderWidth: 4, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.xs },
+    progressText: { fontSize: Typography.fontSize.md, fontWeight: Typography.fontWeight.bold },
+    statLabel: { fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.medium, marginTop: 2 },
+    statSub: { fontSize: 10, marginTop: 1 },
+    statDate: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.bold },
+    statIcon: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.xs },
+    // Feature Card
+    featureCard: { borderRadius: BorderRadius.lg, padding: Spacing.lg },
+    featureIcon: { width: 48, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.sm },
+    featureTitle: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.bold, marginBottom: 4 },
+    featureDesc: { fontSize: Typography.fontSize.xs, lineHeight: 18, marginBottom: Spacing.sm },
+    featureCta: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-end' },
+    featureCtaText: { fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.bold },
+    // Quick Links
+    quickLinksRow: { gap: Spacing.sm },
+    quickLink: { flexDirection: 'row', alignItems: 'center', padding: Spacing.md, borderRadius: BorderRadius.lg, ...Shadow.sm },
+    quickLinkIcon: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: Spacing.md },
+    quickLinkLabel: { flex: 1, fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.medium },
+    // Card & Recent
+    card: { borderRadius: BorderRadius.lg, padding: Spacing.lg, ...Shadow.sm },
+    recentItem: { flexDirection: 'row', alignItems: 'center', padding: Spacing.md },
+    recentIcon: { width: 34, height: 34, borderRadius: 17, justifyContent: 'center', alignItems: 'center', marginRight: Spacing.sm },
+    recentContent: { flex: 1, marginRight: Spacing.sm },
+    recentTitle: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.medium, marginBottom: 2 },
+    recentTime: { fontSize: Typography.fontSize.xs },
+    // Empty
+    emptyState: { alignItems: 'center', paddingVertical: Spacing.xl },
+    emptyText: { fontSize: Typography.fontSize.md, fontWeight: Typography.fontWeight.semibold, marginTop: Spacing.sm, marginBottom: Spacing.xs },
+    emptySub: { fontSize: Typography.fontSize.sm, textAlign: 'center', maxWidth: 250 },
+    // Warning
+    warningBanner: { marginBottom: Spacing.lg, padding: Spacing.md, borderRadius: BorderRadius.lg, borderWidth: 1 },
+    warningRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: Spacing.md },
+    warningTextWrap: { flex: 1, marginLeft: Spacing.sm },
+    warningTitle: { fontSize: Typography.fontSize.md, fontWeight: Typography.fontWeight.semibold, marginBottom: Spacing.xs },
+    warningMsg: { fontSize: Typography.fontSize.sm, lineHeight: 20 },
+    warningButtons: { flexDirection: 'row', gap: Spacing.sm },
+    warningBtn: { flex: 1, paddingVertical: Spacing.sm, borderRadius: BorderRadius.md, alignItems: 'center' },
+    warningBtnText: { color: '#FFF', fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold },
+    warningBtnSec: { flex: 1, paddingVertical: Spacing.sm, borderRadius: BorderRadius.md, borderWidth: 1, alignItems: 'center', backgroundColor: 'transparent' },
+    warningBtnSecText: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold },
 });

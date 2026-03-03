@@ -11,11 +11,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useDrawer } from '@/contexts/DrawerContext';
 import { Spacing, Typography, Layout } from '@/constants/theme';
 
 interface SafeHeaderProps {
     title?: string;
     showBack?: boolean;
+    showMenu?: boolean;
     onBackPress?: () => void;
     rightComponent?: React.ReactNode;
 }
@@ -23,12 +25,14 @@ interface SafeHeaderProps {
 export function SafeHeader({
     title,
     showBack = false,
+    showMenu = false,
     onBackPress,
     rightComponent,
 }: SafeHeaderProps) {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { colorScheme } = useTheme();
+    const { openDrawer } = useDrawer();
 
     const handleBackPress = () => {
         if (onBackPress) {
@@ -50,9 +54,21 @@ export function SafeHeader({
             ]}
         >
             <View style={styles.content}>
-                {/* Left Side - Back Button */}
+                {/* Left Side - Menu or Back Button */}
                 <View style={styles.leftContainer}>
-                    {showBack && (
+                    {showMenu ? (
+                        <TouchableOpacity
+                            style={styles.backButton}
+                            onPress={openDrawer}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        >
+                            <MaterialIcons
+                                name="menu"
+                                size={24}
+                                color={colorScheme.textPrimary}
+                            />
+                        </TouchableOpacity>
+                    ) : showBack ? (
                         <TouchableOpacity
                             style={styles.backButton}
                             onPress={handleBackPress}
@@ -64,7 +80,7 @@ export function SafeHeader({
                                 color={colorScheme.textPrimary}
                             />
                         </TouchableOpacity>
-                    )}
+                    ) : null}
                 </View>
 
                 {/* Center - Title */}

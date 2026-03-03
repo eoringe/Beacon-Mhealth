@@ -172,7 +172,7 @@ export default function ProfileScreen() {
 
     return (
         <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
-            <SafeHeader title="Profile" showBack={false} />
+            <SafeHeader title="Profile" showBack={false} showMenu={true} />
 
             <ScrollView
                 style={styles.content}

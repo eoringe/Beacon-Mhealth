@@ -1,18 +1,29 @@
 import { useEffect, useState, useRef } from 'react';
 import { Tabs, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Platform, AppState, AppStateStatus } from 'react-native';
+import { Platform, AppState, AppStateStatus, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useChild } from '@/contexts/ChildContext';
 import { useAlert } from '@/contexts/AlertContext';
+import { DrawerProvider, useDrawer } from '@/contexts/DrawerContext';
+import NavigationDrawer from '@/components/NavigationDrawer';
 
 export default function TabLayout() {
+  return (
+    <DrawerProvider>
+      <TabLayoutInner />
+    </DrawerProvider>
+  );
+}
+
+function TabLayoutInner() {
   const insets = useSafeAreaInsets();
   const { colorScheme } = useTheme();
   const router = useRouter();
   const { selectedChild } = useChild() as { selectedChild: any };
   const { showAlert } = useAlert();
+  const { drawerVisible, closeDrawer } = useDrawer();
   const [key, setKey] = useState(0);
   const appState = useRef<AppStateStatus>(AppState.currentState);
 
@@ -42,103 +53,106 @@ export default function TabLayout() {
   const tabBarHeight = 60 + bottomPadding;
 
   return (
-    <Tabs
-      key={key}
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colorScheme.primary,
-        tabBarInactiveTintColor: colorScheme.textTertiary,
-        tabBarStyle: {
-          backgroundColor: colorScheme.surface,
-          borderTopWidth: 1,
-          borderTopColor: colorScheme.border,
-          paddingBottom: bottomPadding,
-          paddingTop: 8,
-          height: tabBarHeight,
-        },
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '500',
-        },
-        sceneStyle: {
-          backgroundColor: colorScheme.background,
-        },
-      }}
-      screenListeners={({ navigation, route }) => ({
-        tabPress: (e) => {
-          // Check if navigating to appointments tab without a child selected
-          if (route.name === 'appointments' && !selectedChild) {
-            e.preventDefault();
-            showAlert(
-              'No Child Selected',
-              'Please select a child from the dashboard to access appointments.',
-              [{ text: 'OK' }],
-              'warning'
-            );
-            return;
-          }
+    <View style={{ flex: 1 }}>
+      <Tabs
+        key={key}
+        screenOptions={{
+          headerShown: false,
+          tabBarActiveTintColor: colorScheme.primary,
+          tabBarInactiveTintColor: colorScheme.textTertiary,
+          tabBarStyle: {
+            backgroundColor: colorScheme.surface,
+            borderTopWidth: 1,
+            borderTopColor: colorScheme.border,
+            paddingBottom: bottomPadding,
+            paddingTop: 8,
+            height: tabBarHeight,
+          },
+          tabBarLabelStyle: {
+            fontSize: 12,
+            fontWeight: '500',
+          },
+          sceneStyle: {
+            backgroundColor: colorScheme.background,
+          },
+        }}
+        screenListeners={({ navigation, route }) => ({
+          tabPress: (e) => {
+            // Check if navigating to appointments tab without a child selected
+            if (route.name === 'appointments' && !selectedChild) {
+              e.preventDefault();
+              showAlert(
+                'No Child Selected',
+                'Please select a child from the dashboard to access appointments.',
+                [{ text: 'OK' }],
+                'warning'
+              );
+              return;
+            }
 
-          // Only reset when pressing a tab that has nested screens
-          const state = navigation.getState();
-          const currentTabState = state.routes.find((r: any) => r.name === route.name)?.state;
+            // Only reset when pressing a tab that has nested screens
+            const state = navigation.getState();
+            const currentTabState = state.routes.find((r: any) => r.name === route.name)?.state;
 
-          // If the tab has a nested stack with more than 1 screen, reset to first screen
-          if (currentTabState && typeof currentTabState.index === 'number' && currentTabState.index > 0) {
-            e.preventDefault();
-            navigation.reset({
-              index: 0,
-              routes: [{ name: route.name }],
-            });
-          }
-        },
-      })}
-    >
+            // If the tab has a nested stack with more than 1 screen, reset to first screen
+            if (currentTabState && typeof currentTabState.index === 'number' && currentTabState.index > 0) {
+              e.preventDefault();
+              navigation.reset({
+                index: 0,
+                routes: [{ name: route.name }],
+              });
+            }
+          },
+        })}
+      >
 
-      <Tabs.Screen
-        name="dashboard"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="home" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Milestones',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="flag" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="appointments"
-        options={{
-          title: 'Visits',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="calendar-today" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="notifications"
-        options={{
-          title: 'Alerts',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="notifications" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="person" size={size} color={color} />
-          ),
-        }}
-      />
-    </Tabs>
+        <Tabs.Screen
+          name="dashboard"
+          options={{
+            title: 'Home',
+            tabBarIcon: ({ color, size }) => (
+              <MaterialIcons name="home" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="explore"
+          options={{
+            title: 'Milestones',
+            tabBarIcon: ({ color, size }) => (
+              <MaterialIcons name="flag" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="appointments"
+          options={{
+            title: 'Visits',
+            tabBarIcon: ({ color, size }) => (
+              <MaterialIcons name="calendar-today" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="notifications"
+          options={{
+            title: 'Alerts',
+            tabBarIcon: ({ color, size }) => (
+              <MaterialIcons name="notifications" size={size} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="profile"
+          options={{
+            title: 'Profile',
+            tabBarIcon: ({ color, size }) => (
+              <MaterialIcons name="person" size={size} color={color} />
+            ),
+          }}
+        />
+      </Tabs>
+      <NavigationDrawer visible={drawerVisible} onClose={closeDrawer} />
+    </View>
   );
 }

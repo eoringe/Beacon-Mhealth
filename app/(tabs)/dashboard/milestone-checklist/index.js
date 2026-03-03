@@ -60,7 +60,7 @@ export default function MilestoneChecklist() {
             <TouchableOpacity
               key={category.id}
               style={[styles.categoryCard, { backgroundColor: colorScheme.surface }]}
-              onPress={() => router.push(`/milestone-checklist/${category.id}?age=${selectedAge}`)}
+              onPress={() => router.push(`/dashboard/milestone-checklist/${category.id}?age=${selectedAge}`)}
             >
               <View style={[styles.categoryIcon, { backgroundColor: colorScheme.primaryLight }]}>
                 <MaterialIcons name={category.icon} size={28} color={colorScheme.primary} />

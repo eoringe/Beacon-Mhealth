@@ -7,12 +7,14 @@ import { MILESTONE_CATEGORIES, calculateAgeInMonths as calculateAgeHelper } from
 import { useTheme } from '@/contexts/ThemeContext';
 import { useChild } from '@/contexts/ChildContext';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
+import { useDrawer } from '@/contexts/DrawerContext';
 
 export default function MilestonesTab() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colorScheme } = useTheme();
   const { selectedChild } = useChild();
+  const { openDrawer } = useDrawer();
 
   const selectedAge = selectedChild?.date_of_birth
     ? calculateAgeHelper(selectedChild.date_of_birth)
@@ -26,9 +28,15 @@ export default function MilestonesTab() {
         backgroundColor: colorScheme.surface,
         borderBottomColor: colorScheme.border,
       }]}>
-        <Text style={[styles.headerTitle, { color: colorScheme.textPrimary }]}>
-          Milestones
-        </Text>
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={openDrawer} style={{ padding: Spacing.xs }}>
+            <MaterialIcons name="menu" size={26} color={colorScheme.textPrimary} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: colorScheme.textPrimary }]}>
+            Milestones
+          </Text>
+          <View style={{ width: 34 }} />
+        </View>
       </View>
 
       <ScrollView
@@ -86,6 +94,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: Typography.fontSize.xl,
     fontWeight: '700',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   content: {
     flex: 1,
