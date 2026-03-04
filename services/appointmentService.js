@@ -205,7 +205,12 @@ class AppointmentService {
     async getAppointments(status = null, forceRefresh = false, childId = null) {
         try {
             const token = await this.getToken();
-            if (!token) throw new Error('No authentication token');
+            if (!token) {
+                // During logout, the token is cleared before background fetches finish.
+                // Return empty data silently instead of throwing an error.
+                console.log('[AppointmentService] No token available, returning empty (likely logging out)');
+                return [];
+            }
 
             const cacheKey = `appointments_${status || 'all'}_${childId || 'all'}`;
 

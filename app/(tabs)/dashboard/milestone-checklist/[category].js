@@ -65,7 +65,7 @@ const scheduleReminder = async (ageMonths) => {
 export default function MilestoneCategory() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colorScheme } = useTheme();
+  const { colorScheme, isDark } = useTheme();
   const { selectedChild } = useChild();
   const { addNotification } = useNotifications();
   const { category, age } = useLocalSearchParams();
@@ -271,8 +271,11 @@ export default function MilestoneCategory() {
                     key={age}
                     style={[
                       styles.agePill,
-                      { backgroundColor: colorScheme.border },
-                      selectedAge === age && { backgroundColor: colorScheme.primary },
+                      selectedAge === age
+                        ? { backgroundColor: colorScheme.primary }
+                        : isDark
+                          ? { backgroundColor: colorScheme.border }
+                          : { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#000000' },
                     ]}
                     onPress={() => {
                       setSelectedAge(age);
@@ -309,7 +312,7 @@ export default function MilestoneCategory() {
             </Text>
           </View>
           <View style={styles.progressContainer}>
-            <View style={[styles.progressBarBackground, { backgroundColor: colorScheme.border }]}>
+            <View style={[styles.progressBarBackground, isDark ? { backgroundColor: colorScheme.border } : { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#000000' }]}>
               <View
                 style={[
                   styles.progressBarFill,

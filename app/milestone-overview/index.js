@@ -27,7 +27,7 @@ import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 export default function MilestoneOverview() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colorScheme } = useTheme();
+  const { colorScheme, isDark } = useTheme();
   const { selectedChild } = useChild();
   const { showAlert } = useAlert();
   const { age } = useLocalSearchParams();
@@ -164,7 +164,7 @@ export default function MilestoneOverview() {
                       styles.milestoneItem,
                       index < milestones[category.id].length - 1 && {
                         borderBottomWidth: 1,
-                        borderBottomColor: colorScheme.border,
+                        borderBottomColor: isDark ? colorScheme.border : '#000000',
                       }
                     ]}
                   >

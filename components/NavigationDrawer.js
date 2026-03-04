@@ -21,7 +21,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { Spacing, Typography, BorderRadius } from '@/constants/theme';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
-const DRAWER_WIDTH = SCREEN_WIDTH * 0.82;
+const DRAWER_WIDTH = SCREEN_WIDTH * 0.75;
 
 const NAV_SECTIONS = [
     {
