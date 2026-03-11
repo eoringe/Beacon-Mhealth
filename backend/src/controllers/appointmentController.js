@@ -295,277 +295,202 @@ const autoAssignDoctor = async (specializationId, appointmentDate, appointmentTi
     return candidates[0].id;
 };
 
-// Create new appointment (External DB)
-exports.createAppointment = async (req, res) => {
-    const client = await pool.connect(); // Keep local connection for local child lookup
+/**
+ * Core logic to create an appointment across local and external databases.
+ * Handles both standard (registered) and guest (new) patients.
+ * Integrates with Google Calendar for teleconsultations.
+ */
+async function createAppointmentLogic(appointmentData, userId) {
+    const { pool } = require('../config/database');
+    const { externalQuery, externalPool } = require('../config/externalDatabase');
+
+    const client = await pool.connect();
     let externalClient = null;
 
     try {
-        const userId = req.user.id;
-        // Use req.user directly instead of querying local table
-        const user = req.user;
-
         const {
-            doctorId: requestedDoctorId,
             specializationId,
+            doctorId: requestedDoctorId,
             childId,
             appointmentDate,
             appointmentTime,
             reason,
             notes,
-            appointmentType = 'IN_PERSON' // Default to in-person
-        } = req.body;
+            appointmentType = 'IN_PERSON'
+        } = appointmentData;
 
-        // Validation - require either doctorId or specializationId
-        if ((!requestedDoctorId && !specializationId) || !appointmentDate || !appointmentTime || !childId) {
-            return res.status(400).json({
-                error: 'Specialization (or Doctor), Child, Date, and Time are required'
-            });
-        }
-
-        // Auto-assign doctor if specializationId provided
+        // 1. Resolve Doctor
         let doctorId = requestedDoctorId;
         if (!doctorId && specializationId) {
-            doctorId = await autoAssignDoctor(specializationId, appointmentDate, appointmentTime);
+            doctorId = await exports.autoAssignDoctor(specializationId, appointmentDate, appointmentTime);
         }
 
-        // Validate appointment type
-        const validTypes = ['IN_PERSON', 'TELECONSULT'];
-        if (!validTypes.includes(appointmentType)) {
-            return res.status(400).json({
-                error: 'Invalid appointment type. Must be IN_PERSON or TELECONSULT'
-            });
-        }
-
-        // 1. Resolve External Child ID
-        // Fetch local child first to get registration number
+        // 2. Resolve Child & External Registration
         const localChildCheck = await client.query(
             'SELECT registration_number, first_name, last_name, date_of_birth, gender FROM children WHERE id = $1 AND parent_id = $2',
             [childId, userId]
         );
 
         if (localChildCheck.rows.length === 0) {
-            return res.status(404).json({ error: 'Child not found or unauthorized' });
+            throw new Error('Child not found or unauthorized');
         }
 
-        let childRegNumber = localChildCheck.rows[0].registration_number;
         const localChild = localChildCheck.rows[0];
-        let childFullName = `${localChild.first_name} ${localChild.last_name}`;
+        let childRegNumber = localChild.registration_number;
+        const childFullName = `${localChild.first_name} ${localChild.last_name}`;
 
-        if (!user) return res.status(500).json({ error: 'User profile not found' });
+        // 3. Database Transaction (External)
+        externalClient = await externalPool.connect();
+        await externalClient.query('BEGIN');
 
-        // Helper to split display name
-        const getNames = (displayName) => {
-            const parts = (displayName || '').split(' ');
-            const first = parts[0] || 'Guest';
-            const last = parts.length > 1 ? parts.slice(1).join(' ') : 'Parent';
-            return { first, last };
-        };
+        let externalChildId;
+        let finalRegNumber = childRegNumber;
 
-        // GUEST FLOW Check:
-        // If child has NO registration number, we must perform the "Guest Booking Database Logic" transaction.
         if (!childRegNumber) {
-            console.log(`[Appointment] Child ${childId} has no reg number. Initiating Guest Booking Transaction.`);
+            // GUEST FLOW: Create Parent & Child in External DB
+            console.log(`[Logic] Guest flow for child ${childId}`);
 
-            // Strict Validation for Guest Booking: Parent MUST have a phone number
-            if (!user.phone_number || user.phone_number.trim() === '') {
-                return res.status(400).json({
-                    error: 'Phone number is required. Please update your profile in Settings.'
-                });
-            }
+            // Get User details
+            const userResult = await client.query('SELECT phone_number, email, display_name FROM users WHERE id = $1', [userId]);
+            const user = userResult.rows[0];
 
-            // --- BEGIN TRANSACTION ---
-            externalClient = await externalPool.connect();
-            await externalClient.query('BEGIN');
+            if (!user?.phone_number) throw new Error('Phone number required for booking');
 
-            try {
-                // Step A: Check or Create Parent (Table: parents)
-                console.log(`[Appointment] Checking parent: Phone=${user.phone_number}, Email=${user.email}`);
-
-                // Check: Does a parent with the given telephone OR email already exist?
-                // Using LOWER(email) to handle case-sensitivity issues
-                const parentCheck = await externalClient.query(
-                    'SELECT id FROM parents WHERE telephone = $1 OR LOWER(email) = LOWER($2)',
-                    [user.phone_number, user.email]
-                );
-
-                let externalParentId;
-                if (parentCheck.rows.length > 0) {
-                    externalParentId = parentCheck.rows[0].id;
-                    console.log(`[Appointment] Found existing parent ID: ${externalParentId}`);
-                } else {
-                    console.log(`[Appointment] Creating NEW parent record...`);
-                    const { first, last } = getNames(user.display_name);
-                    const fullnameJson = JSON.stringify({ first_name: first, last_name: last });
-
-                    // relationship_id: 1 (Default), gender_id: 2 (Female default - mapping simplified as requested)
-                    const insertParentQuery = `
-                        INSERT INTO parents (fullname, telephone, email, relationship_id, gender_id, created_at, updated_at)
-                        VALUES ($1, $2, $3, 1, 2, NOW(), NOW())
-                        RETURNING id
-                    `;
-                    const newParent = await externalClient.query(insertParentQuery, [fullnameJson, user.phone_number, user.email]);
-                    externalParentId = newParent.rows[0].id;
-                }
-
-                // Step B: Create Guest Child (Table: children)
-                // Format: GUEST-{timestamp}-{random}
-                const timestamp = Math.floor(Date.now() / 1000);
-                const random = Math.floor(1000 + Math.random() * 9000); // 4 digit random
-                const generatedRegNumber = `GUEST-${timestamp}-${random}`;
-                const childFullnameJson = JSON.stringify({ first_name: localChild.first_name, last_name: localChild.last_name });
-
-                // gender_id: 1 (Male), 2 (Female). Simple map:
-                const genderId = (localChild.gender || '').toLowerCase() === 'male' ? 1 : 2;
-
-                const insertChildQuery = `
-                    INSERT INTO children (fullname, dob, gender_id, registration_number, created_at, updated_at)
-                    VALUES ($1, $2, $3, $4, NOW(), NOW())
-                    RETURNING id
-                `;
-                const newChild = await externalClient.query(insertChildQuery, [
-                    childFullnameJson,
-                    localChild.date_of_birth,
-                    genderId,
-                    generatedRegNumber
-                ]);
-                const externalChildId = newChild.rows[0].id;
-
-                // Step C: Link Parent & Child (Table: child_parent)
-                await externalClient.query(
-                    'INSERT INTO child_parent (parent_id, child_id, created_at, updated_at) VALUES ($1, $2, NOW(), NOW())',
-                    [externalParentId, externalChildId]
-                );
-
-                // Step D: Create Appointment (Table: appointments)
-                const appointmentTitle = `[NEW PATIENT] ${childFullName}`;
-
-                // Calculate end time (1 hour duration)
-                const [hours, minutes] = appointmentTime.split(':').map(Number);
-                const endHour = hours + 1;
-                const endTime = `${endHour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-
-                const insertAppsQuery = `
-                    INSERT INTO appointments (
-                        appointment_title, appointment_date, start_time, end_time, 
-                        staff_id, doctor_id, child_id, status, created_at, updated_at
-                    )
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', NOW(), NOW())
-                    RETURNING *
-                `;
-
-                // staff_id: 1 (Default), doctor_id: from request
-                const appResult = await externalClient.query(insertAppsQuery, [
-                    appointmentTitle,
-                    appointmentDate,
-                    appointmentTime,
-                    endTime,
-                    1, // Default staff_id
-                    doctorId,
-                    externalChildId
-                ]);
-
-                // Step E: Update Local Child with Generated Registration Number
-                await externalClient.query('COMMIT');
-
-                // Update Local Child
-                await client.query(
-                    'UPDATE children SET registration_number = $1 WHERE id = $2',
-                    [generatedRegNumber, childId]
-                );
-
-                return res.status(201).json({
-                    message: 'Appointment request sent successfully',
-                    appointment: appResult.rows[0],
-                    child_registration_number: generatedRegNumber,
-                    details: 'This appointment is now pending approval via the clinic system.'
-                });
-
-            } catch (transactionError) {
-                await externalClient.query('ROLLBACK');
-                console.error('Guest booking transaction failed:', transactionError);
-                throw transactionError; // Re-throw to be caught by outer catch
-            } finally {
-                externalClient.release();
-            }
-
-        } else {
-            // STANDARD FLOW (Existing Logic simplified/adapted)
-            // Child ALREADY has a registration number => Use it to find external ID
-
-            // Lookup child in External DB using Registration Number
-            const externalChildCheck = await externalQuery(
-                'SELECT id, fullname FROM children WHERE registration_number = $1',
-                [childRegNumber]
+            // Find or Create Parent
+            const parentCheck = await externalClient.query(
+                'SELECT id FROM parents WHERE telephone = $1 OR (email IS NOT NULL AND LOWER(email) = LOWER($2))',
+                [user.phone_number, user.email]
             );
 
-            if (externalChildCheck.rows.length === 0) {
-                return res.status(404).json({
-                    error: `Child with Registration Number ${childRegNumber} not found in clinic system`
-                });
-            }
-            const externalChildId = externalChildCheck.rows[0].id;
-
-            // Generate Title
-            let appointmentTitle = childFullName;
-
-            // Check Conflicts
-            const conflictCheck = await externalQuery(`
-                SELECT * FROM appointments
-                WHERE (staff_id = $1 OR doctor_id = $1)
-                  AND appointment_date = $2 
-                  AND start_time = $3
-                  AND status != 'cancelled'
-            `, [doctorId, appointmentDate, appointmentTime]);
-
-            if (conflictCheck.rows.length > 0) {
-                return res.status(409).json({ error: 'This time slot is already booked.' });
+            let externalParentId;
+            if (parentCheck.rows.length > 0) {
+                externalParentId = parentCheck.rows[0].id;
+            } else {
+                const parts = (user.display_name || '').split(' ');
+                const first = parts[0] || 'Guest';
+                const last = parts.slice(1).join(' ') || 'Parent';
+                const fullname = JSON.stringify({ first_name: first, last_name: last });
+                const newParent = await externalClient.query(
+                    'INSERT INTO parents (fullname, telephone, email, relationship_id, gender_id, created_at, updated_at) VALUES ($1, $2, $3, 1, 2, NOW(), NOW()) RETURNING id',
+                    [fullname, user.phone_number, user.email]
+                );
+                externalParentId = newParent.rows[0].id;
             }
 
-            // Calculate End Time
-            const [hours, minutes] = appointmentTime.split(':').map(Number);
-            const endHour = hours + 1;
-            const endTime = `${endHour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+            // Create Child
+            const timestamp = Math.floor(Date.now() / 1000);
+            finalRegNumber = `GUEST-${timestamp}-${Math.floor(Math.random() * 9000)}`;
+            const childFullname = JSON.stringify({ first_name: localChild.first_name, last_name: localChild.last_name });
+            const genderId = (localChild.gender || '').toLowerCase() === 'female' ? 2 : 1;
 
-            // Insert Appointment
-            const insertQuery = `
-                INSERT INTO appointments (
-                    child_id, staff_id, doctor_id, 
-                    appointment_title, appointment_date, 
-                    start_time, end_time, status,
-                    appointment_type, 
-                    created_at, updated_at
-                )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, NOW(), NOW())
-                RETURNING *
-            `;
+            const newChild = await externalClient.query(
+                'INSERT INTO children (fullname, dob, gender_id, registration_number, created_at, updated_at) VALUES ($1, $2, $3, $4, NOW(), NOW()) RETURNING id',
+                [childFullname, localChild.date_of_birth, genderId, finalRegNumber]
+            );
+            externalChildId = newChild.rows[0].id;
 
-            const result = await externalQuery(insertQuery, [
-                externalChildId,        // $1
-                1,                      // $2 Staff ID (Default 1 if not known) - Or use doctorId? Report said "1 (Or ID of the staff creating it)"
-                doctorId,               // $3 Doctor ID
-                appointmentTitle,       // $4
-                appointmentDate,        // $5
-                appointmentTime,        // $6
-                endTime,                // $7
-                appointmentType         // $8
-            ]);
+            // Link them
+            await externalClient.query('INSERT INTO child_parent (parent_id, child_id, created_at, updated_at) VALUES ($1, $2, NOW(), NOW())', [externalParentId, externalChildId]);
 
-            return res.status(201).json({
-                message: 'Appointment request sent successfully',
-                appointment: result.rows[0],
-                details: 'This appointment is now pending approval via the clinic system.'
-            });
+            // Update local child later
+        } else {
+            // STANDARD FLOW: Lookup existing child
+            const extCheck = await externalClient.query('SELECT id FROM children WHERE registration_number = $1', [childRegNumber]);
+            if (extCheck.rows.length === 0) throw new Error(`Child registration ${childRegNumber} not found in clinic system`);
+            externalChildId = extCheck.rows[0].id;
         }
+
+        // 4. Check for Conflict
+        const conflict = await externalClient.query(
+            'SELECT id FROM appointments WHERE (staff_id = $1 OR doctor_id = $1) AND appointment_date = $2 AND start_time = $3 AND status != \'cancelled\'',
+            [doctorId, appointmentDate, appointmentTime]
+        );
+        if (conflict.rows.length > 0) throw new Error('Time slot already booked');
+
+        // 5. Create Appointment
+        const [hours, minutes] = appointmentTime.split(':').map(Number);
+        const endTimeStr = `${(hours + 1).toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+
+        const appResult = await externalClient.query(
+            `INSERT INTO appointments (
+                child_id, doctor_id, staff_id, appointment_title, 
+                appointment_date, start_time, end_time, status, appointment_type, 
+                created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, NOW(), NOW()) RETURNING *`,
+            [externalChildId, doctorId, 1, childFullName, appointmentDate, appointmentTime, endTimeStr, appointmentType]
+        );
+
+        const appointment = appResult.rows[0];
+
+        // 6. Google Calendar Integration for Teleconsults
+        if (appointmentType === 'TELECONSULT') {
+            try {
+                googleCalendarService.initialize();
+                if (googleCalendarService.isConfigured()) {
+                    const userResult = await client.query('SELECT email FROM users WHERE id = $1', [userId]);
+                    const userEmail = userResult.rows[0]?.email;
+
+                    const idempotencyKey = googleCalendarService.generateIdempotencyKey(childId, doctorId, appointmentDate, appointmentTime);
+                    const event = await googleCalendarService.createCalendarEvent({
+                        summary: `Teleconsultation: ${childFullName}`,
+                        description: `Teleconsultation booked via app. Reason: ${reason || 'N/A'}\nNotes: ${notes || 'N/A'}`,
+                        date: appointmentDate,
+                        startTime: appointmentTime,
+                        endTime: endTimeStr,
+                        attendees: userEmail ? [userEmail] : []
+                    }, idempotencyKey);
+
+                    if (event.meetLink) {
+                        // Update appointment with Meet link
+                        await externalClient.query(
+                            'UPDATE appointments SET google_meet_link = $1, google_calendar_event_id = $2, google_calendar_html_link = $3 WHERE id = $4',
+                            [event.meetLink, event.eventId, event.htmlLink, appointment.id]
+                        );
+                        appointment.google_meet_link = event.meetLink;
+                        appointment.google_calendar_event_id = event.eventId;
+                        appointment.google_calendar_html_link = event.htmlLink;
+                        console.log(`[Logic] Added Meet link: ${event.meetLink}`);
+                    }
+                }
+            } catch (calError) {
+                console.error('[Logic] Google Calendar failed:', calError.message);
+                // Don't fail the whole appointment if calendar fails, but the link will be missing.
+            }
+        }
+
+        await externalClient.query('COMMIT');
+
+        // Update local child reg number if it was a guest flow
+        if (!childRegNumber && finalRegNumber) {
+            await client.query('UPDATE children SET registration_number = $1 WHERE id = $2', [finalRegNumber, childId]);
+        }
+
+        return appointment;
 
     } catch (error) {
-        console.error('Error creating appointment:', error);
-        res.status(500).json({ error: 'Server error creating appointment', details: error.message });
+        if (externalClient) await externalClient.query('ROLLBACK');
+        console.error('[Logic] Error:', error);
+        throw error;
     } finally {
         client.release();
-        if (externalClient) {
-            // externalClient.release() was called in finally block above
-        }
+        if (externalClient) externalClient.release();
+    }
+}
+
+exports.createAppointmentLogic = createAppointmentLogic;
+
+// Create new appointment (External DB)
+exports.createAppointment = async (req, res) => {
+    try {
+        const appointment = await createAppointmentLogic(req.body, req.user.id);
+        res.status(201).json({
+            message: 'Appointment request sent successfully',
+            appointment,
+            details: 'This appointment is now pending approval via the clinic system.'
+        });
+    } catch (error) {
+        console.error('Error creating appointment:', error);
+        res.status(400).json({ error: error.message });
     }
 };
 
@@ -666,6 +591,8 @@ exports.getUserAppointments = async (req, res) => {
                 a.doctor_id,
                 a.appointment_type,
                 a.google_meet_link,
+                a.google_calendar_event_id,
+                a.google_calendar_html_link,
                 s.fullname as doctor_name,
                 ds.specialization as doctor_specialty,
                 s.email as doctor_email,
@@ -896,277 +823,34 @@ exports.deleteAppointment = async (req, res) => {
 
 // Create a guest appointment - writes directly to external database
 exports.createGuestAppointment = async (req, res) => {
-    // 1. Initialize DB Clients
-    const client = await pool.connect(); // LOCAL DB connection (for updating reg number)
-    let externalClient = null;           // EXTERNAL DB connection (for transaction)
-
     try {
         const {
-            parent_first_name,
-            parent_last_name,
-            parent_phone,
-            parent_email,
-            parent_gender,
-            child_first_name,
-            child_last_name,
-            child_dob,
-            child_gender,
-            local_child_id, // Get local ID from request
-            doctor_id: requested_doctor_id,
-            specialization_id,
-            appointment_date,
-            start_time,
-            end_time
+            child_first_name, child_last_name, child_dob, child_gender, local_child_id,
+            doctor_id, specialization_id, appointment_date, start_time, appointment_type
         } = req.body;
 
-        // Validate required fields
-        const errors = {};
-        if (!parent_first_name) errors.parent_first_name = ['Parent first name is required'];
-        if (!parent_last_name) errors.parent_last_name = ['Parent last name is required'];
-        if (!parent_phone) errors.parent_phone = ['Parent phone is required'];
-        if (!child_first_name) errors.child_first_name = ['Child first name is required'];
-        if (!child_last_name) errors.child_last_name = ['Child last name is required'];
-        if (!child_dob) errors.child_dob = ['Child date of birth is required'];
-        if (!child_gender) errors.child_gender = ['Child gender is required'];
-        if (!requested_doctor_id && !specialization_id) errors.doctor_id = ['Doctor or Specialization is required'];
-        if (!appointment_date) errors.appointment_date = ['Appointment date is required'];
-        if (!start_time) errors.start_time = ['Start time is required'];
-
-        if (Object.keys(errors).length > 0) {
-            return res.status(422).json({
-                success: false,
-                message: 'Validation failed',
-                errors
-            });
-        }
-
-        // Calculate end_time if not provided (1 hour default)
-        const finalEndTime = end_time || (() => {
-            const [hours, minutes] = start_time.split(':');
-            const endHour = (parseInt(hours) + 1).toString().padStart(2, '0');
-            return `${endHour}:${minutes}`;
-        })();
-
-        console.log('[GuestAppointment] Creating guest appointment via Direct DB Write (Strict Mode)');
-
-        // Auto-assign doctor if specialization_id provided
-        let doctor_id = requested_doctor_id;
-        if (!doctor_id && specialization_id) {
-            doctor_id = await autoAssignDoctor(specialization_id, appointment_date, start_time);
-        }
-
-        // Helper to get gender ID
-        const getGenderId = async (genderName) => {
-            if (!genderName) return 1; // Default to 1 (Male/Unknown) as per spec
-            try {
-                const res = await externalQuery('SELECT id FROM gender WHERE LOWER(gender) = LOWER($1)', [genderName]);
-                if (res.rows.length > 0) return res.rows[0].id;
-                const map = { 'male': 1, 'female': 2 };
-                return map[genderName.toLowerCase()] || 1;
-            } catch (e) {
-                console.error('Error fetching gender ID:', e);
-                return 1;
-            }
+        const appointmentData = {
+            doctorId: doctor_id,
+            specializationId: specialization_id,
+            childId: local_child_id,
+            appointmentDate: appointment_date,
+            appointmentTime: start_time,
+            appointmentType: appointment_type || 'IN_PERSON'
         };
 
-        const parentGenderId = await getGenderId(parent_gender);
-        const childGenderId = await getGenderId(child_gender);
+        const appointment = await createAppointmentLogic(appointmentData, req.user.id);
 
-        // Relationship ID: Set to 1 (System default for this flow)
-        const relationshipId = 1;
-
-        // --- BEGIN EXTERNAL TRANSACTION ---
-        externalClient = await externalPool.connect();
-        await externalClient.query('BEGIN');
-
-        try {
-            // Step A: Check or Create Parent
-            let parentId = null;
-            // Check by Phone OR Email (case-insensitive)
-            const parentCheck = await externalClient.query(
-                'SELECT id FROM parents WHERE telephone = $1 OR ($2::text IS NOT NULL AND LOWER(email) = LOWER($2))',
-                [parent_phone, parent_email]
-            );
-
-            if (parentCheck.rows.length > 0) {
-                parentId = parentCheck.rows[0].id;
-                console.log('[GuestAppointment] Found existing parent:', parentId);
-
-                // Update existing parent with latest details
-                // We update phone and email to ensure they are current
-                await externalClient.query(
-                    `UPDATE parents 
-                     SET telephone = $1, 
-                         email = COALESCE($2, email), 
-                         updated_at = NOW() 
-                     WHERE id = $3`,
-                    [parent_phone, parent_email, parentId]
-                );
-            } else {
-                const parentFullname = JSON.stringify({
-                    first_name: parent_first_name,
-                    middle_name: "",
-                    last_name: parent_last_name
-                });
-
-                const insertParentQuery = `
-                    INSERT INTO parents (fullname, telephone, email, gender_id, relationship_id, created_at, updated_at)
-                    VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-                    RETURNING id
-                `;
-
-                const newParent = await externalClient.query(insertParentQuery, [
-                    parentFullname,
-                    parent_phone,
-                    parent_email || null,
-                    parentGenderId,
-                    relationshipId
-                ]);
-                parentId = newParent.rows[0].id;
-                console.log('[GuestAppointment] Created new parent:', parentId);
+        res.status(201).json({
+            success: true,
+            message: 'Appointment booked successfully',
+            data: {
+                appointment_id: appointment.id,
+                child_id: appointment.child_id
             }
-
-            // Step B: Create Guest Child (Table: children)
-            // Always create a new child record for guest flow if it doesn't match exactly by name/dob/parent
-            // But logic says we should try to match first. 
-
-            // Check existing child for this parent
-            const childCheckQuery = `
-                SELECT c.id, c.registration_number
-                FROM children c
-                JOIN child_parent cp ON c.id = cp.child_id
-                WHERE cp.parent_id = $1 
-                AND c.dob = $2
-                AND c.fullname::jsonb->>'first_name' = $3
-                AND c.fullname::jsonb->>'last_name' = $4
-            `;
-
-            let childId = null;
-            let isNewChild = false;
-            let generatedRegNumber = null;
-
-            const existingChild = await externalClient.query(childCheckQuery, [
-                parentId,
-                child_dob,
-                child_first_name,
-                child_last_name
-            ]);
-
-            if (existingChild.rows.length > 0) {
-                childId = existingChild.rows[0].id;
-                generatedRegNumber = existingChild.rows[0].registration_number;
-                console.log('[GuestAppointment] Found existing child match:', childId);
-            } else {
-                // Create New Child
-                // Format: GUEST-{timestamp}-{random}
-                const timestamp = Math.floor(Date.now() / 1000);
-                const random = Math.floor(1000 + Math.random() * 9000);
-                generatedRegNumber = `GUEST-${timestamp}-${random}`;
-
-                const childFullnameJson = JSON.stringify({
-                    first_name: child_first_name,
-                    middle_name: "",
-                    last_name: child_last_name
-                });
-
-                const insertChildQuery = `
-                    INSERT INTO children (fullname, dob, gender_id, registration_number, insurance_provider_id, insurance_number, created_at, updated_at)
-                    VALUES ($1, $2, $3, $4, NULL, NULL, NOW(), NOW())
-                    RETURNING id
-                `;
-
-                const newChild = await externalClient.query(insertChildQuery, [
-                    childFullnameJson,
-                    child_dob,
-                    childGenderId,
-                    generatedRegNumber
-                ]);
-                childId = newChild.rows[0].id;
-                isNewChild = true;
-                console.log('[GuestAppointment] Created new child:', childId, 'with reg:', generatedRegNumber);
-            }
-
-            // Step C: Link Parent & Child
-            if (isNewChild) {
-                const linkQuerySimple = `
-                    INSERT INTO child_parent (parent_id, child_id, created_at, updated_at)
-                    VALUES ($1, $2, NOW(), NOW())
-                `;
-                await externalClient.query(linkQuerySimple, [parentId, childId]);
-            }
-
-            // Step D: Create Appointment
-            const appointmentTitle = `[NEW PATIENT] ${child_first_name} ${child_last_name}`;
-
-            const insertAppointmentQuery = `
-                INSERT INTO appointments (
-                    child_id, doctor_id, staff_id,
-                    appointment_title, appointment_date,
-                    start_time, end_time,
-                    status, appointment_type,
-                    created_at, updated_at
-                )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', 'IN_PERSON', NOW(), NOW())
-                RETURNING *
-            `;
-
-            const appointmentResult = await externalClient.query(insertAppointmentQuery, [
-                childId,
-                doctor_id,
-                1, // staff_id default
-                appointmentTitle,
-                appointment_date,
-                start_time,
-                finalEndTime
-            ]);
-
-            const appointmentId = appointmentResult.rows[0].id;
-
-            // COMMIT TRANSACTION
-            await externalClient.query('COMMIT');
-            console.log('[GuestAppointment] External Transaction Committed.');
-
-            // Step E: Update Local DB Child Record (if local_child_id provided)
-            // This ensures the local app sees the new GUEST registration number
-            if (local_child_id && generatedRegNumber) {
-                try {
-                    console.log(`[GuestAppointment] Updating local child ${local_child_id} with reg: ${generatedRegNumber}`);
-                    await client.query(
-                        'UPDATE children SET registration_number = $1 WHERE id = $2',
-                        [generatedRegNumber, local_child_id]
-                    );
-                } catch (localError) {
-                    console.error('[GuestAppointment] Failed to update local child record:', localError);
-                    // We don't fail the request because the appointment is booked, but we log the error.
-                }
-            }
-
-            res.status(201).json({
-                success: true,
-                message: 'Appointment booked successfully',
-                data: {
-                    appointment_id: appointmentId,
-                    child_id: childId,
-                    registration_number: generatedRegNumber
-                }
-            });
-
-        } catch (transactionError) {
-            await externalClient.query('ROLLBACK');
-            throw transactionError;
-        }
-
+        });
     } catch (error) {
         console.error('Error creating guest appointment:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Server error creating guest appointment',
-            message: error.message
-        });
-    } finally {
-        client.release(); // Release LOCAL connection
-        if (externalClient) {
-            externalClient.release(); // Release EXTERNAL connection
-        }
+        res.status(400).json({ success: false, error: error.message });
     }
 };
+

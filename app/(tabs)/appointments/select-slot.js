@@ -22,6 +22,7 @@ import { SafeHeader } from '@/components/SafeHeader';
 import { CustomLoading } from '@/components/CustomLoading';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import appointmentService from '@/services/appointmentService';
+import mpesaService from '@/services/mpesaService';
 
 
 export default function SelectSlotScreen() {
@@ -45,6 +46,8 @@ export default function SelectSlotScreen() {
     const [reason, setReason] = useState('');
     const [notes, setNotes] = useState('');
     const [booking, setBooking] = useState(false);
+    const [processingPayment, setProcessingPayment] = useState(false);
+    const [isPolling, setIsPolling] = useState(false);
 
 
     const [appointmentType, setAppointmentType] = useState('IN_PERSON');
@@ -202,8 +205,76 @@ export default function SelectSlotScreen() {
             appointmentType: appointmentType,
         };
 
+        // TELECONSULTATION PAY & BOOK FLOW
+        if (appointmentType === 'TELECONSULT') {
+            const phone = user?.phoneNumber || parentPhone;
+            if (!phone) {
+                Alert.alert('Phone Number Required', 'Please provide a phone number in your profile to use M-Pesa.');
+                return;
+            }
 
+            try {
+                setBooking(true);
+                setProcessingPayment(true);
 
+                // 1. Initiate Payment
+                const amount = 1000; // Fixed fee for teleconsultation
+                const paymentResponse = await mpesaService.initiateAppointmentPayment(
+                    phone,
+                    amount,
+                    {
+                        child_id: selectedChild?.id,
+                        doctor_id: 0, // Assigned automatically
+                        appointment_date: selectedDate,
+                        appointment_time: selectedTime,
+                        appointment_type: 'TELECONSULT',
+                        reason: reason,
+                        notes: notes
+                    }
+                );
+
+                console.log('Payment Initiated:', paymentResponse);
+                setProcessingPayment(false);
+                setIsPolling(true);
+
+                // 2. Poll for payment status
+                mpesaService.pollPaymentStatus(
+                    paymentResponse.checkout_request_id,
+                    async (statusData) => {
+                        // On Success: Navigate to confirmation
+                        setIsPolling(false);
+                        setBooking(false);
+
+                        router.push({
+                            pathname: '/appointments/confirmation',
+                            params: {
+                                doctorName: 'Assigned automatically',
+                                specialty: specialization.name,
+                                date: selectedDate,
+                                time: selectedTime,
+                                appointmentType: appointmentType,
+                                meetLink: statusData.google_meet_link || 'Link will be sent via SMS',
+                                appointmentId: statusData.appointment_id || '',
+                            }
+                        });
+                        showAlert('Success', `Payment successful (Receipt: ${statusData.mpesa_receipt_number}). Appointment booked!`, [], 'success');
+                    },
+                    (failureReason) => {
+                        // On Failure
+                        setIsPolling(false);
+                        setBooking(false);
+                        Alert.alert('Payment Failed', failureReason);
+                    }
+                );
+            } catch (error) {
+                setBooking(false);
+                setProcessingPayment(false);
+                Alert.alert('Payment Error', error.message || 'Failed to initiate payment');
+            }
+            return;
+        }
+
+        // IN-PERSON BOOKING FLOW
         try {
             setBooking(true);
             const response = await appointmentService.createAppointment(appointmentData);
@@ -634,7 +705,7 @@ export default function SelectSlotScreen() {
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                                     <CustomLoading size={20} color="#FFFFFF" />
                                     <Text style={styles.bookButtonText}>
-                                        {processingPayment ? 'Processing Payment...' : 'Booking Appointment...'}
+                                        {isPolling ? 'Waiting for M-Pesa...' : processingPayment ? 'Processing Payment...' : 'Booking Appointment...'}
                                     </Text>
                                 </View>
                             ) : (

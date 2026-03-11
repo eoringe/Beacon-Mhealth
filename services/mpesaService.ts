@@ -74,7 +74,7 @@ export const mpesaService = {
 
     pollPaymentStatus: (
         checkoutRequestId: string,
-        onSuccess: (receipt: string) => void,
+        onSuccess: (status: any) => void,
         onFailure: (reason: string) => void
     ) => {
         let attempts = 0;
@@ -89,7 +89,7 @@ export const mpesaService = {
 
                 if (status.status === 'completed') {
                     clearInterval(interval);
-                    onSuccess(status.mpesa_receipt_number);
+                    onSuccess(status);
                 } else if (status.status === 'failed' || status.status === 'cancelled') {
                     clearInterval(interval);
                     onFailure(status.result_desc || 'Payment failed');

@@ -451,23 +451,47 @@ export default function AppointmentsScreen() {
                                 </TouchableOpacity>
                             )}
 
-                            {/* Appointment Type Badge (Informational) */}
+                            {/* Appointment Type Badge */}
                             <View style={[
                                 styles.typeBadge,
-                                { backgroundColor: colorScheme.surfaceVariant, marginTop: 12, alignSelf: 'flex-start' }
+                                { backgroundColor: appointment.appointment_type === 'TELECONSULT' ? `${colorScheme.info}15` : `${colorScheme.success}15`, marginTop: 12, alignSelf: 'flex-start' }
                             ]}>
                                 <MaterialIcons
-                                    name="person"
+                                    name={appointment.appointment_type === 'TELECONSULT' ? "video-call" : "person"}
                                     size={14}
-                                    color={colorScheme.textSecondary}
+                                    color={appointment.appointment_type === 'TELECONSULT' ? colorScheme.info : colorScheme.success}
                                 />
                                 <Text style={[
                                     styles.typeText,
-                                    { color: colorScheme.textSecondary, marginLeft: 4 }
+                                    { color: appointment.appointment_type === 'TELECONSULT' ? colorScheme.info : colorScheme.success, marginLeft: 4 }
                                 ]}>
-                                    In-Person
+                                    {appointment.appointment_type === 'TELECONSULT' ? 'Teleconsultation' : 'In-Person'}
                                 </Text>
                             </View>
+
+                            {/* Teleconsultation Links */}
+                            {appointment.appointment_type === 'TELECONSULT' && (
+                                <View style={styles.linkActions}>
+                                    {appointment.google_meet_link && (
+                                        <TouchableOpacity
+                                            style={[styles.linkButton, { backgroundColor: `${colorScheme.primary}10` }]}
+                                            onPress={() => Linking.openURL(appointment.google_meet_link)}
+                                        >
+                                            <MaterialIcons name="videocam" size={18} color={colorScheme.primary} />
+                                            <Text style={[styles.linkButtonText, { color: colorScheme.primary }]}>Join Meeting</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                    {appointment.google_calendar_html_link && (
+                                        <TouchableOpacity
+                                            style={[styles.linkButton, { backgroundColor: `${colorScheme.info}10` }]}
+                                            onPress={() => Linking.openURL(appointment.google_calendar_html_link)}
+                                        >
+                                            <MaterialIcons name="calendar-today" size={16} color={colorScheme.info} />
+                                            <Text style={[styles.linkButtonText, { color: colorScheme.info }]}>Google Calendar</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+                            )}
                         </View>
 
 
@@ -812,5 +836,22 @@ const styles = StyleSheet.create({
         fontSize: Typography.fontSize.sm,
         fontWeight: Typography.fontWeight.semibold,
         color: '#FFFFFF',
+    },
+    linkActions: {
+        flexDirection: 'row',
+        gap: Spacing.sm,
+        marginTop: Spacing.md,
+    },
+    linkButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: BorderRadius.md,
+        gap: 6,
+    },
+    linkButtonText: {
+        fontSize: 13,
+        fontWeight: '600',
     },
 });

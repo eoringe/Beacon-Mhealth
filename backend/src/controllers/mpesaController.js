@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { pool } = require('../config/database');
+const { externalQuery, externalPool } = require('../config/externalDatabase');
 const appointmentController = require('./appointmentController');
 
 // Helper to get access token
@@ -232,26 +233,27 @@ exports.checkStatus = async (req, res) => {
         // I'll add a quick robust lookup:
 
         if (transaction.status === 'completed') {
-            // Try to find the appointment matching the details
-            const apptData = transaction.appointment_data;
-            // Search external DB for matching appointment
-            // We can't easily query external DB here without importing `externalQuery` or `pool`.
-            // But let's assume if it's completed, the appointment IS created.
+            try {
+                const apptData = transaction.appointment_data;
+                // apptData.child_id is the LOCAL ID. We need to find the appointment in EXTERNAL DB.
+                // We can find it by date, time and the child's registration number (which we can link via local ID)
+                const apptResult = await externalQuery(
+                    `SELECT a.id, a.google_meet_link 
+                     FROM appointments a
+                     JOIN children c ON a.child_id = c.id
+                     WHERE c.registration_number = (SELECT registration_number FROM children WHERE id = $1)
+                     AND a.appointment_date = $2 AND a.start_time = $3
+                     ORDER BY a.created_at DESC LIMIT 1`,
+                    [apptData.child_id, apptData.appointment_date, apptData.appointment_time]
+                );
 
-            // Ideally we should update the Transaction with appointment_id when creating it.
-            // I'll assume for now we just return reference_id if that was the appt id (but it's 0 for new).
-
-            // Let's add appointment_id to the schema strictly speaking?
-            // Or just ignore for now and let the frontend just navigate to 'Appointments' list?
-            // The prompt usage says: navigation.navigate('AppointmentDetails', { id: appointmentId });
-            // So we NEED appointment_id.
-
-            // I will modify the Mock/Callback to update a 'result_desc' or similar with the ID if I can't change schema now.
-            // OR I can use the new appointment logic response if I capture it.
-
-            // NOTE: Since I can't easily change schema on the fly without another migration file, 
-            // I'll skip returning appointment_id for now unless I can infer it.
-            // Actually, I can query the appointments table for the child+date+time.
+                if (apptResult.rows.length > 0) {
+                    response.appointment_id = apptResult.rows[0].id;
+                    response.google_meet_link = apptResult.rows[0].google_meet_link;
+                }
+            } catch (err) {
+                console.error('Error fetching appointment details for status:', err);
+            }
         }
 
         res.json(response);
