@@ -89,7 +89,32 @@ export default function SelectSlotScreen() {
                 Alert.alert('Unavailable', data.reason || 'No slots available for this date');
                 setAvailableSlots([]);
             } else {
-                setAvailableSlots(data.slots || []);
+                let slots = data.slots || [];
+
+                // Filter out past times if the selected date is today
+                const today = new Date();
+                const year = today.getFullYear();
+                const month = String(today.getMonth() + 1).padStart(2, '0');
+                const day = String(today.getDate()).padStart(2, '0');
+                const localDateStr = `${year}-${month}-${day}`;
+
+                if (selectedDate === localDateStr) {
+                    const currentHour = today.getHours();
+                    const currentMinute = today.getMinutes();
+
+                    slots = slots.filter(timeString => {
+                        // Slots are expected to be in "HH:MM" format (24-hour)
+                        const [slotHourStr, slotMinuteStr] = timeString.split(':');
+                        const slotHour = parseInt(slotHourStr, 10);
+                        const slotMinute = parseInt(slotMinuteStr, 10);
+
+                        if (slotHour > currentHour) return true;
+                        if (slotHour === currentHour && slotMinute > currentMinute) return true;
+                        return false;
+                    });
+                }
+
+                setAvailableSlots(slots);
             }
         } catch (error) {
             Alert.alert('Error', 'Failed to check availability. Please try again.');
@@ -437,9 +462,15 @@ export default function SelectSlotScreen() {
                                     [selectedDate]: {
                                         selected: true,
                                         selectedColor: colorScheme.primary,
-                                    },
+                                    }
                                 }}
-                                minDate={new Date().toISOString().split('T')[0]}
+                                minDate={(() => {
+                                    const today = new Date();
+                                    const year = today.getFullYear();
+                                    const month = String(today.getMonth() + 1).padStart(2, '0');
+                                    const day = String(today.getDate()).padStart(2, '0');
+                                    return `${year}-${month}-${day}`;
+                                })()}
                                 dayComponent={({ date, state }) => {
                                     const isDisabled = isWeekend(date.dateString) || state === 'disabled';
                                     return (

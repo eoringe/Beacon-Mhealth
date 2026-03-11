@@ -11,7 +11,7 @@ export default function DashboardLayout() {
             animation: 'slide_from_right'
         }}>
             <Stack.Screen name="index" />
-            <Stack.Screen name="teleconsultation" />
+
             <Stack.Screen name="growth-chart" />
             <Stack.Screen name="vaccinations" />
             <Stack.Screen name="milestone-checklist" />
