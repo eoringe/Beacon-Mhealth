@@ -238,7 +238,7 @@ exports.checkStatus = async (req, res) => {
                 // apptData.child_id is the LOCAL ID. We need to find the appointment in EXTERNAL DB.
                 // We can find it by date, time and the child's registration number (which we can link via local ID)
                 const apptResult = await externalQuery(
-                    `SELECT a.id, a.google_meet_link 
+                    `SELECT a.id, a.google_meet_link, a.appointment_type 
                      FROM appointments a
                      JOIN children c ON a.child_id = c.id
                      WHERE c.registration_number = (SELECT registration_number FROM children WHERE id = $1)
@@ -250,6 +250,7 @@ exports.checkStatus = async (req, res) => {
                 if (apptResult.rows.length > 0) {
                     response.appointment_id = apptResult.rows[0].id;
                     response.google_meet_link = apptResult.rows[0].google_meet_link;
+                    response.appointment_type = apptResult.rows[0].appointment_type;
                 }
             } catch (err) {
                 console.error('Error fetching appointment details for status:', err);
@@ -332,12 +333,11 @@ exports.callback = async (req, res) => {
 
                 if (userId) {
                     try {
+                        // Ensure we use the correct appointment logic
                         const result = await appointmentController.createAppointmentLogic(apptData, userId);
                         console.log('Appointment created via Callback:', result);
-                        // Ideally store appointment_id in mpesa_transactions here if we had the column
                     } catch (err) {
                         console.error('Failed to create appointment after payment:', err);
-                        // Log this critical error! Payment taken, service not given.
                     }
                 }
 
