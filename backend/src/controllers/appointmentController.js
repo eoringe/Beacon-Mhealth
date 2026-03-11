@@ -47,6 +47,25 @@ const isPastTime = (dateStr, timeStr) => {
     return false;
 };
 
+// Helper: Check if doctor is unavailable on a specific date (external doctor_unavailabilities table)
+const isDoctorUnavailableOnDate = async (doctorId, date) => {
+    try {
+        const result = await externalQuery(
+            `SELECT reason FROM doctor_unavailabilities 
+             WHERE staff_id = $1 AND unavailable_date::date = $2::date`,
+            [doctorId, date]
+        );
+
+        if (result.rows.length > 0) {
+            return { unavailable: true, reason: result.rows[0].reason || 'Doctor is unavailable on this date' };
+        }
+        return { unavailable: false, reason: null };
+    } catch (error) {
+        console.error(`Error checking unavailability for doctor ${doctorId}:`, error);
+        return { unavailable: false, reason: null }; // Default to available on error to prevent total block
+    }
+};
+
 // Get all available doctors
 exports.getAvailableDoctors = async (req, res) => {
     const client = await pool.connect();
@@ -81,6 +100,16 @@ exports.getDoctorAvailability = async (req, res) => {
         // Check if date is weekend
         if (isWeekend(date)) {
             return res.json({ available: false, reason: 'Weekends are not available', slots: [] });
+        }
+
+        // Check for doctor unavailability
+        const unavailability = await isDoctorUnavailableOnDate(doctorId, date);
+        if (unavailability.unavailable) {
+            return res.json({
+                available: false,
+                reason: unavailability.reason,
+                slots: []
+            });
         }
 
         // Check if doctor exists in external DB (using staff table)
@@ -167,6 +196,10 @@ exports.getSpecializationAvailability = async (req, res) => {
 
         // For each doctor, find their available slots
         for (const docId of doctorIds) {
+            // Check for doctor unavailability
+            const unavailability = await isDoctorUnavailableOnDate(docId, date);
+            if (unavailability.unavailable) continue;
+
             // Check daily limit
             const dailyCount = await externalQuery(
                 `SELECT COUNT(*) as count FROM appointments WHERE staff_id = $1 AND appointment_date = $2`,
@@ -224,6 +257,13 @@ const autoAssignDoctor = async (specializationId, appointmentDate, appointmentTi
     // For each doctor, check if the slot is free and count their daily appointments
     const candidates = [];
     for (const doc of doctorsResult.rows) {
+        // Check for doctor unavailability
+        const unavailability = await isDoctorUnavailableOnDate(doc.id, appointmentDate);
+        if (unavailability.unavailable) {
+            console.log(`[AutoAssign] Skipping doctor ${doc.id} - Marked as unavailable: ${unavailability.reason}`);
+            continue;
+        }
+
         // Check daily limit
         const dailyCount = await externalQuery(
             `SELECT COUNT(*) as count FROM appointments WHERE staff_id = $1 AND appointment_date = $2`,
