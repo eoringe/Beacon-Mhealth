@@ -90,6 +90,13 @@ function TabLayoutInner() {
               return;
             }
 
+            // Special handling for the profile tab to ensure it always resets to root
+            if (route.name === 'profile') {
+              e.preventDefault();
+              router.replace('/profile');
+              return;
+            }
+
             // Only reset when pressing a tab that has nested screens
             const state = navigation.getState();
             const currentTabState = state.routes.find((r: any) => r.name === route.name)?.state;
