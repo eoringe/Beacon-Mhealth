@@ -125,6 +125,35 @@ class AppointmentService {
         }
     }
 
+    // Get available time slots for a specialization on a specific date (pools all doctors)
+    async getSpecializationAvailability(specializationId, date) {
+        try {
+            const token = await this.getToken();
+            if (!token) throw new Error('No authentication token');
+
+            const response = await fetch(
+                `${API_URL}/appointments/specializations/${specializationId}/availability?date=${date}`,
+                {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                }
+            );
+
+            if (!response.ok) {
+                const text = await response.text();
+                console.error(`Fetch specialization availability failed: ${response.status} ${text}`);
+                throw new Error(`Failed to fetch availability: ${response.status}`);
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('Error fetching specialization availability:', error);
+            throw error;
+        }
+    }
+
     // Create a new appointment
     async createAppointment(appointmentData) {
         try {

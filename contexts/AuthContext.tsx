@@ -58,6 +58,7 @@ interface AuthContextType {
     forgotPassword: (email: string) => Promise<{ success: boolean; message: string }>;
     changePassword: (newPassword: string) => Promise<{ success: boolean; message: string }>;
     deleteAccount: () => Promise<{ success: boolean; message: string }>;
+    refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -467,6 +468,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
     };
 
+    // Refresh user profile from backend (call after profile updates)
+    const refreshProfile = async () => {
+        try {
+            if (!auth.currentUser) return;
+            const profileData = await authService.getProfile();
+            const backendUser = profileData?.user;
+            if (backendUser) {
+                const mergedUser = {
+                    ...auth.currentUser,
+                    displayName: backendUser.display_name || auth.currentUser.displayName,
+                    photoURL: backendUser.photo_url || auth.currentUser.photoURL,
+                    phoneNumber: backendUser.phone_number || auth.currentUser.phoneNumber,
+                    dbId: backendUser.id,
+                    firstName: backendUser.first_name,
+                    lastName: backendUser.last_name
+                };
+                setUser(mergedUser as User);
+            }
+        } catch (e) {
+            console.error('Failed to refresh profile:', e);
+        }
+    };
+
     const value: AuthContextType = {
         user,
         loading,
@@ -480,7 +504,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         resendVerificationEmail,
         forgotPassword,
         changePassword,
-        deleteAccount
+        deleteAccount,
+        refreshProfile
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

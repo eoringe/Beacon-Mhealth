@@ -122,12 +122,12 @@ export default function AppointmentConfirmationScreen() {
                                 <Text
                                     style={[styles.summaryLabel, { color: colorScheme.textSecondary }]}
                                 >
-                                    Doctor
+                                    Specialization
                                 </Text>
                                 <Text
                                     style={[styles.summaryValue, { color: colorScheme.textPrimary }]}
                                 >
-                                    {doctorName || 'Doctor'}
+                                    {specialty || 'Specialist'}
                                 </Text>
                                 <Text
                                     style={[
@@ -135,7 +135,7 @@ export default function AppointmentConfirmationScreen() {
                                         { color: colorScheme.textTertiary },
                                     ]}
                                 >
-                                    {specialty || 'Specialist'}
+                                    {doctorName && doctorName !== 'Assigned automatically' ? doctorName : 'A doctor will be assigned to you'}
                                 </Text>
                             </View>
                         </View>

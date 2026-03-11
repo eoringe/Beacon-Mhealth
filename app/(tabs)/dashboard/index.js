@@ -207,8 +207,11 @@ export default function DashboardScreen() {
             const allResponses = await milestoneService.getAllMilestoneResponsesForChild(selectedChild.id);
             if (!allResponses || allResponses.length === 0) { setMilestoneConcern(false); setMilestoneProgress(totalMilestones > 0 ? 0 : null); return; }
 
+            // Filter responses to ONLY the current age we are tracking, otherwise achieved counts past ages too
+            const currentAgeResponses = allResponses.filter(r => Number(r.age_months) === childAge);
+
             let achieved = 0, hasConcern = false;
-            for (const cat of allResponses) {
+            for (const cat of currentAgeResponses) {
                 const r = cat.responses;
                 const t = Object.keys(r).length, y = Object.values(r).filter(v => v === 'yes').length;
                 achieved += y;
@@ -216,7 +219,7 @@ export default function DashboardScreen() {
             }
             setMilestoneConcern(hasConcern);
             // Percentage = yes answers / total milestones for this age across all categories
-            setMilestoneProgress(totalMilestones > 0 ? Math.round((achieved / totalMilestones) * 100) : null);
+            setMilestoneProgress(totalMilestones > 0 ? Math.min(100, Math.round((achieved / totalMilestones) * 100)) : null);
         } catch (e) { console.error(e); setMilestoneConcern(false); setMilestoneProgress(null); }
     }, [selectedChild?.id]);
 
@@ -299,7 +302,7 @@ export default function DashboardScreen() {
                             <View style={styles.warningTextWrap}>
                                 <Text style={[styles.warningTitle, { color: colorScheme.textPrimary }]}>Developmental Concern</Text>
                                 <Text style={[styles.warningMsg, { color: colorScheme.textSecondary }]}>
-                                    {selectedChild.first_name} has achieved less than half of expected milestones.
+                                    {selectedChild.first_name} could benefit from extra support in certain areas; we recommend scheduling an evaluation.
                                 </Text>
                             </View>
                         </View>

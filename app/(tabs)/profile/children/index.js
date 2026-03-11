@@ -1,11 +1,12 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
     StyleSheet,
     TouchableOpacity,
     FlatList,
-    Alert
+    Alert,
+    ActivityIndicator
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,17 +23,21 @@ export default function ChildrenListScreen() {
     const { colorScheme, isDark } = useTheme();
     const { children, loading, selectChild, selectedChild, refreshChildren, deleteChild } = useChild();
     const { showAlert } = useAlert();
+    const [selectingId, setSelectingId] = useState(null);
 
     useEffect(() => {
         refreshChildren();
     }, []);
 
-    const handleSelectChild = async (child) => {
-        await selectChild(child);
-        // Feedback is nice but optional if we see the checkmark immediately
-        // showAlert('Success', `${child.first_name} is now the active child`, [], 'success');
-        // Actually, user wants to just select. I'll add a small toast or just relying on visual checkmark is better for speed.
-        // User said "just changes the active child". Visual feedback (checkmark) is already there.
+    const handleSelectChild = (child) => {
+        setSelectingId(child.id);
+
+        // Defer context update and navigation so the spinner renders instantly,
+        // and use replace instead of push for a smoother cross-tab transition.
+        setTimeout(async () => {
+            await selectChild(child);
+            router.replace('/');
+        }, 50);
     };
 
     const handleViewProfile = async (child) => {
@@ -91,11 +96,13 @@ export default function ChildrenListScreen() {
         <View style={[
             styles.childCard,
             { backgroundColor: colorScheme.surface, borderColor: isDark ? colorScheme.border : '#000000' },
-            selectedChild?.id === item.id && { borderColor: colorScheme.primary }
+            selectedChild?.id === item.id && { borderColor: colorScheme.primary },
+            selectingId === item.id && { opacity: 0.7 }
         ]}>
             <TouchableOpacity
                 style={styles.childContent}
                 onPress={() => handleSelectChild(item)}
+                disabled={selectingId !== null}
             >
                 <View style={[styles.avatarContainer, { backgroundColor: `${colorScheme.primary}20` }]}>
                     <MaterialIcons
@@ -118,7 +125,9 @@ export default function ChildrenListScreen() {
                         {calculateAge(item.date_of_birth)} • {item.gender}
                     </Text>
                 </View>
-                {selectedChild?.id === item.id && (
+                {selectingId === item.id ? (
+                    <ActivityIndicator color={colorScheme.primary} size="small" />
+                ) : selectedChild?.id === item.id && (
                     <MaterialIcons name="check-circle" size={24} color={colorScheme.primary} />
                 )}
             </TouchableOpacity>

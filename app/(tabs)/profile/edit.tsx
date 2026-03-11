@@ -1,38 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAlert } from '@/contexts/AlertContext';
 import { SafeHeader } from '@/components/SafeHeader';
 import { Spacing, Typography, BorderRadius, Colors } from '@/constants/theme';
 import { updateProfile } from 'firebase/auth';
 import { auth } from '@/config/firebase';
+import authService from '@/services/authService';
 
 export default function EditProfileScreen() {
     const router = useRouter();
-    const { user } = useAuth();
+    const { user, refreshProfile } = useAuth();
     const { colorScheme } = useTheme();
+    const { showAlert } = useAlert();
 
     const [displayName, setDisplayName] = useState(user?.displayName || '');
     const [phoneNumber, setPhoneNumber] = useState(user?.phoneNumber || '');
     const [loading, setLoading] = useState(false);
     const [initialLoading, setInitialLoading] = useState(true);
 
-    // Load full profile from backend on mount to get phone number if not in Firebase
+    // Load full profile from backend on mount to get phone number
     useEffect(() => {
         const loadProfile = async () => {
             try {
-                // We use authService to get the full profile including phone_number from DB
-                // Assuming authService.getProfile exists and works.
-                // If not, we might need to rely only on what we have or implement getProfile in service.
-                // Check authService content... yes getProfile exists.
-                const authService = require('@/services/authService').default; // Dynamic import to avoid cycles if any? Or standard import.
-                // Actually standard import at top is better. But let's assume standard import.
-
                 const profile = await authService.getProfile();
                 if (profile && profile.user) {
                     if (profile.user.phone_number) setPhoneNumber(profile.user.phone_number);
-                    // Also sync display name if different? Maybe.
+                    if (profile.user.display_name) setDisplayName(profile.user.display_name);
                 }
             } catch (e) {
                 console.log('Failed to load backend profile details', e);
@@ -45,7 +41,7 @@ export default function EditProfileScreen() {
 
     const handleSave = async () => {
         if (!displayName.trim()) {
-            Alert.alert('Error', 'Name cannot be empty');
+            showAlert('Error', 'Name cannot be empty', [], 'error');
             return;
         }
 
@@ -59,18 +55,19 @@ export default function EditProfileScreen() {
             }
 
             // 2. Update Backend Profile (Phone Number & Name syncing)
-            const authService = require('@/services/authService').default;
             await authService.updateProfile({
                 displayName,
                 phoneNumber
             });
 
-            Alert.alert('Success', 'Profile updated successfully', [
-                { text: 'OK', onPress: () => router.back() }
-            ]);
-        } catch (error) {
+            // 3. Refresh the AuthContext user object with updated backend data
+            // This ensures all screens (including booking) see the new phone number
+            await refreshProfile();
+
+            showAlert('Success', 'Profile updated successfully', [], 'success');
+        } catch (error: any) {
             console.error(error);
-            Alert.alert('Error', 'Failed to update profile: ' + error.message);
+            showAlert('Error', 'Failed to update profile: ' + (error?.message || 'Unknown error'), [], 'error');
         } finally {
             setLoading(false);
         }

@@ -16,6 +16,9 @@ router.get('/specializations', doctorController.getSpecializations);
 // Get doctor availability for a specific date (Local Logic for now, but should eventually use external schedules)
 router.get('/doctors/:doctorId/availability', appointmentController.getDoctorAvailability);
 
+// Get availability for a specialization (pools all doctors in that specialization)
+router.get('/specializations/:specializationId/availability', appointmentController.getSpecializationAvailability);
+
 // Create a new appointment
 router.post('/', appointmentController.createAppointment);
 

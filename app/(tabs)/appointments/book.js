@@ -6,43 +6,66 @@ import {
     ScrollView,
     TouchableOpacity,
     Alert,
-    Image,
     RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import Animated, { FadeIn, FadeOut, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTheme } from '@/contexts/ThemeContext';
 import { SafeHeader } from '@/components/SafeHeader';
 import { LoadingScreen } from '@/components/LoadingComponents';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import appointmentService from '@/services/appointmentService';
 
+// Map specialization names to icons
+const SPECIALIZATION_ICONS = {
+    'General': 'local-hospital',
+    'Pediatrics': 'child-care',
+    'Dermatology': 'healing',
+    'Dentistry': 'mood',
+    'Cardiology': 'favorite',
+    'Neurology': 'psychology',
+    'Orthopedics': 'accessibility-new',
+    'ENT': 'hearing',
+    'Ophthalmology': 'visibility',
+    'Nutrition': 'restaurant',
+    'Physiotherapy': 'fitness-center',
+    'Speech Therapy': 'record-voice-over',
+    'Occupational Therapy': 'sports-handball',
+};
+
+const getSpecializationIcon = (name) => {
+    if (!name) return 'medical-services';
+    for (const [key, icon] of Object.entries(SPECIALIZATION_ICONS)) {
+        if (name.toLowerCase().includes(key.toLowerCase())) return icon;
+    }
+    return 'medical-services';
+};
+
 export default function BookAppointmentScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { colorScheme } = useTheme();
 
-    const [doctors, setDoctors] = useState([]);
+    const [specializations, setSpecializations] = useState([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-    const [expandedSpecialty, setExpandedSpecialty] = useState(null);
 
     const isNavigating = React.useRef(false);
 
     useEffect(() => {
-        fetchDoctors();
+        fetchSpecializations();
     }, []);
 
-    const fetchDoctors = async (forceRefresh = false) => {
+    const fetchSpecializations = async (forceRefresh = false) => {
         try {
             if (!forceRefresh) setLoading(true);
-            const data = await appointmentService.getDoctors(forceRefresh);
-            setDoctors(data);
+            const data = await appointmentService.getSpecializations(forceRefresh);
+            setSpecializations(data);
         } catch (error) {
-            Alert.alert('Error', 'Failed to load doctors. Please try again.');
-            console.error('Error fetching doctors:', error);
+            Alert.alert('Error', 'Failed to load specializations. Please try again.');
+            console.error('Error fetching specializations:', error);
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -51,48 +74,32 @@ export default function BookAppointmentScreen() {
 
     const onRefresh = React.useCallback(() => {
         setRefreshing(true);
-        fetchDoctors(true);
+        fetchSpecializations(true);
     }, []);
 
-    const handleDoctorSelect = (doctor) => {
+    const handleSpecializationSelect = (spec) => {
         if (isNavigating.current) return;
         isNavigating.current = true;
         setTimeout(() => isNavigating.current = false, 1000);
 
         router.push({
             pathname: '/appointments/select-slot',
-            params: { doctor: JSON.stringify(doctor) }
+            params: { specialization: JSON.stringify(spec) }
         });
     };
-
-    const toggleSpecialty = (specialty) => {
-        setExpandedSpecialty(expandedSpecialty === specialty ? null : specialty);
-    };
-
-    // Group doctors by specialization
-    const groupedDoctors = doctors.reduce((acc, doctor) => {
-        const specialization = doctor.specialization || 'General';
-        if (!acc[specialization]) {
-            acc[specialization] = [];
-        }
-        acc[specialization].push(doctor);
-        return acc;
-    }, {});
-
-    const specialties = Object.keys(groupedDoctors);
 
     if (loading && !refreshing) {
         return (
             <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
-                <SafeHeader title="Select Doctor" showBack={true} />
-                <LoadingScreen text="Loading doctors..." />
+                <SafeHeader title="Select Specialization" showBack={true} />
+                <LoadingScreen text="Loading specializations..." />
             </View>
         );
     }
 
     return (
         <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
-            <SafeHeader title="Select Doctor" showBack={true} />
+            <SafeHeader title="Select Specialization" showBack={true} />
 
             <ScrollView
                 style={styles.content}
@@ -102,124 +109,66 @@ export default function BookAppointmentScreen() {
                     <RefreshControl
                         refreshing={refreshing}
                         onRefresh={onRefresh}
-                        colors={[colorScheme.primary]} // Android
-                        tintColor={colorScheme.primary} // iOS
+                        colors={[colorScheme.primary]}
+                        tintColor={colorScheme.primary}
                     />
                 }
             >
-                {specialties.length === 0 ? (
+                {/* Info banner */}
+                <View style={[styles.infoBanner, { backgroundColor: colorScheme.primaryLight }]}>
+                    <MaterialIcons name="info-outline" size={20} color={colorScheme.primary} />
+                    <Text style={[styles.infoText, { color: colorScheme.primary }]}>
+                        Choose a specialization and we'll assign the best available doctor for you.
+                    </Text>
+                </View>
+
+                {specializations.length === 0 ? (
                     <View style={styles.emptyContainer}>
+                        <MaterialIcons name="medical-services" size={48} color={colorScheme.textTertiary} />
                         <Text style={[styles.emptyText, { color: colorScheme.textSecondary }]}>
-                            No doctors available at the moment.
+                            No specializations available at the moment.
                         </Text>
                     </View>
                 ) : (
-                    specialties.map((specialty) => (
+                    specializations.map((spec, index) => (
                         <Animated.View
-                            key={specialty}
-                            style={styles.specialtyContainer}
-                            layout={LinearTransition.duration(300)}
+                            key={spec.id}
+                            entering={FadeInDown.delay(index * 80).duration(400)}
                         >
                             <TouchableOpacity
                                 style={[
-                                    styles.specialtyHeader,
+                                    styles.specCard,
                                     {
                                         backgroundColor: colorScheme.surface,
                                         borderColor: colorScheme.border,
                                     },
                                 ]}
-                                onPress={() => toggleSpecialty(specialty)}
+                                onPress={() => handleSpecializationSelect(spec)}
                                 activeOpacity={0.7}
                             >
-                                <View style={styles.specialtyTitleRow}>
-                                    <View style={[styles.iconContainer, { backgroundColor: colorScheme.primaryLight }]}>
-                                        <MaterialIcons name="medical-services" size={24} color={colorScheme.primary} />
-                                    </View>
-                                    <Text style={[styles.specialtyTitle, { color: colorScheme.textPrimary }]}>
-                                        {specialty}
+                                <View style={[styles.iconContainer, { backgroundColor: colorScheme.primaryLight }]}>
+                                    <MaterialIcons
+                                        name={getSpecializationIcon(spec.name)}
+                                        size={28}
+                                        color={colorScheme.primary}
+                                    />
+                                </View>
+                                <View style={styles.specInfo}>
+                                    <Text style={[styles.specName, { color: colorScheme.textPrimary }]}>
+                                        {spec.name}
                                     </Text>
+                                    {spec.doctorCount > 0 && (
+                                        <Text style={[styles.doctorCount, { color: colorScheme.textTertiary }]}>
+                                            {spec.doctorCount} {spec.doctorCount === 1 ? 'doctor' : 'doctors'} available
+                                        </Text>
+                                    )}
                                 </View>
                                 <MaterialIcons
-                                    name={expandedSpecialty === specialty ? "expand-less" : "expand-more"}
+                                    name="chevron-right"
                                     size={24}
-                                    color={colorScheme.textSecondary}
+                                    color={colorScheme.textTertiary}
                                 />
                             </TouchableOpacity>
-
-                            {expandedSpecialty === specialty && (
-                                <Animated.View
-                                    style={styles.doctorsList}
-                                    entering={FadeIn}
-                                    exiting={FadeOut}
-                                >
-                                    {groupedDoctors[specialty].map((doctor) => (
-                                        <TouchableOpacity
-                                            key={doctor.id}
-                                            style={[
-                                                styles.doctorCard,
-                                                {
-                                                    backgroundColor: colorScheme.surface,
-                                                    borderColor: colorScheme.border,
-                                                },
-                                            ]}
-                                            onPress={() => handleDoctorSelect(doctor)}
-                                            activeOpacity={0.7}
-                                        >
-                                            {doctor.photo_url ? (
-                                                <Image
-                                                    source={{ uri: doctor.photo_url }}
-                                                    style={styles.doctorPhoto}
-                                                />
-                                            ) : (
-                                                <View
-                                                    style={[
-                                                        styles.doctorAvatar,
-                                                        { backgroundColor: colorScheme.primaryLight },
-                                                    ]}
-                                                >
-                                                    <MaterialIcons
-                                                        name="person"
-                                                        size={24}
-                                                        color={colorScheme.primary}
-                                                    />
-                                                </View>
-                                            )}
-                                            <View style={styles.doctorInfo}>
-                                                <Text
-                                                    style={[
-                                                        styles.doctorName,
-                                                        { color: colorScheme.textPrimary },
-                                                    ]}
-                                                >
-                                                    {doctor.name}
-                                                </Text>
-                                                {doctor.phone && (
-                                                    <View style={styles.phoneRow}>
-                                                        <MaterialIcons
-                                                            name="phone"
-                                                            size={14}
-                                                            color={colorScheme.textTertiary}
-                                                        />
-                                                        <Text
-                                                            style={[
-                                                                styles.phoneText,
-                                                                { color: colorScheme.textTertiary },
-                                                            ]}
-                                                        >
-                                                            {doctor.phone}
-                                                        </Text>
-                                                    </View>
-                                                )}
-                                            </View>
-                                            <MaterialIcons
-                                                name="chevron-right"
-                                                size={24}
-                                                color={colorScheme.textTertiary}
-                                            />
-                                        </TouchableOpacity>
-                                    ))}
-                                </Animated.View>
-                            )}
                         </Animated.View>
                     ))
                 )}
@@ -236,50 +185,20 @@ const styles = StyleSheet.create({
         flex: 1,
         padding: Spacing.md,
     },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    loadingText: {
-        marginTop: Spacing.md,
-        fontSize: Typography.fontSize.base,
-    },
-    specialtyContainer: {
-        marginBottom: Spacing.md,
-        overflow: 'hidden', // Ensure animation stays within bounds
-    },
-    specialtyHeader: {
+    infoBanner: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
         padding: Spacing.md,
-        borderRadius: BorderRadius.lg,
-        borderWidth: 1,
-        ...Shadow.sm,
-        zIndex: 1, // Keep header above list during animation
-    },
-    specialtyTitleRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: Spacing.md,
-    },
-    iconContainer: {
-        width: 40,
-        height: 40,
         borderRadius: BorderRadius.md,
-        justifyContent: 'center',
-        alignItems: 'center',
+        marginBottom: Spacing.lg,
+        gap: Spacing.sm,
     },
-    specialtyTitle: {
-        fontSize: Typography.fontSize.md,
-        fontWeight: Typography.fontWeight.semibold,
+    infoText: {
+        flex: 1,
+        fontSize: Typography.fontSize.sm,
+        lineHeight: 20,
     },
-    doctorsList: {
-        marginTop: Spacing.sm,
-        marginLeft: Spacing.md,
-    },
-    doctorCard: {
+    specCard: {
         flexDirection: 'row',
         alignItems: 'center',
         padding: Spacing.md,
@@ -288,40 +207,32 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         ...Shadow.sm,
     },
-    doctorPhoto: {
-        width: 48,
-        height: 48,
-        borderRadius: BorderRadius.xl,
-    },
-    doctorAvatar: {
-        width: 48,
-        height: 48,
-        borderRadius: BorderRadius.xl,
+    iconContainer: {
+        width: 52,
+        height: 52,
+        borderRadius: BorderRadius.lg,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    doctorInfo: {
+    specInfo: {
         flex: 1,
         marginLeft: Spacing.md,
     },
-    doctorName: {
+    specName: {
         fontSize: Typography.fontSize.md,
-        fontWeight: Typography.fontWeight.medium,
+        fontWeight: Typography.fontWeight.semibold,
         marginBottom: 2,
     },
-    phoneRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    phoneText: {
+    doctorCount: {
         fontSize: Typography.fontSize.xs,
     },
     emptyContainer: {
-        padding: Spacing.xl,
+        padding: Spacing.xxxl,
         alignItems: 'center',
+        gap: Spacing.md,
     },
     emptyText: {
         fontSize: Typography.fontSize.base,
+        textAlign: 'center',
     },
 });

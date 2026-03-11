@@ -7,7 +7,6 @@ import {
     TouchableOpacity,
     TextInput,
     Alert,
-    Image,
     KeyboardAvoidingView,
     Platform,
 } from 'react-native';
@@ -34,7 +33,7 @@ export default function SelectSlotScreen() {
     const { user } = useAuth();
     const { showAlert } = useAlert();
 
-    const doctor = params.doctor ? JSON.parse(params.doctor) : null;
+    const specialization = params.specialization ? JSON.parse(params.specialization) : null;
 
     // Detect if this is a guest booking (child has no registration number)
     const isGuestBooking = selectedChild && !selectedChild.registration_number && !selectedChild.registrationNumber;
@@ -69,7 +68,7 @@ export default function SelectSlotScreen() {
     }, [user]);
 
     useEffect(() => {
-        if (selectedDate && doctor) {
+        if (selectedDate && specialization) {
             fetchAvailability();
         } else {
             setAvailableSlots([]);
@@ -81,8 +80,8 @@ export default function SelectSlotScreen() {
         try {
             setLoadingSlots(true);
             setSelectedTime('');
-            const data = await appointmentService.getDoctorAvailability(
-                doctor.id,
+            const data = await appointmentService.getSpecializationAvailability(
+                specialization.id,
                 selectedDate
             );
 
@@ -132,7 +131,7 @@ export default function SelectSlotScreen() {
                 child_dob: selectedChild?.dateOfBirth || selectedChild?.date_of_birth || selectedChild?.dob || '',
                 child_gender: selectedChild?.gender || 'Male',
                 local_child_id: selectedChild?.id || null, // Pass local ID so backend can update it
-                doctor_id: doctor.id,
+                specialization_id: specialization.id,
                 appointment_date: selectedDate,
                 start_time: selectedTime,
             };
@@ -145,8 +144,8 @@ export default function SelectSlotScreen() {
                 router.push({
                     pathname: '/appointments/confirmation',
                     params: {
-                        doctorName: doctor.name,
-                        specialty: doctor.specialty,
+                        doctorName: 'Assigned automatically',
+                        specialty: specialization.name,
                         date: selectedDate,
                         time: selectedTime,
                         appointmentType: appointmentType,
@@ -169,7 +168,7 @@ export default function SelectSlotScreen() {
         }
 
         const appointmentData = {
-            doctorId: doctor.id,
+            specializationId: specialization.id,
             childId: selectedChild?.id || null,
             appointmentDate: selectedDate,
             appointmentTime: selectedTime,
@@ -188,8 +187,8 @@ export default function SelectSlotScreen() {
             router.push({
                 pathname: '/appointments/confirmation',
                 params: {
-                    doctorName: doctor.name,
-                    specialty: doctor.specialty,
+                    doctorName: 'Assigned automatically',
+                    specialty: specialization.name,
                     date: selectedDate,
                     time: selectedTime,
                     appointmentType: appointmentType,
@@ -224,13 +223,13 @@ export default function SelectSlotScreen() {
         return `${hour12}:${minutes} ${ampm}`;
     };
 
-    if (!doctor) {
+    if (!specialization) {
         return (
             <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
                 <SafeHeader title="Select Slot" showBack={true} />
                 <View style={styles.errorContainer}>
                     <Text style={[styles.errorText, { color: colorScheme.error }]}>
-                        Doctor information missing
+                        Specialization information missing
                     </Text>
                 </View>
             </View>
@@ -252,34 +251,27 @@ export default function SelectSlotScreen() {
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                 >
-                    {/* Doctor Summary */}
+                    {/* Specialization Summary */}
                     <View style={styles.doctorSummary}>
                         <View style={[styles.doctorCard, { backgroundColor: colorScheme.surface }]}>
-                            {doctor.photo_url ? (
-                                <Image
-                                    source={{ uri: doctor.photo_url }}
-                                    style={styles.doctorPhoto}
+                            <View
+                                style={[
+                                    styles.doctorAvatar,
+                                    { backgroundColor: colorScheme.primaryLight },
+                                ]}
+                            >
+                                <MaterialIcons
+                                    name="medical-services"
+                                    size={28}
+                                    color={colorScheme.primary}
                                 />
-                            ) : (
-                                <View
-                                    style={[
-                                        styles.doctorAvatar,
-                                        { backgroundColor: colorScheme.primaryLight },
-                                    ]}
-                                >
-                                    <MaterialIcons
-                                        name="person"
-                                        size={28}
-                                        color={colorScheme.primary}
-                                    />
-                                </View>
-                            )}
+                            </View>
                             <View style={styles.doctorInfo}>
                                 <Text style={[styles.doctorName, { color: colorScheme.textPrimary }]}>
-                                    {doctor.name}
+                                    {specialization.name}
                                 </Text>
                                 <Text style={[styles.doctorSpecialty, { color: colorScheme.textSecondary }]}>
-                                    {doctor.specialty}
+                                    A doctor will be assigned to you
                                 </Text>
                             </View>
                         </View>
@@ -401,8 +393,8 @@ export default function SelectSlotScreen() {
                                 <Text style={{ color: colorScheme.textSecondary }}>{parentEmail || 'Not set in profile'}</Text>
                             </View>
 
-                            <TouchableOpacity onPress={() => router.push('/(tabs)/settings')} style={{ alignSelf: 'flex-end', marginBottom: 16 }}>
-                                <Text style={{ color: colorScheme.primary, fontSize: 13 }}>Update details in Settings</Text>
+                            <TouchableOpacity onPress={() => router.push('/(tabs)/profile/edit')} style={{ alignSelf: 'flex-end', marginBottom: 16 }}>
+                                <Text style={{ color: colorScheme.primary, fontSize: 13 }}>Update details in Profile</Text>
                             </TouchableOpacity>
 
                             <Text style={[styles.label, { color: colorScheme.textSecondary }]}>Gender</Text>

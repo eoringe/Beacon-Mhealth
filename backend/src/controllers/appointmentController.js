@@ -136,6 +136,125 @@ exports.getDoctorAvailability = async (req, res) => {
     }
 };
 
+// Get available time slots for a specialization on a specific date (pools all doctors)
+exports.getSpecializationAvailability = async (req, res) => {
+    try {
+        const { specializationId } = req.params;
+        const { date } = req.query;
+
+        if (!date) {
+            return res.status(400).json({ error: 'Date is required' });
+        }
+
+        if (isWeekend(date)) {
+            return res.json({ available: false, reason: 'Weekends are not available', slots: [] });
+        }
+
+        // Find all doctors with this specialization
+        const doctorsResult = await externalQuery(
+            `SELECT s.id, s.fullname FROM staff s
+             WHERE s.specialization_id = $1`,
+            [specializationId]
+        );
+
+        if (doctorsResult.rows.length === 0) {
+            return res.json({ available: false, reason: 'No doctors available for this specialization', slots: [] });
+        }
+
+        const doctorIds = doctorsResult.rows.map(d => d.id);
+        const allSlots = generateTimeSlots();
+        const availableSlotsSet = new Set();
+
+        // For each doctor, find their available slots
+        for (const docId of doctorIds) {
+            // Check daily limit
+            const dailyCount = await externalQuery(
+                `SELECT COUNT(*) as count FROM appointments WHERE staff_id = $1 AND appointment_date = $2`,
+                [docId, date]
+            );
+            if (parseInt(dailyCount.rows[0].count) >= 10) continue;
+
+            // Get booked slots for this doctor
+            const bookedSlots = await externalQuery(`
+                SELECT start_time FROM appointments
+                WHERE (staff_id = $1 OR doctor_id = $1)
+                AND appointment_date = $2
+                AND status != 'cancelled'
+            `, [docId, date]);
+
+            const bookedTimes = bookedSlots.rows.map(row => row.start_time.substring(0, 5));
+
+            // Add available slots to the union set
+            allSlots.forEach(slot => {
+                if (!bookedTimes.includes(slot)) {
+                    availableSlotsSet.add(slot);
+                }
+            });
+        }
+
+        // Filter out past slots if date is today
+        let availableSlots = Array.from(availableSlotsSet)
+            .filter(slot => !isPastTime(date, slot))
+            .sort();
+
+        res.json({
+            available: availableSlots.length > 0,
+            date,
+            slots: availableSlots
+        });
+    } catch (error) {
+        console.error('Error checking specialization availability:', error);
+        res.status(500).json({ error: 'Server error checking availability' });
+    }
+};
+
+// Helper: Auto-assign a doctor from a specialization for a given date/time
+// Picks the doctor with fewest appointments that day who is free at the requested time
+const autoAssignDoctor = async (specializationId, appointmentDate, appointmentTime) => {
+    // Find all doctors with this specialization
+    const doctorsResult = await externalQuery(
+        `SELECT s.id FROM staff s WHERE s.specialization_id = $1`,
+        [specializationId]
+    );
+
+    if (doctorsResult.rows.length === 0) {
+        throw new Error('No doctors available for this specialization');
+    }
+
+    // For each doctor, check if the slot is free and count their daily appointments
+    const candidates = [];
+    for (const doc of doctorsResult.rows) {
+        // Check daily limit
+        const dailyCount = await externalQuery(
+            `SELECT COUNT(*) as count FROM appointments WHERE staff_id = $1 AND appointment_date = $2`,
+            [doc.id, appointmentDate]
+        );
+        if (parseInt(dailyCount.rows[0].count) >= 10) continue;
+
+        // Check if this specific slot is free
+        const conflict = await externalQuery(`
+            SELECT id FROM appointments
+            WHERE (staff_id = $1 OR doctor_id = $1)
+            AND appointment_date = $2
+            AND start_time = $3
+            AND status != 'cancelled'
+        `, [doc.id, appointmentDate, appointmentTime]);
+
+        if (conflict.rows.length === 0) {
+            candidates.push({ id: doc.id, count: parseInt(dailyCount.rows[0].count) });
+        }
+    }
+
+    if (candidates.length === 0) {
+        throw new Error('No doctors available at the selected time');
+    }
+
+    // Pick doctor with fewest appointments (load balancing)
+    candidates.sort((a, b) => a.count - b.count);
+    console.log(`[AutoAssign] Assigned doctor ID ${candidates[0].id} (${candidates[0].count} appointments today)`);
+    return candidates[0].id;
+};
+
 // Create new appointment (External DB)
 exports.createAppointment = async (req, res) => {
     const client = await pool.connect(); // Keep local connection for local child lookup
@@ -147,7 +266,8 @@ exports.createAppointment = async (req, res) => {
         const user = req.user;
 
         const {
-            doctorId,
+            doctorId: requestedDoctorId,
+            specializationId,
             childId,
             appointmentDate,
             appointmentTime,
@@ -156,11 +276,17 @@ exports.createAppointment = async (req, res) => {
             appointmentType = 'IN_PERSON' // Default to in-person
         } = req.body;
 
-        // Validation
-        if (!doctorId || !appointmentDate || !appointmentTime || !childId) {
+        // Validation - require either doctorId or specializationId
+        if ((!requestedDoctorId && !specializationId) || !appointmentDate || !appointmentTime || !childId) {
             return res.status(400).json({
-                error: 'Doctor, Child, Date, and Time are required'
+                error: 'Specialization (or Doctor), Child, Date, and Time are required'
             });
+        }
+
+        // Auto-assign doctor if specializationId provided
+        let doctorId = requestedDoctorId;
+        if (!doctorId && specializationId) {
+            doctorId = await autoAssignDoctor(specializationId, appointmentDate, appointmentTime);
         }
 
         // Validate appointment type
@@ -746,7 +872,8 @@ exports.createGuestAppointment = async (req, res) => {
             child_dob,
             child_gender,
             local_child_id, // Get local ID from request
-            doctor_id,
+            doctor_id: requested_doctor_id,
+            specialization_id,
             appointment_date,
             start_time,
             end_time
@@ -761,7 +888,7 @@ exports.createGuestAppointment = async (req, res) => {
         if (!child_last_name) errors.child_last_name = ['Child last name is required'];
         if (!child_dob) errors.child_dob = ['Child date of birth is required'];
         if (!child_gender) errors.child_gender = ['Child gender is required'];
-        if (!doctor_id) errors.doctor_id = ['Doctor is required'];
+        if (!requested_doctor_id && !specialization_id) errors.doctor_id = ['Doctor or Specialization is required'];
         if (!appointment_date) errors.appointment_date = ['Appointment date is required'];
         if (!start_time) errors.start_time = ['Start time is required'];
 
@@ -781,6 +908,12 @@ exports.createGuestAppointment = async (req, res) => {
         })();
 
         console.log('[GuestAppointment] Creating guest appointment via Direct DB Write (Strict Mode)');
+
+        // Auto-assign doctor if specialization_id provided
+        let doctor_id = requested_doctor_id;
+        if (!doctor_id && specialization_id) {
+            doctor_id = await autoAssignDoctor(specialization_id, appointment_date, start_time);
+        }
 
         // Helper to get gender ID
         const getGenderId = async (genderName) => {

@@ -96,9 +96,12 @@ const getDoctorsBySpecialization = async (req, res) => {
 const getSpecializations = async (req, res) => {
     try {
         const result = await externalQuery(`
-            SELECT id, specialization, role_id
-            FROM doctor_specialization
-            ORDER BY specialization
+            SELECT ds.id, ds.specialization, ds.role_id,
+                   COUNT(s.id)::int as doctor_count
+            FROM doctor_specialization ds
+            LEFT JOIN staff s ON s.specialization_id = ds.id
+            GROUP BY ds.id, ds.specialization, ds.role_id
+            ORDER BY ds.specialization
         `);
 
         res.json({
@@ -107,7 +110,8 @@ const getSpecializations = async (req, res) => {
             data: result.rows.map(s => ({
                 id: s.id,
                 name: s.specialization,
-                roleId: s.role_id
+                roleId: s.role_id,
+                doctorCount: s.doctor_count
             }))
         });
 
