@@ -167,70 +167,95 @@ export default function SelectSlotScreen() {
 
             // GUEST TELECONSULT: Require M-Pesa payment first
             if (appointmentType === 'TELECONSULT') {
-                if (!parentPhone) {
-                    Alert.alert('Phone Number Required', 'Please provide a phone number to pay via M-Pesa.');
-                    return;
-                }
-                try {
-                    setBooking(true);
-                    setProcessingPayment(true);
-
-                    const amount = 1000;
-                    const paymentResponse = await mpesaService.initiateAppointmentPayment(
-                        parentPhone,
-                        amount,
+                const defaultPhone = parentPhone || '';
+                Alert.prompt(
+                    'M-Pesa Payment',
+                    'Please enter the phone number to pay KES 1,000 for this teleconsultation (Format: 07XXXXXXXX or 01XXXXXXXX).',
+                    [
                         {
-                            child_id: selectedChild?.id,
-                            doctor_id: 0,
-                            appointment_date: selectedDate,
-                            appointment_time: selectedTime,
-                            appointment_type: 'TELECONSULT',
-                        }
-                    );
-
-                    console.log('Guest Payment Initiated:', paymentResponse);
-                    setProcessingPayment(false);
-                    setIsPolling(true);
-
-                    mpesaService.pollPaymentStatus(
-                        paymentResponse.checkout_request_id,
-                        async (statusData) => {
-                            // Payment succeeded — now create the guest appointment
-                            try {
-                                const bookingResponse = await appointmentService.createGuestAppointment(guestData);
-                                setIsPolling(false);
+                            text: 'Cancel',
+                            style: 'cancel',
+                            onPress: () => {
                                 setBooking(false);
-                                router.push({
-                                    pathname: '/appointments/confirmation',
-                                    params: {
-                                        doctorName: 'Assigned automatically',
-                                        specialty: specialization.name,
-                                        date: selectedDate,
-                                        time: selectedTime,
-                                        appointmentType: appointmentType,
-                                        meetLink: bookingResponse?.data?.google_meet_link || 'Link will be sent via SMS',
-                                        appointmentId: bookingResponse?.data?.appointment_id || '',
-                                        isGuest: 'true',
-                                    }
-                                });
-                                showAlert('Success', `Payment successful (Receipt: ${statusData.mpesa_receipt_number}). Appointment booked!`, [], 'success');
-                            } catch (bookErr) {
-                                setIsPolling(false);
-                                setBooking(false);
-                                Alert.alert('Booking Error', 'Payment received but appointment creation failed. Please contact support.');
+                                setProcessingPayment(false);
                             }
                         },
-                        (failureReason) => {
-                            setIsPolling(false);
-                            setBooking(false);
-                            Alert.alert('Payment Failed', failureReason);
+                        {
+                            text: 'Pay & Book',
+                            onPress: async (paymentPhone) => {
+                                if (!paymentPhone || paymentPhone.trim().length < 9) {
+                                    Alert.alert('Invalid Number', 'Please provide a valid phone number to pay via M-Pesa.');
+                                    setBooking(false);
+                                    setProcessingPayment(false);
+                                    return;
+                                }
+
+                                try {
+                                    setBooking(true);
+                                    setProcessingPayment(true);
+
+                                    const amount = 1000;
+                                    const paymentResponse = await mpesaService.initiateAppointmentPayment(
+                                        paymentPhone.trim(),
+                                        amount,
+                                        {
+                                            child_id: selectedChild?.id,
+                                            doctor_id: 0,
+                                            appointment_date: selectedDate,
+                                            appointment_time: selectedTime,
+                                            appointment_type: 'TELECONSULT',
+                                        }
+                                    );
+
+                                    console.log('Guest Payment Initiated:', paymentResponse);
+                                    setProcessingPayment(false);
+                                    setIsPolling(true);
+
+                                    mpesaService.pollPaymentStatus(
+                                        paymentResponse.checkout_request_id,
+                                        async (statusData) => {
+                                            // Payment succeeded — now create the guest appointment
+                                            try {
+                                                const bookingResponse = await appointmentService.createGuestAppointment(guestData);
+                                                setIsPolling(false);
+                                                setBooking(false);
+                                                router.push({
+                                                    pathname: '/appointments/confirmation',
+                                                    params: {
+                                                        doctorName: 'Assigned automatically',
+                                                        specialty: specialization.name,
+                                                        date: selectedDate,
+                                                        time: selectedTime,
+                                                        appointmentType: appointmentType,
+                                                        meetLink: bookingResponse?.data?.google_meet_link || 'Link will be sent via SMS',
+                                                        appointmentId: bookingResponse?.data?.appointment_id || '',
+                                                        isGuest: 'true',
+                                                    }
+                                                });
+                                                showAlert('Success', `Payment successful (Receipt: ${statusData.mpesa_receipt_number}). Appointment booked!`, [], 'success');
+                                            } catch (bookErr) {
+                                                setIsPolling(false);
+                                                setBooking(false);
+                                                Alert.alert('Booking Error', 'Payment received but appointment creation failed. Please contact support.');
+                                            }
+                                        },
+                                        (failureReason) => {
+                                            setIsPolling(false);
+                                            setBooking(false);
+                                            Alert.alert('Payment Failed', failureReason);
+                                        }
+                                    );
+                                } catch (error) {
+                                    setBooking(false);
+                                    setProcessingPayment(false);
+                                    Alert.alert('Payment Error', error.message || 'Failed to initiate payment');
+                                }
+                            }
                         }
-                    );
-                } catch (error) {
-                    setBooking(false);
-                    setProcessingPayment(false);
-                    Alert.alert('Payment Error', error.message || 'Failed to initiate payment');
-                }
+                    ],
+                    'plain-text',
+                    defaultPhone
+                );
                 return;
             }
 
@@ -277,70 +302,93 @@ export default function SelectSlotScreen() {
 
         // TELECONSULTATION PAY & BOOK FLOW
         if (appointmentType === 'TELECONSULT') {
-            const phone = user?.phoneNumber || parentPhone;
-            if (!phone) {
-                Alert.alert('Phone Number Required', 'Please provide a phone number in your profile to use M-Pesa.');
-                return;
-            }
-
-            try {
-                setBooking(true);
-                setProcessingPayment(true);
-
-                // 1. Initiate Payment
-                const amount = 1000; // Fixed fee for teleconsultation
-                const paymentResponse = await mpesaService.initiateAppointmentPayment(
-                    phone,
-                    amount,
+            const defaultPhone = user?.phoneNumber || parentPhone || '';
+            Alert.prompt(
+                'M-Pesa Payment',
+                'Please enter the phone number to pay KES 1,000 for this teleconsultation (Format: 07XXXXXXXX or 01XXXXXXXX).',
+                [
                     {
-                        child_id: selectedChild?.id,
-                        doctor_id: 0, // Assigned automatically
-                        appointment_date: selectedDate,
-                        appointment_time: selectedTime,
-                        appointment_type: 'TELECONSULT',
-                        reason: reason,
-                        notes: notes
-                    }
-                );
-
-                console.log('Payment Initiated:', paymentResponse);
-                setProcessingPayment(false);
-                setIsPolling(true);
-
-                // 2. Poll for payment status
-                mpesaService.pollPaymentStatus(
-                    paymentResponse.checkout_request_id,
-                    async (statusData) => {
-                        // On Success: Navigate to confirmation
-                        setIsPolling(false);
-                        setBooking(false);
-
-                        router.push({
-                            pathname: '/appointments/confirmation',
-                            params: {
-                                doctorName: 'Assigned automatically',
-                                specialty: specialization.name,
-                                date: selectedDate,
-                                time: selectedTime,
-                                appointmentType: appointmentType,
-                                meetLink: statusData.google_meet_link || 'Link will be sent via SMS',
-                                appointmentId: statusData.appointment_id || '',
-                            }
-                        });
-                        showAlert('Success', `Payment successful (Receipt: ${statusData.mpesa_receipt_number}). Appointment booked!`, [], 'success');
+                        text: 'Cancel',
+                        style: 'cancel',
+                        onPress: () => {
+                            setBooking(false);
+                            setProcessingPayment(false);
+                        }
                     },
-                    (failureReason) => {
-                        // On Failure
-                        setIsPolling(false);
-                        setBooking(false);
-                        Alert.alert('Payment Failed', failureReason);
+                    {
+                        text: 'Pay & Book',
+                        onPress: async (paymentPhone) => {
+                            if (!paymentPhone || paymentPhone.trim().length < 9) {
+                                Alert.alert('Invalid Number', 'Please provide a valid phone number to pay via M-Pesa.');
+                                setBooking(false);
+                                setProcessingPayment(false);
+                                return;
+                            }
+
+                            try {
+                                setBooking(true);
+                                setProcessingPayment(true);
+
+                                // 1. Initiate Payment
+                                const amount = 1000; // Fixed fee for teleconsultation
+                                const paymentResponse = await mpesaService.initiateAppointmentPayment(
+                                    paymentPhone.trim(),
+                                    amount,
+                                    {
+                                        child_id: selectedChild?.id,
+                                        doctor_id: 0, // Assigned automatically
+                                        appointment_date: selectedDate,
+                                        appointment_time: selectedTime,
+                                        appointment_type: 'TELECONSULT',
+                                        reason: reason,
+                                        notes: notes
+                                    }
+                                );
+
+                                console.log('Payment Initiated:', paymentResponse);
+                                setProcessingPayment(false);
+                                setIsPolling(true);
+
+                                // 2. Poll for payment status
+                                mpesaService.pollPaymentStatus(
+                                    paymentResponse.checkout_request_id,
+                                    async (statusData) => {
+                                        // On Success: Navigate to confirmation
+                                        setIsPolling(false);
+                                        setBooking(false);
+
+                                        router.push({
+                                            pathname: '/appointments/confirmation',
+                                            params: {
+                                                doctorName: 'Assigned automatically',
+                                                specialty: specialization.name,
+                                                date: selectedDate,
+                                                time: selectedTime,
+                                                appointmentType: appointmentType,
+                                                meetLink: statusData.google_meet_link || 'Link will be sent via SMS',
+                                                appointmentId: statusData.appointment_id || '',
+                                            }
+                                        });
+                                        showAlert('Success', `Payment successful (Receipt: ${statusData.mpesa_receipt_number}). Appointment booked!`, [], 'success');
+                                    },
+                                    (failureReason) => {
+                                        // On Failure
+                                        setIsPolling(false);
+                                        setBooking(false);
+                                        Alert.alert('Payment Failed', failureReason);
+                                    }
+                                );
+                            } catch (error) {
+                                setBooking(false);
+                                setProcessingPayment(false);
+                                Alert.alert('Payment Error', error.message || 'Failed to initiate payment');
+                            }
+                        }
                     }
-                );
-            } catch (error) {
-                setBooking(false);
-                setProcessingPayment(false);
-                Alert.alert('Payment Error', error.message || 'Failed to initiate payment');
-            }
+                ],
+                'plain-text',
+                defaultPhone
+            );
             return;
         }
 
