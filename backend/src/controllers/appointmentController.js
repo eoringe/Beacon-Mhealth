@@ -52,7 +52,7 @@ const isDoctorUnavailableOnDate = async (doctorId, date) => {
     try {
         const result = await externalQuery(
             `SELECT reason FROM doctor_unavailabilities 
-             WHERE staff_id = $1 AND unavailable_date::date = $2::date`,
+             WHERE doctor_id = $1 AND unavailable_date::date = $2::date`,
             [doctorId, date]
         );
 
@@ -319,10 +319,12 @@ async function createAppointmentLogic(appointmentData, userId) {
             appointmentType = 'IN_PERSON'
         } = appointmentData;
 
+        console.log(`[AppointmentLogic] START - type: ${appointmentType}, doctor: ${requestedDoctorId}, spec: ${specializationId}, child: ${childId}, date: ${appointmentDate}, time: ${appointmentTime}`);
+
         // 1. Resolve Doctor
         let doctorId = requestedDoctorId;
         if (!doctorId && specializationId) {
-            doctorId = await exports.autoAssignDoctor(specializationId, appointmentDate, appointmentTime);
+            doctorId = await autoAssignDoctor(specializationId, appointmentDate, appointmentTime);
         }
 
         // 2. Resolve Child & External Registration
@@ -421,8 +423,10 @@ async function createAppointmentLogic(appointmentData, userId) {
         );
 
         const appointment = appResult.rows[0];
+        console.log(`[AppointmentLogic] Appointment INSERT result - id: ${appointment.id}, type: ${appointment.appointment_type}`);
 
         // 6. Google Calendar Integration for Teleconsults
+        console.log(`[AppointmentLogic] Checking teleconsult: appointmentType=${appointmentType}, condition=${appointmentType === 'TELECONSULT'}`);
         if (appointmentType === 'TELECONSULT') {
             try {
                 googleCalendarService.initialize();
@@ -600,7 +604,7 @@ exports.getUserAppointments = async (req, res) => {
                 c.registration_number
             FROM appointments a
             JOIN children c ON a.child_id = c.id
-            JOIN staff s ON a.staff_id = s.id
+            JOIN staff s ON a.doctor_id = s.id
             LEFT JOIN doctor_specialization ds ON s.specialization_id = ds.id
             WHERE a.child_id = ANY($1)
         `;
@@ -615,6 +619,11 @@ exports.getUserAppointments = async (req, res) => {
         query += ' ORDER BY a.appointment_date DESC, a.start_time DESC';
 
         const appointmentsResult = await externalQuery(query, params);
+        console.log(`[getUserAppointments] Raw results count: ${appointmentsResult.rows.length}`);
+        if (appointmentsResult.rows.length > 0) {
+            const sample = appointmentsResult.rows[0];
+            console.log(`[getUserAppointments] First row sample - id: ${sample.id}, type: ${sample.appointment_type}, meet_link: ${sample.google_meet_link}`);
+        }
 
         // 5. Format Response to match frontend expectations
         const formattedAppointments = appointmentsResult.rows.map(appt => {
@@ -643,7 +652,8 @@ exports.getUserAppointments = async (req, res) => {
                 doctor_id: appt.doctor_id || appt.staff_id,
                 doctor_photo: null,
                 appointment_type: appt.appointment_type || 'IN_PERSON',
-                google_meet_link: appt.google_meet_link || null
+                google_meet_link: appt.google_meet_link || null,
+                google_calendar_html_link: appt.google_calendar_html_link || null
             };
 
             if (appt.status === 'canceled' || appt.status === 'rejected') {
@@ -837,6 +847,9 @@ exports.createGuestAppointment = async (req, res) => {
             appointmentTime: start_time,
             appointmentType: appointment_type || 'IN_PERSON'
         };
+
+        console.log(`[createGuestAppointment] Received body:`, JSON.stringify(req.body));
+        console.log(`[createGuestAppointment] Mapped appointmentData:`, JSON.stringify(appointmentData));
 
         const appointment = await createAppointmentLogic(appointmentData, req.user.id);
 

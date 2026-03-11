@@ -158,17 +158,87 @@ export default function SelectSlotScreen() {
                 child_last_name: selectedChild?.lastName || selectedChild?.last_name || selectedChild?.name?.split(' ').slice(1).join(' ') || '',
                 child_dob: selectedChild?.dateOfBirth || selectedChild?.date_of_birth || selectedChild?.dob || '',
                 child_gender: selectedChild?.gender || 'Male',
-                local_child_id: selectedChild?.id || null, // Pass local ID so backend can update it
+                local_child_id: selectedChild?.id || null,
                 specialization_id: specialization.id,
                 appointment_date: selectedDate,
                 start_time: selectedTime,
+                appointment_type: appointmentType || 'IN_PERSON',
             };
 
+            // GUEST TELECONSULT: Require M-Pesa payment first
+            if (appointmentType === 'TELECONSULT') {
+                if (!parentPhone) {
+                    Alert.alert('Phone Number Required', 'Please provide a phone number to pay via M-Pesa.');
+                    return;
+                }
+                try {
+                    setBooking(true);
+                    setProcessingPayment(true);
+
+                    const amount = 1000;
+                    const paymentResponse = await mpesaService.initiateAppointmentPayment(
+                        parentPhone,
+                        amount,
+                        {
+                            child_id: selectedChild?.id,
+                            doctor_id: 0,
+                            appointment_date: selectedDate,
+                            appointment_time: selectedTime,
+                            appointment_type: 'TELECONSULT',
+                        }
+                    );
+
+                    console.log('Guest Payment Initiated:', paymentResponse);
+                    setProcessingPayment(false);
+                    setIsPolling(true);
+
+                    mpesaService.pollPaymentStatus(
+                        paymentResponse.checkout_request_id,
+                        async (statusData) => {
+                            // Payment succeeded — now create the guest appointment
+                            try {
+                                const bookingResponse = await appointmentService.createGuestAppointment(guestData);
+                                setIsPolling(false);
+                                setBooking(false);
+                                router.push({
+                                    pathname: '/appointments/confirmation',
+                                    params: {
+                                        doctorName: 'Assigned automatically',
+                                        specialty: specialization.name,
+                                        date: selectedDate,
+                                        time: selectedTime,
+                                        appointmentType: appointmentType,
+                                        meetLink: bookingResponse?.data?.google_meet_link || 'Link will be sent via SMS',
+                                        appointmentId: bookingResponse?.data?.appointment_id || '',
+                                        isGuest: 'true',
+                                    }
+                                });
+                                showAlert('Success', `Payment successful (Receipt: ${statusData.mpesa_receipt_number}). Appointment booked!`, [], 'success');
+                            } catch (bookErr) {
+                                setIsPolling(false);
+                                setBooking(false);
+                                Alert.alert('Booking Error', 'Payment received but appointment creation failed. Please contact support.');
+                            }
+                        },
+                        (failureReason) => {
+                            setIsPolling(false);
+                            setBooking(false);
+                            Alert.alert('Payment Failed', failureReason);
+                        }
+                    );
+                } catch (error) {
+                    setBooking(false);
+                    setProcessingPayment(false);
+                    Alert.alert('Payment Error', error.message || 'Failed to initiate payment');
+                }
+                return;
+            }
+
+            // GUEST IN-PERSON: No payment required
             try {
                 setBooking(true);
                 const response = await appointmentService.createGuestAppointment(guestData);
 
-                // Navigate to confirmation screen
                 router.push({
                     pathname: '/appointments/confirmation',
                     params: {

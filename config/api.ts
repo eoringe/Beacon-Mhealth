@@ -9,7 +9,7 @@ const PRODUCTION_URL = 'https://beacon-mhealth-production.up.railway.app/api';
  * Defaulting to production for deployment readiness.
  */
 const getApiUrl = () => {
-    // If you want to use local development, uncomment the logic below or use a specific flag
+    // Local dev: uncomment below to use local backend
     /*
     if (__DEV__) {
         const debuggerHost = Constants.expoConfig?.hostUri || Constants.manifest?.debuggerHost;
