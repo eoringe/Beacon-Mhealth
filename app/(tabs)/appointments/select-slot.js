@@ -9,6 +9,8 @@ import {
     Alert,
     KeyboardAvoidingView,
     Platform,
+    Modal,
+    Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -51,6 +53,12 @@ export default function SelectSlotScreen() {
 
 
     const [appointmentType, setAppointmentType] = useState('IN_PERSON');
+
+    // Payment Modal States
+    const [isPaymentModalVisible, setIsPaymentModalVisible] = useState(false);
+    const [paymentPhoneInput, setPaymentPhoneInput] = useState('');
+    const [paymentFlowType, setPaymentFlowType] = useState(null); // 'GUEST' or 'AUTH'
+
 
     // Guest booking fields (parent/guardian details)
     const [parentFirstName, setParentFirstName] = useState('');
@@ -167,95 +175,9 @@ export default function SelectSlotScreen() {
 
             // GUEST TELECONSULT: Require M-Pesa payment first
             if (appointmentType === 'TELECONSULT') {
-                const defaultPhone = parentPhone || '';
-                Alert.prompt(
-                    'M-Pesa Payment',
-                    'Please enter the phone number to pay KES 1,000 for this teleconsultation (Format: 07XXXXXXXX or 01XXXXXXXX).',
-                    [
-                        {
-                            text: 'Cancel',
-                            style: 'cancel',
-                            onPress: () => {
-                                setBooking(false);
-                                setProcessingPayment(false);
-                            }
-                        },
-                        {
-                            text: 'Pay & Book',
-                            onPress: async (paymentPhone) => {
-                                if (!paymentPhone || paymentPhone.trim().length < 9) {
-                                    Alert.alert('Invalid Number', 'Please provide a valid phone number to pay via M-Pesa.');
-                                    setBooking(false);
-                                    setProcessingPayment(false);
-                                    return;
-                                }
-
-                                try {
-                                    setBooking(true);
-                                    setProcessingPayment(true);
-
-                                    const amount = 1000;
-                                    const paymentResponse = await mpesaService.initiateAppointmentPayment(
-                                        paymentPhone.trim(),
-                                        amount,
-                                        {
-                                            child_id: selectedChild?.id,
-                                            doctor_id: 0,
-                                            appointment_date: selectedDate,
-                                            appointment_time: selectedTime,
-                                            appointment_type: 'TELECONSULT',
-                                        }
-                                    );
-
-                                    console.log('Guest Payment Initiated:', paymentResponse);
-                                    setProcessingPayment(false);
-                                    setIsPolling(true);
-
-                                    mpesaService.pollPaymentStatus(
-                                        paymentResponse.checkout_request_id,
-                                        async (statusData) => {
-                                            // Payment succeeded — now create the guest appointment
-                                            try {
-                                                const bookingResponse = await appointmentService.createGuestAppointment(guestData);
-                                                setIsPolling(false);
-                                                setBooking(false);
-                                                router.push({
-                                                    pathname: '/appointments/confirmation',
-                                                    params: {
-                                                        doctorName: 'Assigned automatically',
-                                                        specialty: specialization.name,
-                                                        date: selectedDate,
-                                                        time: selectedTime,
-                                                        appointmentType: appointmentType,
-                                                        meetLink: bookingResponse?.data?.google_meet_link || 'Link will be sent via SMS',
-                                                        appointmentId: bookingResponse?.data?.appointment_id || '',
-                                                        isGuest: 'true',
-                                                    }
-                                                });
-                                                showAlert('Success', `Payment successful (Receipt: ${statusData.mpesa_receipt_number}). Appointment booked!`, [], 'success');
-                                            } catch (bookErr) {
-                                                setIsPolling(false);
-                                                setBooking(false);
-                                                Alert.alert('Booking Error', 'Payment received but appointment creation failed. Please contact support.');
-                                            }
-                                        },
-                                        (failureReason) => {
-                                            setIsPolling(false);
-                                            setBooking(false);
-                                            Alert.alert('Payment Failed', failureReason);
-                                        }
-                                    );
-                                } catch (error) {
-                                    setBooking(false);
-                                    setProcessingPayment(false);
-                                    Alert.alert('Payment Error', error.message || 'Failed to initiate payment');
-                                }
-                            }
-                        }
-                    ],
-                    'plain-text',
-                    defaultPhone
-                );
+                setPaymentPhoneInput(parentPhone || '');
+                setPaymentFlowType('GUEST');
+                setIsPaymentModalVisible(true);
                 return;
             }
 
@@ -272,8 +194,8 @@ export default function SelectSlotScreen() {
                         date: selectedDate,
                         time: selectedTime,
                         appointmentType: appointmentType,
-                        meetLink: '',
-                        eventId: '',
+                        meetLink: response.data.google_meet_link || '',
+                        eventId: response.data.google_calendar_event_id || '',
                         isGuest: 'true',
                     }
                 });
@@ -302,93 +224,9 @@ export default function SelectSlotScreen() {
 
         // TELECONSULTATION PAY & BOOK FLOW
         if (appointmentType === 'TELECONSULT') {
-            const defaultPhone = user?.phoneNumber || parentPhone || '';
-            Alert.prompt(
-                'M-Pesa Payment',
-                'Please enter the phone number to pay KES 1,000 for this teleconsultation (Format: 07XXXXXXXX or 01XXXXXXXX).',
-                [
-                    {
-                        text: 'Cancel',
-                        style: 'cancel',
-                        onPress: () => {
-                            setBooking(false);
-                            setProcessingPayment(false);
-                        }
-                    },
-                    {
-                        text: 'Pay & Book',
-                        onPress: async (paymentPhone) => {
-                            if (!paymentPhone || paymentPhone.trim().length < 9) {
-                                Alert.alert('Invalid Number', 'Please provide a valid phone number to pay via M-Pesa.');
-                                setBooking(false);
-                                setProcessingPayment(false);
-                                return;
-                            }
-
-                            try {
-                                setBooking(true);
-                                setProcessingPayment(true);
-
-                                // 1. Initiate Payment
-                                const amount = 1000; // Fixed fee for teleconsultation
-                                const paymentResponse = await mpesaService.initiateAppointmentPayment(
-                                    paymentPhone.trim(),
-                                    amount,
-                                    {
-                                        child_id: selectedChild?.id,
-                                        doctor_id: 0, // Assigned automatically
-                                        appointment_date: selectedDate,
-                                        appointment_time: selectedTime,
-                                        appointment_type: 'TELECONSULT',
-                                        reason: reason,
-                                        notes: notes
-                                    }
-                                );
-
-                                console.log('Payment Initiated:', paymentResponse);
-                                setProcessingPayment(false);
-                                setIsPolling(true);
-
-                                // 2. Poll for payment status
-                                mpesaService.pollPaymentStatus(
-                                    paymentResponse.checkout_request_id,
-                                    async (statusData) => {
-                                        // On Success: Navigate to confirmation
-                                        setIsPolling(false);
-                                        setBooking(false);
-
-                                        router.push({
-                                            pathname: '/appointments/confirmation',
-                                            params: {
-                                                doctorName: 'Assigned automatically',
-                                                specialty: specialization.name,
-                                                date: selectedDate,
-                                                time: selectedTime,
-                                                appointmentType: appointmentType,
-                                                meetLink: statusData.google_meet_link || 'Link will be sent via SMS',
-                                                appointmentId: statusData.appointment_id || '',
-                                            }
-                                        });
-                                        showAlert('Success', `Payment successful (Receipt: ${statusData.mpesa_receipt_number}). Appointment booked!`, [], 'success');
-                                    },
-                                    (failureReason) => {
-                                        // On Failure
-                                        setIsPolling(false);
-                                        setBooking(false);
-                                        Alert.alert('Payment Failed', failureReason);
-                                    }
-                                );
-                            } catch (error) {
-                                setBooking(false);
-                                setProcessingPayment(false);
-                                Alert.alert('Payment Error', error.message || 'Failed to initiate payment');
-                            }
-                        }
-                    }
-                ],
-                'plain-text',
-                defaultPhone
-            );
+            setPaymentPhoneInput(user?.phoneNumber || parentPhone || '');
+            setPaymentFlowType('AUTH');
+            setIsPaymentModalVisible(true);
             return;
         }
 
@@ -418,6 +256,103 @@ export default function SelectSlotScreen() {
             console.error('Error booking appointment:', error);
         } finally {
             setBooking(false);
+        }
+    };
+
+    const executePaymentAndBooking = async () => {
+        const phone = paymentPhoneInput.trim();
+        if (!phone || phone.length < 9) {
+            Alert.alert('Invalid Number', 'Please provide a valid phone number to pay via M-Pesa.');
+            return;
+        }
+
+        setIsPaymentModalVisible(false);
+        setBooking(true);
+        setProcessingPayment(true);
+
+        try {
+            const amount = 1; // 1 KES for testing
+            const paymentResponse = await mpesaService.initiateAppointmentPayment(
+                phone,
+                amount,
+                {
+                    child_id: selectedChild?.id,
+                    doctor_id: 0,
+                    appointment_date: selectedDate,
+                    appointment_time: selectedTime,
+                    appointment_type: 'TELECONSULT',
+                    reason: reason || null,
+                    notes: notes || null
+                }
+            );
+
+            console.log('Payment Initiated:', paymentResponse);
+            setProcessingPayment(false);
+            setIsPolling(true);
+
+            mpesaService.pollPaymentStatus(
+                paymentResponse.checkout_request_id,
+                async (statusData) => {
+                    // Payment succeeded — now create the appointment
+                    try {
+                        let meetLink = statusData.google_meet_link;
+                        let appointmentId = statusData.appointment_id;
+
+                        if (paymentFlowType === 'GUEST') {
+                            const guestData = {
+                                parent_first_name: parentFirstName,
+                                parent_last_name: parentLastName,
+                                parent_phone: parentPhone,
+                                parent_email: parentEmail || null,
+                                parent_gender: parentGender || null,
+                                child_first_name: selectedChild?.firstName || selectedChild?.first_name || selectedChild?.name?.split(' ')[0] || '',
+                                child_last_name: selectedChild?.lastName || selectedChild?.last_name || selectedChild?.name?.split(' ').slice(1).join(' ') || '',
+                                child_dob: selectedChild?.dateOfBirth || selectedChild?.date_of_birth || selectedChild?.dob || '',
+                                child_gender: selectedChild?.gender || 'Male',
+                                local_child_id: selectedChild?.id || null, // Pass local ID so backend can update it
+                                specialization_id: specialization.id,
+                                appointment_date: selectedDate,
+                                start_time: selectedTime,
+                                appointment_type: 'TELECONSULT',
+                            };
+                            const bookingResponse = await appointmentService.createGuestAppointment(guestData);
+                            meetLink = bookingResponse?.google_meet_link || meetLink;
+                            appointmentId = bookingResponse?.appointment_id || appointmentId;
+                        }
+
+                        setIsPolling(false);
+                        setBooking(false);
+
+                        router.push({
+                            pathname: '/appointments/confirmation',
+                            params: {
+                                doctorName: 'Assigned automatically',
+                                specialty: specialization.name,
+                                date: selectedDate,
+                                time: selectedTime,
+                                appointmentType: 'TELECONSULT',
+                                meetLink: meetLink || '',
+                                appointmentId: appointmentId || '',
+                                isGuest: paymentFlowType === 'GUEST' ? 'true' : 'false',
+                            }
+                        });
+                        showAlert('Success', `Payment successful (Receipt: ${statusData.mpesa_receipt_number}). Appointment booked!`, [], 'success');
+                    } catch (bookErr) {
+                        setIsPolling(false);
+                        setBooking(false);
+                        Alert.alert('Booking Error', 'Payment received but appointment creation failed. Please contact support.');
+                    }
+                },
+                (failureReason) => {
+                    setIsPolling(false);
+                    setBooking(false);
+                    Alert.alert('Payment Failed', failureReason);
+                }
+            );
+        } catch (error) {
+            setBooking(false);
+            setProcessingPayment(false);
+            Alert.alert('Payment Error', error.message || 'Failed to initiate payment');
         }
     };
 
@@ -835,6 +770,52 @@ export default function SelectSlotScreen() {
                     )}
                 </ScrollView>
             </KeyboardAvoidingView>
+            {/* Payment Modal for Cross-Platform compatibility instead of Alert.prompt */}
+            <Modal
+                visible={isPaymentModalVisible}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setIsPaymentModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { backgroundColor: colorScheme.surface }]}>
+                        <View style={styles.modalHeader}>
+                            <Image
+                                source={require('@/assets/images/mpesa-logo.png')}
+                                style={styles.mpesaLogo}
+                                resizeMode="contain"
+                            />
+                            <Text style={[styles.modalTitle, { color: colorScheme.textPrimary }]}>M-Pesa Payment</Text>
+                        </View>
+                        <Text style={[styles.modalMessage, { color: colorScheme.textSecondary }]}>
+                            Please enter the phone number to pay KES 1.00 for this teleconsultation (Format: 07XXXXXXXX or 01XXXXXXXX).
+                        </Text>
+                        <TextInput
+                            style={[styles.modalInput, { backgroundColor: colorScheme.background, color: colorScheme.textPrimary, borderColor: colorScheme.border }]}
+                            keyboardType="phone-pad"
+                            value={paymentPhoneInput}
+                            onChangeText={setPaymentPhoneInput}
+                            placeholder="07XXXXXXXX"
+                            placeholderTextColor={colorScheme.textTertiary}
+                            autoFocus
+                        />
+                        <View style={styles.modalButtons}>
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.modalCancelButton]}
+                                onPress={() => setIsPaymentModalVisible(false)}
+                            >
+                                <Text style={[styles.modalCancelText, { color: colorScheme.textSecondary }]}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.modalPayButton, { backgroundColor: colorScheme.primary }]}
+                                onPress={executePaymentAndBooking}
+                            >
+                                <Text style={styles.modalPayText}>Pay & Book</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -1031,5 +1012,75 @@ const styles = StyleSheet.create({
         paddingHorizontal: Spacing.lg,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
+    },
+    // Modal Styles
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalContent: {
+        width: '85%',
+        backgroundColor: '#FFFFFF',
+        borderRadius: BorderRadius.lg,
+        padding: Spacing.xl,
+        ...Shadow.lg,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: Spacing.md,
+        gap: Spacing.sm,
+    },
+    mpesaLogo: {
+        width: 40,
+        height: 40,
+    },
+    modalTitle: {
+        fontSize: Typography.fontSize.lg,
+        fontWeight: Typography.fontWeight.bold,
+        color: '#1F2937',
+    },
+    modalMessage: {
+        fontSize: Typography.fontSize.sm,
+        color: '#4B5563',
+        marginBottom: Spacing.lg,
+        lineHeight: 20,
+    },
+    modalInput: {
+        borderWidth: 1,
+        borderColor: '#D1D5DB',
+        borderRadius: BorderRadius.md,
+        padding: Spacing.md,
+        fontSize: Typography.fontSize.base,
+        marginBottom: Spacing.xl,
+        color: '#1F2937',
+    },
+    modalButtons: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        gap: Spacing.md,
+    },
+    modalButton: {
+        paddingVertical: Spacing.sm,
+        paddingHorizontal: Spacing.lg,
+        borderRadius: BorderRadius.md,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalCancelButton: {
+        backgroundColor: '#F3F4F6',
+    },
+    modalCancelText: {
+        color: '#4B5563',
+        fontWeight: Typography.fontWeight.semibold,
+    },
+    modalPayButton: {
+        // Background color injected dynamically
+    },
+    modalPayText: {
+        color: '#FFFFFF',
+        fontWeight: Typography.fontWeight.semibold,
     },
 });

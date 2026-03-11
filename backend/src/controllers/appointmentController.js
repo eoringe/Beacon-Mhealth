@@ -858,7 +858,9 @@ exports.createGuestAppointment = async (req, res) => {
             message: 'Appointment booked successfully',
             data: {
                 appointment_id: appointment.id,
-                child_id: appointment.child_id
+                child_id: appointment.child_id,
+                google_meet_link: appointment.google_meet_link,
+                google_calendar_event_id: appointment.google_calendar_event_id
             }
         });
     } catch (error) {
