@@ -387,8 +387,8 @@ export default function AuthScreen() {
                                     </TouchableOpacity>
                                     <Text style={styles.termsText}>
                                         I agree to the
-                                        <Text style={styles.linkText} onPress={() => Linking.openURL('https://beaconchildrencenter.co.ke/terms-of-use?token=mobile-app-secure-access')}> Terms of Service</Text> and
-                                        <Text style={styles.linkText} onPress={() => Linking.openURL('https://beaconchildrencenter.co.ke/privacy-policy?token=mobile-app-secure-access')}> Privacy Policy</Text>
+                                        <Text style={styles.linkText} onPress={() => Linking.openURL('https://www.beaconchildrencenter.co.ke/terms-of-service')}> Terms of Service</Text> and
+                                        <Text style={styles.linkText} onPress={() => Linking.openURL('https://www.beaconchildrencenter.co.ke/privacy-policy')}> Privacy Policy</Text>
                                     </Text>
                                 </View>
 
