@@ -2,7 +2,7 @@
   "expo": {
     "name": "Beacon Children's Centre",
     "slug": "beacon-children-center",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "default",
     "icon": "./assets/images/beacon_30.png",
     "scheme": "myapp",

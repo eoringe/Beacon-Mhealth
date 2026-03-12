@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -76,74 +76,85 @@ export default function EditProfileScreen() {
     return (
         <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
             <SafeHeader title="Edit Profile" showBack={true} />
-            <View style={styles.content}>
-                <View style={styles.inputGroup}>
-                    <Text style={[styles.label, { color: colorScheme.textPrimary }]}>Full Name</Text>
-                    <TextInput
-                        style={[styles.input, {
-                            color: colorScheme.textPrimary,
-                            borderColor: colorScheme.border,
-                            backgroundColor: colorScheme.surface
-                        }]}
-                        value={displayName}
-                        onChangeText={setDisplayName}
-                        placeholder="Enter your name"
-                        placeholderTextColor={colorScheme.textSecondary}
-                    />
-                </View>
-
-                <View style={styles.inputGroup}>
-                    <Text style={[styles.label, { color: colorScheme.textPrimary }]}>Phone Number</Text>
-                    <TextInput
-                        style={[styles.input, {
-                            color: colorScheme.textPrimary,
-                            borderColor: colorScheme.border,
-                            backgroundColor: colorScheme.surface
-                        }]}
-                        value={phoneNumber}
-                        onChangeText={setPhoneNumber}
-                        placeholder="e.g. 0712345678"
-                        placeholderTextColor={colorScheme.textSecondary}
-                        keyboardType="phone-pad"
-                    />
-                    <Text style={[styles.helperText, { color: colorScheme.textSecondary }]}>
-                        Used for appointment bookings.
-                    </Text>
-                </View>
-
-                <View style={styles.inputGroup}>
-                    <Text style={[styles.label, { color: colorScheme.textPrimary }]}>Email</Text>
-                    <View style={[styles.input, {
-                        backgroundColor: colorScheme.surface,
-                        borderColor: colorScheme.border,
-                        opacity: 0.7
-                    }]}>
-                        <Text style={{ color: colorScheme.textSecondary }}>{user?.email}</Text>
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={{ flex: 1 }}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+            >
+                <ScrollView
+                    style={{ flex: 1 }}
+                    contentContainerStyle={styles.content}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                >
+                    <View style={styles.inputGroup}>
+                        <Text style={[styles.label, { color: colorScheme.textPrimary }]}>Full Name</Text>
+                        <TextInput
+                            style={[styles.input, {
+                                color: colorScheme.textPrimary,
+                                borderColor: colorScheme.border,
+                                backgroundColor: colorScheme.surface
+                            }]}
+                            value={displayName}
+                            onChangeText={setDisplayName}
+                            placeholder="Enter your name"
+                            placeholderTextColor={colorScheme.textSecondary}
+                        />
                     </View>
-                    <Text style={[styles.helperText, { color: colorScheme.textSecondary }]}>
-                        Email cannot be changed directly.
-                    </Text>
-                </View>
 
-                <TouchableOpacity
-                    style={[styles.changePasswordButton, { borderColor: colorScheme.primary }]}
-                    onPress={() => router.push('/profile/change-password')}
-                >
-                    <Text style={[styles.changePasswordText, { color: colorScheme.primary }]}>Change Password</Text>
-                </TouchableOpacity>
+                    <View style={styles.inputGroup}>
+                        <Text style={[styles.label, { color: colorScheme.textPrimary }]}>Phone Number</Text>
+                        <TextInput
+                            style={[styles.input, {
+                                color: colorScheme.textPrimary,
+                                borderColor: colorScheme.border,
+                                backgroundColor: colorScheme.surface
+                            }]}
+                            value={phoneNumber}
+                            onChangeText={setPhoneNumber}
+                            placeholder="e.g. 0712345678"
+                            placeholderTextColor={colorScheme.textSecondary}
+                            keyboardType="phone-pad"
+                        />
+                        <Text style={[styles.helperText, { color: colorScheme.textSecondary }]}>
+                            Used for appointment bookings.
+                        </Text>
+                    </View>
 
-                <TouchableOpacity
-                    style={[styles.saveButton, { backgroundColor: colorScheme.primary }]}
-                    onPress={handleSave}
-                    disabled={loading}
-                >
-                    {loading ? (
-                        <ActivityIndicator color="#FFF" />
-                    ) : (
-                        <Text style={styles.saveButtonText}>Save Changes</Text>
-                    )}
-                </TouchableOpacity>
-            </View>
+                    <View style={styles.inputGroup}>
+                        <Text style={[styles.label, { color: colorScheme.textPrimary }]}>Email</Text>
+                        <View style={[styles.input, {
+                            backgroundColor: colorScheme.surface,
+                            borderColor: colorScheme.border,
+                            opacity: 0.7
+                        }]}>
+                            <Text style={{ color: colorScheme.textSecondary }}>{user?.email}</Text>
+                        </View>
+                        <Text style={[styles.helperText, { color: colorScheme.textSecondary }]}>
+                            Email cannot be changed directly.
+                        </Text>
+                    </View>
+
+                    <TouchableOpacity
+                        style={[styles.changePasswordButton, { borderColor: colorScheme.primary }]}
+                        onPress={() => router.push('/profile/change-password')}
+                    >
+                        <Text style={[styles.changePasswordText, { color: colorScheme.primary }]}>Change Password</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[styles.saveButton, { backgroundColor: colorScheme.primary }]}
+                        onPress={handleSave}
+                        disabled={loading}
+                    >
+                        {loading ? (
+                            <ActivityIndicator color="#FFF" />
+                        ) : (
+                            <Text style={styles.saveButtonText}>Save Changes</Text>
+                        )}
+                    </TouchableOpacity>
+                </ScrollView>
+            </KeyboardAvoidingView>
         </View>
     );
 }

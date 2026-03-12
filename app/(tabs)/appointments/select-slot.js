@@ -301,11 +301,12 @@ export default function SelectSlotScreen() {
                 phone,
                 amount,
                 {
-                    child_id: selectedChild?.id,
-                    doctor_id: 0,
-                    appointment_date: selectedDate,
-                    appointment_time: selectedTime,
-                    appointment_type: 'TELECONSULT',
+                    childId: selectedChild?.id,
+                    specializationId: specialization.id,
+                    doctorId: 0,
+                    appointmentDate: selectedDate,
+                    appointmentTime: selectedTime,
+                    appointmentType: 'TELECONSULT',
                     reason: reason || null,
                     notes: notes || null
                 }
@@ -872,7 +873,10 @@ export default function SelectSlotScreen() {
                 animationType="fade"
                 onRequestClose={() => setIsPaymentModalVisible(false)}
             >
-                <View style={styles.modalOverlay}>
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={styles.modalOverlay}
+                >
                     <View style={[styles.modalContent, { backgroundColor: colorScheme.surface }]}>
                         <View style={styles.modalHeader}>
                             <Image
@@ -909,7 +913,7 @@ export default function SelectSlotScreen() {
                             </TouchableOpacity>
                         </View>
                     </View>
-                </View>
+                </KeyboardAvoidingView>
             </Modal>
         </View>
     );

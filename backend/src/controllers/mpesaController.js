@@ -235,22 +235,29 @@ exports.checkStatus = async (req, res) => {
         if (transaction.status === 'completed') {
             try {
                 const apptData = transaction.appointment_data;
-                // apptData.child_id is the LOCAL ID. We need to find the appointment in EXTERNAL DB.
-                // We can find it by date, time and the child's registration number (which we can link via local ID)
-                const apptResult = await externalQuery(
-                    `SELECT a.id, a.google_meet_link, a.appointment_type 
-                     FROM appointments a
-                     JOIN children c ON a.child_id = c.id
-                     WHERE c.registration_number = (SELECT registration_number FROM children WHERE id = $1)
-                     AND a.appointment_date = $2 AND a.start_time = $3
-                     ORDER BY a.created_at DESC LIMIT 1`,
-                    [apptData.child_id, apptData.appointment_date, apptData.appointment_time]
-                );
+                const childId = apptData.childId || apptData.child_id;
 
-                if (apptResult.rows.length > 0) {
-                    response.appointment_id = apptResult.rows[0].id;
-                    response.google_meet_link = apptResult.rows[0].google_meet_link;
-                    response.appointment_type = apptResult.rows[0].appointment_type;
+                // 1. Resolve registration number locally
+                const localChild = await pool.query('SELECT registration_number FROM children WHERE id = $1', [childId]);
+                const regNumber = localChild.rows[0]?.registration_number;
+
+                if (regNumber) {
+                    // 2. Query external DB using the registration number string
+                    const apptResult = await externalQuery(
+                        `SELECT a.id, a.google_meet_link, a.appointment_type 
+                         FROM appointments a
+                         JOIN children c ON a.child_id = c.id
+                         WHERE c.registration_number = $1
+                         AND a.appointment_date = $2 AND a.start_time = $3
+                         ORDER BY a.created_at DESC LIMIT 1`,
+                        [regNumber, apptData.appointmentDate || apptData.appointment_date, apptData.appointmentTime || apptData.appointment_time]
+                    );
+
+                    if (apptResult.rows.length > 0) {
+                        response.appointment_id = apptResult.rows[0].id;
+                        response.google_meet_link = apptResult.rows[0].google_meet_link;
+                        response.appointment_type = apptResult.rows[0].appointment_type;
+                    }
                 }
             } catch (err) {
                 console.error('Error fetching appointment details for status:', err);
@@ -315,17 +322,9 @@ exports.callback = async (req, res) => {
                 );
                 console.log('Transaction updated:', updateResult.rows[0]?.status);
 
-                // Update Transaction
-                await client.query(
-                    `UPDATE mpesa_transactions 
-                     SET status = 'completed', mpesa_receipt_number = $1, result_desc = $2, updated_at = NOW()
-                     WHERE id = $3`,
-                    [receipt, resultDesc, transaction.id]
-                );
-
                 // triggers appointment creation
-                const apptData = transaction.appointment_data;
-                const childId = apptData.child_id;
+                const apptDataRaw = transaction.appointment_data;
+                const childId = apptDataRaw.childId || apptDataRaw.child_id;
 
                 // Get User ID from child
                 const userResult = await client.query('SELECT parent_id FROM children WHERE id = $1', [childId]);
@@ -333,7 +332,18 @@ exports.callback = async (req, res) => {
 
                 if (userId) {
                     try {
-                        // Ensure we use the correct appointment logic
+                        // Standardize keys for createAppointmentLogic
+                        const apptData = {
+                            childId: childId,
+                            specializationId: apptDataRaw.specializationId || apptDataRaw.specialization_id,
+                            doctorId: apptDataRaw.doctorId || apptDataRaw.doctor_id || 0,
+                            appointmentDate: apptDataRaw.appointmentDate || apptDataRaw.appointment_date,
+                            appointmentTime: apptDataRaw.appointmentTime || apptDataRaw.appointment_time,
+                            appointmentType: apptDataRaw.appointmentType || apptDataRaw.appointment_type || 'TELECONSULT',
+                            reason: apptDataRaw.reason,
+                            notes: apptDataRaw.notes
+                        };
+
                         const result = await appointmentController.createAppointmentLogic(apptData, userId);
                         console.log('Appointment created via Callback:', result);
                     } catch (err) {

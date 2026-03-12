@@ -414,7 +414,7 @@ export default function DashboardScreen() {
                         <SmoothCarousel
                             data={insightSlides}
                             autoScrollMs={7000}
-                            cardHeight={130}
+                            cardHeight={150}
                             renderCard={(item) => (
                                 <TouchableOpacity
                                     style={[styles.insightCard, { backgroundColor: item.bg }]}
@@ -588,12 +588,12 @@ const styles = StyleSheet.create({
     childName: { fontSize: Typography.fontSize.md, fontWeight: Typography.fontWeight.bold, marginBottom: 2 },
     childDetails: { fontSize: Typography.fontSize.sm },
     // Insight Card
-    insightCard: { borderRadius: BorderRadius.lg, padding: Spacing.lg, height: 120 },
+    insightCard: { borderRadius: BorderRadius.lg, padding: Spacing.lg },
     insightHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.sm, gap: Spacing.sm },
     insightEmoji: { fontSize: 28 },
     insightBadge: { backgroundColor: 'rgba(255,255,255,0.25)', paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: BorderRadius.md },
     insightBadgeText: { color: '#FFF', fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.bold },
-    insightTip: { color: 'rgba(255,255,255,0.95)', fontSize: Typography.fontSize.sm, lineHeight: 22 },
+    insightTip: { color: 'rgba(255,255,255,0.95)', fontSize: Typography.fontSize.sm, lineHeight: 20, flexShrink: 1 },
     // Stats
     statsRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.lg },
     statCard: { flex: 1, borderRadius: BorderRadius.lg, padding: Spacing.md, alignItems: 'center', ...Shadow.sm },
