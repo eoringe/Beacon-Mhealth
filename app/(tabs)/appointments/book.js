@@ -158,19 +158,11 @@ export default function BookAppointmentScreen() {
                                         <Text style={[styles.specName, { color: colorScheme.textPrimary }]}>
                                             {spec.name}
                                         </Text>
-                                        {spec.hasTeleconsult && (
-                                            <View style={[styles.teleBadge, { backgroundColor: colorScheme.primary + '15' }]}>
-                                                <MaterialIcons name="videocam" size={12} color={colorScheme.primary} />
-                                                <Text style={[styles.teleBadgeText, { color: colorScheme.primary }]}>Teleconsult</Text>
-                                            </View>
-                                        )}
                                     </View>
 
-                                    {spec.doctors && spec.doctors.length > 0 && (
-                                        <Text style={[styles.doctorsList, { color: colorScheme.textSecondary }]} numberOfLines={1}>
-                                            {spec.doctors.map(d => (spec.name === 'Developmental Paediatrician' ? 'Dr. ' : '') + d.name).join(', ')}
-                                        </Text>
-                                    )}
+                                    <Text style={[styles.serviceTypes, { color: colorScheme.textSecondary }]}>
+                                        In-person{spec.hasTeleconsult ? ' • Teleconsultation' : ''}
+                                    </Text>
 
                                     {spec.doctorCount > 0 && (
                                         <Text style={[styles.doctorCount, { color: colorScheme.textTertiary }]}>
@@ -268,9 +260,9 @@ const styles = StyleSheet.create({
         fontSize: 10,
         fontWeight: 'bold',
     },
-    doctorsList: {
+    serviceTypes: {
         fontSize: Typography.fontSize.xs,
         marginBottom: 2,
-        fontStyle: 'italic',
+        fontWeight: Typography.fontWeight.medium,
     },
 });
