@@ -42,7 +42,7 @@ const getMediaByRegistration = async (req, res) => {
         `, [childId]);
 
         // Format the response
-        const laravelBaseUrl = process.env.LARAVEL_APP_URL || 'http://localhost:8000';
+        const laravelBaseUrl = process.env.LARAVEL_APP_URL || 'https://beaconchildrencenter-production.up.railway.app';
 
         const mediaList = mediaResult.rows.map(m => ({
             id: m.id,
@@ -83,11 +83,20 @@ const downloadMedia = async (req, res) => {
     const { mediaId } = req.params;
 
     try {
-        // Get media info from database
-        const mediaResult = await externalQuery(
-            'SELECT id, name, file_name, mime_type, size, disk FROM media WHERE id = $1',
-            [mediaId]
-        );
+        // Get media info and child name from database
+        const mediaResult = await externalQuery(`
+            SELECT 
+                m.id, 
+                m.name as report_title, 
+                m.file_name, 
+                m.mime_type, 
+                m.size, 
+                m.disk,
+                c.fullname as child_fullname
+            FROM media m
+            LEFT JOIN children c ON m.model_id = c.id
+            WHERE m.id = $1
+        `, [mediaId]);
 
         if (mediaResult.rows.length === 0) {
             return res.status(404).json({
@@ -97,10 +106,39 @@ const downloadMedia = async (req, res) => {
         }
 
         const media = mediaResult.rows[0];
-        console.log(`[MediaController] Found media: ${media.file_name} (Disk: ${media.disk})`);
+
+        // Format a friendly filename
+        let friendlyName = 'Report';
+        if (media.child_fullname) {
+            const nameObj = typeof media.child_fullname === 'string' ? JSON.parse(media.child_fullname) : media.child_fullname;
+
+            // Build name parts, filtering out null/undefined/empty strings
+            const nameParts = [
+                nameObj.first_name,
+                nameObj.middle_name,
+                nameObj.last_name
+            ].filter(part => part && part !== 'null' && part !== 'undefined');
+
+            const childName = nameParts.join('_');
+            const reportTitle = (media.report_title || 'Report')
+                .replace(/\.pdf$/i, '')
+                .replace(/_pdf$/i, '');
+
+            friendlyName = `${childName}_${reportTitle}`;
+        } else {
+            const reportTitle = (media.report_title || 'Medical_Report')
+                .replace(/\.pdf$/i, '')
+                .replace(/_pdf$/i, '');
+            friendlyName = reportTitle;
+        }
+
+        // Clean up filename (remove spaces and special chars)
+        friendlyName = friendlyName.replace(/[^a-zA-Z0-9]/g, '_') + '.pdf';
+
+        console.log(`[MediaController] Downloading: ${friendlyName} (Original: ${media.file_name})`);
 
         // Laravel base URL (adjust based on your Laravel server URL)
-        const laravelBaseUrl = process.env.LARAVEL_APP_URL || 'http://localhost:8000';
+        const laravelBaseUrl = process.env.LARAVEL_APP_URL || 'https://beaconchildrencenter-production.up.railway.app';
 
         // Construct URL based on disk type
         let downloadUrl;
@@ -135,7 +173,7 @@ const downloadMedia = async (req, res) => {
 
         // Set headers for download
         res.setHeader('Content-Type', media.mime_type);
-        res.setHeader('Content-Disposition', `inline; filename="${media.file_name}"`);
+        res.setHeader('Content-Disposition', `inline; filename="${friendlyName}"`);
         res.setHeader('Content-Length', media.size);
 
         // Stream the response

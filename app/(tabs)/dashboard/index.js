@@ -107,6 +107,14 @@ export default function DashboardScreen() {
     const [upcomingAppointments, setUpcomingAppointments] = useState([]);
     const [milestoneProgress, setMilestoneProgress] = useState(null);
 
+    // Tracker Stats for Dynamic Insights
+    const [trackerStats, setTrackerStats] = useState({
+        feedingToday: 0,
+        sleepToday: 0,
+        teethingCount: 0,
+        firstsCount: 0,
+    });
+
     const recentActivity = notifications.slice(0, 3);
 
     // Time-of-day greeting
@@ -134,11 +142,14 @@ export default function DashboardScreen() {
 
     const ageInMonths = selectedChild?.date_of_birth ? calculateAgeInMonths(selectedChild.date_of_birth) : null;
 
-    // Insight slides based on child's age
+    // Insight slides based on child's age and data
     const getInsightSlides = () => {
         if (ageInMonths == null) return [];
         const name = selectedChild.first_name;
-        const all = [
+        const slides = [];
+
+        // 1. Age-based development tip
+        const ageTips = [
             { max: 3, icon: '👶', title: 'Newborn Phase', tip: `${name} is discovering the world! Lots of tummy time helps build neck strength.`, bg: '#6C63FF' },
             { max: 6, icon: '🍼', title: 'Growing Fast', tip: `${name} may start reaching for toys and rolling over soon.`, bg: '#2196F3' },
             { max: 9, icon: '🧸', title: 'Explorer Mode', tip: `${name} might be sitting up and babbling. Read together!`, bg: '#00897B' },
@@ -148,17 +159,49 @@ export default function DashboardScreen() {
             { max: 36, icon: '🎨', title: 'Creative Play', tip: `${name} loves pretend play and following instructions.`, bg: '#AB47BC' },
             { max: 999, icon: '⭐', title: 'Growing Up', tip: `${name} is developing wonderfully!`, bg: '#FF7043' },
         ];
-        const match = all.find(i => ageInMonths <= i.max) || all[all.length - 1];
-        const slides = [match];
+        slides.push(ageTips.find(i => ageInMonths <= i.max) || ageTips[ageTips.length - 1]);
+
+        // 2. Today's Activity
         const dailyActivity = getDailyPick(ageInMonths);
         if (dailyActivity) {
             slides.push({ icon: '🎯', title: "Today's Activity", tip: `Try: ${dailyActivity.title} — ${dailyActivity.description}`, bg: '#009688', route: '/dashboard/activities' });
         }
+
+        // 3. Milestone Progress
         if (milestoneProgress != null) {
-            slides.push({ icon: '📊', title: 'Milestone Progress', tip: `${name} has achieved ${milestoneProgress}% of tracked milestones. Keep going!`, bg: '#7B1FA2', route: '/dashboard/milestone-checklist' });
+            slides.push({ icon: '📊', title: 'Milestones', tip: `${name} has achieved ${milestoneProgress}% of tracked milestones.${milestoneProgress > 0 ? ' Excellent progress!' : ''}`, bg: '#7B1FA2', route: '/dashboard/milestone-checklist' });
         } else {
-            slides.push({ icon: '📋', title: 'Start Tracking', tip: `Track ${name}'s developmental milestones to get personalized insights.`, bg: '#455A64', route: '/dashboard/milestone-checklist' });
+            slides.push({ icon: '📋', title: 'Development', tip: `Start tracking ${name}'s milestones to get personalized developmental insights.`, bg: '#455A64', route: '/dashboard/milestone-checklist' });
         }
+
+        // 4. Baby's Firsts
+        if (trackerStats.firstsCount > 0) {
+            slides.push({ icon: '🌟', title: "Baby's Firsts", tip: `You've captured ${trackerStats.firstsCount} special moments! Keep making beautiful memories.`, bg: '#FF9800', route: '/dashboard/firsts' });
+        } else {
+            slides.push({ icon: '⭐', title: "First Moments", tip: `Capture ${name}'s first smile or word in the Firsts Journal.`, bg: '#FFB74D', route: '/dashboard/firsts' });
+        }
+
+        // 5. Feeding
+        if (trackerStats.feedingToday > 0) {
+            slides.push({ icon: '🍼', title: 'Feeding Today', tip: `Well-fed and happy! You've logged ${trackerStats.feedingToday} feedings for ${name} today.`, bg: '#E91E63', route: '/dashboard/feeding' });
+        } else {
+            slides.push({ icon: '🍽️', title: 'Feeding Tracker', tip: `Log ${name}'s breastfeeding, bottles or solids to monitor nutrition.`, bg: '#F06292', route: '/dashboard/feeding' });
+        }
+
+        // 6. Sleep
+        if (trackerStats.sleepToday > 0) {
+            slides.push({ icon: '😴', title: 'Sleep Status', tip: `Sweet dreams! ${name} has logged some restful sleep today. Growth happens during rest!`, bg: '#512DA8', route: '/dashboard/sleep' });
+        } else {
+            slides.push({ icon: '🌙', title: 'Sleep Tracker', tip: `Track naps and nighttime sleep to understand ${name}'s daily patterns.`, bg: '#7986CB', route: '/dashboard/sleep' });
+        }
+
+        // 7. Teething
+        if (trackerStats.teethingCount > 0) {
+            slides.push({ icon: '🦷', title: 'Teething Progress', tip: `That growing smile! You've tracked ${trackerStats.teethingCount} teeth for ${name} so far.`, bg: '#4CAF50', route: '/dashboard/teething' });
+        } else {
+            slides.push({ icon: '👶', title: 'Teething Chart', tip: `Track when ${name}'s teeth erupt and manage those gummy smiles.`, bg: '#81C784', route: '/dashboard/teething' });
+        }
+
         return slides;
     };
 
@@ -223,7 +266,55 @@ export default function DashboardScreen() {
         } catch (e) { console.error(e); setMilestoneConcern(false); setMilestoneProgress(null); }
     }, [selectedChild?.id]);
 
-    useEffect(() => { checkMilestoneProgress(); fetchUpcomingAppointments(); }, [checkMilestoneProgress]);
+    const fetchTrackerStats = useCallback(async () => {
+        if (!selectedChild?.id) return;
+        try {
+            const childId = selectedChild.id;
+            const today = new Date().toDateString();
+
+            // 1. Feeding
+            const feedingRaw = await AsyncStorage.getItem(`feeding_logs_${childId}`);
+            const feedingLogs = feedingRaw ? JSON.parse(feedingRaw) : [];
+            const feedingToday = feedingLogs.filter(l => new Date(l.timestamp).toDateString() === today).length;
+
+            // 2. Sleep
+            const sleepRaw = await AsyncStorage.getItem(`sleep_logs_${childId}`);
+            const sleepLogs = sleepRaw ? JSON.parse(sleepRaw) : [];
+            const sleepToday = sleepLogs.filter(l => new Date(l.timestamp).toDateString() === today).length;
+
+            // 3. Teething
+            const teethingRaw = await AsyncStorage.getItem(`teething_data_${childId}`);
+            const teethingData = teethingRaw ? JSON.parse(teethingRaw) : {};
+            const teethingCount = Object.keys(teethingData).length;
+
+            // 4. Firsts
+            const firstsRaw = await AsyncStorage.getItem(`firsts_journal_${childId}`);
+            const firstsData = firstsRaw ? JSON.parse(firstsRaw) : { entries: {} };
+            const firstsCount = Object.keys(firstsData.entries || {}).length;
+
+            setTrackerStats({
+                feedingToday,
+                sleepToday,
+                teethingCount,
+                firstsCount,
+            });
+        } catch (e) {
+            console.error('Error fetching tracker stats:', e);
+        }
+    }, [selectedChild?.id]);
+
+    useEffect(() => {
+        checkMilestoneProgress();
+        fetchTrackerStats();
+        fetchUpcomingAppointments();
+    }, [checkMilestoneProgress, fetchTrackerStats]);
+
+    useFocusEffect(
+        useCallback(() => {
+            fetchTrackerStats();
+            checkMilestoneProgress();
+        }, [fetchTrackerStats, checkMilestoneProgress])
+    );
 
     const fetchUpcomingAppointments = async () => {
         try {
@@ -434,7 +525,7 @@ export default function DashboardScreen() {
                     <View style={styles.headerRow}>
                         <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, marginBottom: 0 }]}>Recent Activity</Text>
                         {recentActivity.length > 0 && (
-                            <TouchableOpacity onPress={() => Alert.alert('Clear Activity', 'Clear all?', [{ text: 'Cancel', style: 'cancel' }, { text: 'Clear', style: 'destructive', onPress: () => clearAll() }])}>
+                            <TouchableOpacity onPress={() => showAlert('Clear Activity', 'Are you sure you want to clear all recent activity?', [{ text: 'Cancel', style: 'cancel' }, { text: 'Clear', style: 'destructive', onPress: () => clearAll() }], 'warning')}>
                                 <Text style={{ color: colorScheme.error || '#FF5252', fontWeight: '600', fontSize: 12 }}>Clear</Text>
                             </TouchableOpacity>
                         )}

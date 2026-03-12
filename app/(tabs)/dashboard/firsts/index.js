@@ -7,6 +7,7 @@ import {
     TouchableOpacity,
     TextInput,
     Modal,
+    Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -37,6 +38,8 @@ const DEFAULT_FIRSTS = [
     { id: 'first_sleepthrough', label: 'Slept Through Night', icon: 'bedtime', color: '#5C6BC0' },
 ];
 
+import DateTimePicker from '@react-native-community/datetimepicker';
+
 export default function FirstsJournalScreen() {
     const insets = useSafeAreaInsets();
     const { colorScheme } = useTheme();
@@ -47,6 +50,12 @@ export default function FirstsJournalScreen() {
     const [showAddCustom, setShowAddCustom] = useState(false);
     const [customLabel, setCustomLabel] = useState('');
     const [customFirsts, setCustomFirsts] = useState([]);
+
+    // Date Picker State
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [pickerDate, setPickerDate] = useState(new Date());
+    const [activeFirstId, setActiveFirstId] = useState(null);
+
     const childId = selectedChild?.id;
 
     useFocusEffect(
@@ -87,12 +96,21 @@ export default function FirstsJournalScreen() {
     const handleToggleFirst = (firstId) => {
         if (entries[firstId]) {
             showAlert(
-                'Remove Entry',
-                'Remove this milestone date?',
+                'Update Milestone',
+                'What would you like to do?',
                 [
                     { text: 'Cancel' },
                     {
+                        text: 'Date',
+                        onPress: () => {
+                            setActiveFirstId(firstId);
+                            setPickerDate(new Date(entries[firstId].date));
+                            setShowDatePicker(true);
+                        }
+                    },
+                    {
                         text: 'Remove',
+                        style: 'destructive',
                         onPress: () => {
                             const updated = { ...entries };
                             delete updated[firstId];
@@ -101,12 +119,21 @@ export default function FirstsJournalScreen() {
                         }
                     }
                 ],
-                'warning'
+                'info'
             );
         } else {
+            setActiveFirstId(firstId);
+            setPickerDate(new Date());
+            setShowDatePicker(true);
+        }
+    };
+
+    const onDateChange = (event, selectedDate) => {
+        if (Platform.OS === 'android') setShowDatePicker(false);
+        if (selectedDate && activeFirstId) {
             const updated = {
                 ...entries,
-                [firstId]: { date: new Date().toISOString(), note: '' }
+                [activeFirstId]: { date: selectedDate.toISOString(), note: entries[activeFirstId]?.note || '' }
             };
             setEntries(updated);
             saveData(updated, customFirsts);
@@ -206,6 +233,38 @@ export default function FirstsJournalScreen() {
                     })}
                 </View>
             </ScrollView>
+
+            {/* Date Picker */}
+            {showDatePicker && (
+                <DateTimePicker
+                    value={pickerDate}
+                    mode="date"
+                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                    onChange={onDateChange}
+                    maximumDate={new Date()}
+                    {...(Platform.OS === 'ios' ? {
+                        onTouchCancel: () => setShowDatePicker(false),
+                    } : {})}
+                />
+            )}
+            {Platform.OS === 'ios' && showDatePicker && (
+                <View style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    width: '100%',
+                    backgroundColor: colorScheme.surface,
+                    borderTopWidth: 1,
+                    borderTopColor: colorScheme.border,
+                    padding: Spacing.md,
+                }}>
+                    <TouchableOpacity
+                        onPress={() => setShowDatePicker(false)}
+                        style={{ alignSelf: 'flex-end', padding: Spacing.sm }}
+                    >
+                        <Text style={{ color: colorScheme.primary, fontWeight: 'bold' }}>Done</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
 
             {/* Add Custom First Modal */}
             <Modal

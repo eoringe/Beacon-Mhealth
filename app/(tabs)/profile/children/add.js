@@ -159,6 +159,16 @@ export default function AddChildScreen() {
             showsVerticalScrollIndicator={false}
         >
             <View style={styles.formContainer}>
+                <View style={[styles.searchCard, { backgroundColor: colorScheme.surface, borderColor: colorScheme.border, borderWidth: 1, marginBottom: Spacing.md }]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.xs }}>
+                        <MaterialIcons name="info" size={20} color={colorScheme.primary} />
+                        <Text style={[styles.label, { color: colorScheme.textPrimary, marginBottom: 0 }]}>Important Notice</Text>
+                    </View>
+                    <Text style={[styles.searchSubtitle, { color: colorScheme.textSecondary, marginBottom: 0 }]}>
+                        Manual entry should only be used if your child has never visited Beacon Children's Centre. If your child has a previous record, please use the <Text style={{ fontWeight: 'bold' }}>Clinic Search</Text> tab to link their existing profile.
+                    </Text>
+                </View>
+
                 <View style={styles.inputGroup}>
                     <Text style={[styles.label, { color: colorScheme.textPrimary }]}>First Name *</Text>
                     <TextInput
@@ -273,11 +283,11 @@ export default function AddChildScreen() {
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm }}>
                         <MaterialIcons name="security" size={24} color={colorScheme.primary} />
                         <Text style={[styles.searchTitle, { color: colorScheme.textPrimary, marginBottom: 0 }]}>
-                            Secure Verification
+                            Patient Identity Verification
                         </Text>
                     </View>
                     <Text style={[styles.searchSubtitle, { color: colorScheme.textSecondary }]}>
-                        To link a child account, you must provide EXACT details as they appear in the clinic records.
+                        Please provide your child's registration number and date of birth. This information will be cross-referenced with the Beacon Children's Centre clinical database to securely verify and confirm the patient's identity.
                     </Text>
 
                     {/* Registration Number Field with Auto-Formatting */}

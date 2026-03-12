@@ -7,6 +7,8 @@ import {
     TouchableOpacity,
     Modal,
     TextInput,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,6 +38,7 @@ export default function FeedingTrackerScreen() {
 
     const [logs, setLogs] = useState([]);
     const [showAddModal, setShowAddModal] = useState(false);
+    const [editingId, setEditingId] = useState(null);
     const [feedingType, setFeedingType] = useState('breast');
 
     // Breast fields
@@ -80,9 +83,9 @@ export default function FeedingTrackerScreen() {
 
     const handleAddEntry = () => {
         const entry = {
-            id: Date.now().toString(),
+            id: editingId || Date.now().toString(),
             type: feedingType,
-            timestamp: new Date().toISOString(),
+            timestamp: editingId ? logs.find(l => l.id === editingId).timestamp : new Date().toISOString(),
         };
 
         if (feedingType === 'breast') {
@@ -96,11 +99,33 @@ export default function FeedingTrackerScreen() {
             entry.reaction = reaction;
         }
 
-        const updated = [entry, ...logs];
+        let updated;
+        if (editingId) {
+            updated = logs.map(l => l.id === editingId ? entry : l);
+        } else {
+            updated = [entry, ...logs];
+        }
+
         setLogs(updated);
         saveLogs(updated);
         resetForm();
         setShowAddModal(false);
+    };
+
+    const handleEditEntry = (entry) => {
+        setEditingId(entry.id);
+        setFeedingType(entry.type);
+        if (entry.type === 'breast') {
+            setBreastSide(entry.side);
+            setDuration(entry.duration);
+        } else if (entry.type === 'bottle') {
+            setVolume(entry.volume);
+        } else {
+            setFoodCategory(entry.foodCategory);
+            setFoodName(entry.foodName || '');
+            setReaction(entry.reaction || 'none');
+        }
+        setShowAddModal(true);
     };
 
     const handleDeleteEntry = (entryId) => {
@@ -123,6 +148,7 @@ export default function FeedingTrackerScreen() {
     };
 
     const resetForm = () => {
+        setEditingId(null);
         setFeedingType('breast');
         setBreastSide('left');
         setDuration(15);
@@ -205,11 +231,11 @@ export default function FeedingTrackerScreen() {
                     ) : (
                         logs.slice(0, 20).map((entry) => {
                             const typeInfo = getTypeInfo(entry.type);
+                            const reactionInfo = entry.type === 'solid' ? FOOD_REACTIONS.find(r => r.id === entry.reaction) : null;
                             return (
-                                <TouchableOpacity
+                                <View
                                     key={entry.id}
                                     style={[styles.logCard, { backgroundColor: colorScheme.surface }]}
-                                    onLongPress={() => handleDeleteEntry(entry.id)}
                                 >
                                     <View style={[styles.logIcon, { backgroundColor: `${typeInfo.color}15` }]}>
                                         <MaterialIcons name={typeInfo.icon} size={24} color={typeInfo.color} />
@@ -221,13 +247,34 @@ export default function FeedingTrackerScreen() {
                                         <Text style={[styles.logDetail, { color: colorScheme.textSecondary }]}>
                                             {entry.type === 'breast' && `${entry.side} side • ${entry.duration} min`}
                                             {entry.type === 'bottle' && `${entry.volume} ml`}
-                                            {entry.type === 'solid' && `${entry.foodName || entry.foodCategory}`}
+                                            {entry.type === 'solid' && (() => {
+                                                const cat = FOOD_CATEGORIES.find(c => c.id === entry.foodCategory);
+                                                return `${cat?.icon || ''} ${cat?.label || entry.foodCategory}${entry.foodName ? `: ${entry.foodName}` : ''}`;
+                                            })()}
                                         </Text>
+                                        {reactionInfo && (
+                                            <View style={styles.reactionRow}>
+                                                <MaterialIcons name={reactionInfo.icon} size={14} color={reactionInfo.color} />
+                                                <Text style={[styles.reactionText, { color: reactionInfo.color }]}>
+                                                    {reactionInfo.label}
+                                                </Text>
+                                            </View>
+                                        )}
                                     </View>
-                                    <Text style={[styles.logTime, { color: colorScheme.textTertiary }]}>
-                                        {formatTime(entry.timestamp)}
-                                    </Text>
-                                </TouchableOpacity>
+                                    <View style={styles.logActions}>
+                                        <Text style={[styles.logTime, { color: colorScheme.textTertiary, marginBottom: 4 }]}>
+                                            {formatTime(entry.timestamp)}
+                                        </Text>
+                                        <View style={styles.actionButtons}>
+                                            <TouchableOpacity onPress={() => handleEditEntry(entry)} style={styles.actionBtn}>
+                                                <MaterialIcons name="edit" size={18} color={colorScheme.primary} />
+                                            </TouchableOpacity>
+                                            <TouchableOpacity onPress={() => handleDeleteEntry(entry.id)} style={styles.actionBtn}>
+                                                <MaterialIcons name="delete-outline" size={18} color={colorScheme.error || '#FF5252'} />
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                </View>
                             );
                         })
                     )}
@@ -247,213 +294,221 @@ export default function FeedingTrackerScreen() {
                         paddingTop: insets.top + Spacing.md
                     }]}>
                         <Text style={[styles.modalTitle, { color: colorScheme.textPrimary }]}>
-                            Log Feeding
+                            {editingId ? 'Edit Feeding' : 'Log Feeding'}
                         </Text>
                         <TouchableOpacity onPress={() => setShowAddModal(false)}>
                             <MaterialIcons name="close" size={24} color={colorScheme.textPrimary} />
                         </TouchableOpacity>
                     </View>
-                    <ScrollView
-                        style={styles.modalContent}
-                        contentContainerStyle={{ paddingBottom: 40 }}
+                    <KeyboardAvoidingView
+                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                        style={{ flex: 1 }}
                     >
-                        {/* Type Selector */}
-                        <Text style={[styles.fieldLabel, { color: colorScheme.textPrimary }]}>Type</Text>
-                        <View style={styles.typeRow}>
-                            {FEEDING_TYPES.map((type) => (
-                                <TouchableOpacity
-                                    key={type.id}
-                                    style={[
-                                        styles.typeChip,
-                                        {
-                                            backgroundColor: feedingType === type.id ? type.color : colorScheme.surface,
-                                            borderColor: feedingType === type.id ? type.color : colorScheme.border,
-                                        }
-                                    ]}
-                                    onPress={() => setFeedingType(type.id)}
-                                >
-                                    <MaterialIcons
-                                        name={type.icon}
-                                        size={20}
-                                        color={feedingType === type.id ? '#FFFFFF' : colorScheme.textSecondary}
-                                    />
-                                    <Text style={{
-                                        color: feedingType === type.id ? '#FFFFFF' : colorScheme.textPrimary,
-                                        fontSize: Typography.fontSize.sm,
-                                        fontWeight: Typography.fontWeight.medium,
-                                    }}>
-                                        {type.label}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-
-                        {/* Breast Fields */}
-                        {feedingType === 'breast' && (
-                            <>
-                                <Text style={[styles.fieldLabel, { color: colorScheme.textPrimary }]}>Side</Text>
-                                <View style={styles.typeRow}>
-                                    {BREAST_SIDES.map((s) => (
-                                        <TouchableOpacity
-                                            key={s.id}
-                                            style={[
-                                                styles.sideChip,
-                                                {
-                                                    backgroundColor: breastSide === s.id ? colorScheme.primary : colorScheme.surface,
-                                                    borderColor: breastSide === s.id ? colorScheme.primary : colorScheme.border,
-                                                }
-                                            ]}
-                                            onPress={() => setBreastSide(s.id)}
-                                        >
-                                            <Text style={{
-                                                color: breastSide === s.id ? '#FFFFFF' : colorScheme.textPrimary,
-                                                fontSize: Typography.fontSize.sm,
-                                            }}>
-                                                {s.label}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-
-                                <Text style={[styles.fieldLabel, { color: colorScheme.textPrimary }]}>
-                                    Duration: {duration} minutes
-                                </Text>
-                                <View style={styles.durationRow}>
-                                    {DURATION_OPTIONS.map((d) => (
-                                        <TouchableOpacity
-                                            key={d}
-                                            style={[
-                                                styles.durationChip,
-                                                {
-                                                    backgroundColor: duration === d ? colorScheme.primary : colorScheme.surface,
-                                                    borderColor: duration === d ? colorScheme.primary : colorScheme.border,
-                                                }
-                                            ]}
-                                            onPress={() => setDuration(d)}
-                                        >
-                                            <Text style={{
-                                                color: duration === d ? '#FFFFFF' : colorScheme.textPrimary,
-                                                fontSize: Typography.fontSize.xs,
-                                            }}>
-                                                {d}m
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            </>
-                        )}
-
-                        {/* Bottle Fields */}
-                        {feedingType === 'bottle' && (
-                            <>
-                                <Text style={[styles.fieldLabel, { color: colorScheme.textPrimary }]}>
-                                    Volume: {volume} ml
-                                </Text>
-                                <View style={styles.durationRow}>
-                                    {BOTTLE_VOLUMES.map((v) => (
-                                        <TouchableOpacity
-                                            key={v}
-                                            style={[
-                                                styles.durationChip,
-                                                {
-                                                    backgroundColor: volume === v ? colorScheme.primary : colorScheme.surface,
-                                                    borderColor: volume === v ? colorScheme.primary : colorScheme.border,
-                                                }
-                                            ]}
-                                            onPress={() => setVolume(v)}
-                                        >
-                                            <Text style={{
-                                                color: volume === v ? '#FFFFFF' : colorScheme.textPrimary,
-                                                fontSize: Typography.fontSize.xs,
-                                            }}>
-                                                {v}ml
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            </>
-                        )}
-
-                        {/* Solid Fields */}
-                        {feedingType === 'solid' && (
-                            <>
-                                <Text style={[styles.fieldLabel, { color: colorScheme.textPrimary }]}>Category</Text>
-                                <View style={styles.durationRow}>
-                                    {FOOD_CATEGORIES.map((cat) => (
-                                        <TouchableOpacity
-                                            key={cat.id}
-                                            style={[
-                                                styles.foodCatChip,
-                                                {
-                                                    backgroundColor: foodCategory === cat.id ? colorScheme.primary : colorScheme.surface,
-                                                    borderColor: foodCategory === cat.id ? colorScheme.primary : colorScheme.border,
-                                                }
-                                            ]}
-                                            onPress={() => setFoodCategory(cat.id)}
-                                        >
-                                            <Text style={{ fontSize: 16 }}>{cat.icon}</Text>
-                                            <Text style={{
-                                                color: foodCategory === cat.id ? '#FFFFFF' : colorScheme.textPrimary,
-                                                fontSize: Typography.fontSize.xs,
-                                            }}>
-                                                {cat.label}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-
-                                <Text style={[styles.fieldLabel, { color: colorScheme.textPrimary }]}>Food Name</Text>
-                                <TextInput
-                                    style={[styles.textInput, {
-                                        backgroundColor: colorScheme.surface,
-                                        color: colorScheme.textPrimary,
-                                        borderColor: colorScheme.border,
-                                    }]}
-                                    placeholder="e.g. Mashed banana"
-                                    placeholderTextColor={colorScheme.textTertiary}
-                                    value={foodName}
-                                    onChangeText={setFoodName}
-                                />
-
-                                <Text style={[styles.fieldLabel, { color: colorScheme.textPrimary }]}>Reaction</Text>
-                                <View style={styles.typeRow}>
-                                    {FOOD_REACTIONS.map((r) => (
-                                        <TouchableOpacity
-                                            key={r.id}
-                                            style={[
-                                                styles.reactionChip,
-                                                {
-                                                    backgroundColor: reaction === r.id ? r.color : colorScheme.surface,
-                                                    borderColor: reaction === r.id ? r.color : colorScheme.border,
-                                                }
-                                            ]}
-                                            onPress={() => setReaction(r.id)}
-                                        >
-                                            <MaterialIcons
-                                                name={r.icon}
-                                                size={16}
-                                                color={reaction === r.id ? '#FFFFFF' : colorScheme.textSecondary}
-                                            />
-                                            <Text style={{
-                                                color: reaction === r.id ? '#FFFFFF' : colorScheme.textPrimary,
-                                                fontSize: Typography.fontSize.xs,
-                                            }}>
-                                                {r.label}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </View>
-                            </>
-                        )}
-
-                        {/* Save Button */}
-                        <TouchableOpacity
-                            style={[styles.saveButton, { backgroundColor: colorScheme.primary }]}
-                            onPress={handleAddEntry}
+                        <ScrollView
+                            style={styles.modalContent}
+                            contentContainerStyle={{ paddingBottom: 40 + insets.bottom }}
+                            keyboardShouldPersistTaps="handled"
                         >
-                            <Text style={styles.saveButtonText}>Log Feeding</Text>
-                        </TouchableOpacity>
-                    </ScrollView>
+                            {/* Type Selector */}
+                            <Text style={[styles.fieldLabel, { color: colorScheme.textPrimary }]}>Type</Text>
+                            <View style={styles.typeRow}>
+                                {FEEDING_TYPES.map((type) => (
+                                    <TouchableOpacity
+                                        key={type.id}
+                                        style={[
+                                            styles.typeChip,
+                                            {
+                                                backgroundColor: feedingType === type.id ? type.color : colorScheme.surface,
+                                                borderColor: feedingType === type.id ? type.color : colorScheme.border,
+                                            }
+                                        ]}
+                                        onPress={() => setFeedingType(type.id)}
+                                    >
+                                        <MaterialIcons
+                                            name={type.icon}
+                                            size={20}
+                                            color={feedingType === type.id ? '#FFFFFF' : colorScheme.textSecondary}
+                                        />
+                                        <Text style={{
+                                            color: feedingType === type.id ? '#FFFFFF' : colorScheme.textPrimary,
+                                            fontSize: Typography.fontSize.sm,
+                                            fontWeight: Typography.fontWeight.medium,
+                                        }}>
+                                            {type.label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            {/* Breast Fields */}
+                            {feedingType === 'breast' && (
+                                <>
+                                    <Text style={[styles.fieldLabel, { color: colorScheme.textPrimary }]}>Side</Text>
+                                    <View style={styles.typeRow}>
+                                        {BREAST_SIDES.map((s) => (
+                                            <TouchableOpacity
+                                                key={s.id}
+                                                style={[
+                                                    styles.sideChip,
+                                                    {
+                                                        backgroundColor: breastSide === s.id ? colorScheme.primary : colorScheme.surface,
+                                                        borderColor: breastSide === s.id ? colorScheme.primary : colorScheme.border,
+                                                    }
+                                                ]}
+                                                onPress={() => setBreastSide(s.id)}
+                                            >
+                                                <Text style={{
+                                                    color: breastSide === s.id ? '#FFFFFF' : colorScheme.textPrimary,
+                                                    fontSize: Typography.fontSize.sm,
+                                                }}>
+                                                    {s.label}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+
+                                    <Text style={[styles.fieldLabel, { color: colorScheme.textPrimary }]}>
+                                        Duration: {duration} minutes
+                                    </Text>
+                                    <View style={styles.durationRow}>
+                                        {DURATION_OPTIONS.map((d) => (
+                                            <TouchableOpacity
+                                                key={d}
+                                                style={[
+                                                    styles.durationChip,
+                                                    {
+                                                        backgroundColor: duration === d ? colorScheme.primary : colorScheme.surface,
+                                                        borderColor: duration === d ? colorScheme.primary : colorScheme.border,
+                                                    }
+                                                ]}
+                                                onPress={() => setDuration(d)}
+                                            >
+                                                <Text style={{
+                                                    color: duration === d ? '#FFFFFF' : colorScheme.textPrimary,
+                                                    fontSize: Typography.fontSize.xs,
+                                                }}>
+                                                    {d}m
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </>
+                            )}
+
+                            {/* Bottle Fields */}
+                            {feedingType === 'bottle' && (
+                                <>
+                                    <Text style={[styles.fieldLabel, { color: colorScheme.textPrimary }]}>
+                                        Volume: {volume} ml
+                                    </Text>
+                                    <View style={styles.durationRow}>
+                                        {BOTTLE_VOLUMES.map((v) => (
+                                            <TouchableOpacity
+                                                key={v}
+                                                style={[
+                                                    styles.durationChip,
+                                                    {
+                                                        backgroundColor: volume === v ? colorScheme.primary : colorScheme.surface,
+                                                        borderColor: volume === v ? colorScheme.primary : colorScheme.border,
+                                                    }
+                                                ]}
+                                                onPress={() => setVolume(v)}
+                                            >
+                                                <Text style={{
+                                                    color: volume === v ? '#FFFFFF' : colorScheme.textPrimary,
+                                                    fontSize: Typography.fontSize.xs,
+                                                }}>
+                                                    {v}ml
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </>
+                            )}
+
+                            {/* Solid Fields */}
+                            {feedingType === 'solid' && (
+                                <>
+                                    <Text style={[styles.fieldLabel, { color: colorScheme.textPrimary }]}>Category</Text>
+                                    <View style={styles.durationRow}>
+                                        {FOOD_CATEGORIES.map((cat) => (
+                                            <TouchableOpacity
+                                                key={cat.id}
+                                                style={[
+                                                    styles.foodCatChip,
+                                                    {
+                                                        backgroundColor: foodCategory === cat.id ? colorScheme.primary : colorScheme.surface,
+                                                        borderColor: foodCategory === cat.id ? colorScheme.primary : colorScheme.border,
+                                                    }
+                                                ]}
+                                                onPress={() => setFoodCategory(cat.id)}
+                                            >
+                                                <Text style={{ fontSize: 16 }}>{cat.icon}</Text>
+                                                <Text style={{
+                                                    color: foodCategory === cat.id ? '#FFFFFF' : colorScheme.textPrimary,
+                                                    fontSize: Typography.fontSize.xs,
+                                                }}>
+                                                    {cat.label}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+
+                                    <Text style={[styles.fieldLabel, { color: colorScheme.textPrimary }]}>Food Name</Text>
+                                    <TextInput
+                                        style={[styles.textInput, {
+                                            backgroundColor: colorScheme.surface,
+                                            color: colorScheme.textPrimary,
+                                            borderColor: colorScheme.border,
+                                        }]}
+                                        placeholder="e.g. Mashed banana"
+                                        placeholderTextColor={colorScheme.textTertiary}
+                                        value={foodName}
+                                        onChangeText={setFoodName}
+                                    />
+
+                                    <Text style={[styles.fieldLabel, { color: colorScheme.textPrimary }]}>Reaction</Text>
+                                    <View style={styles.typeRow}>
+                                        {FOOD_REACTIONS.map((r) => (
+                                            <TouchableOpacity
+                                                key={r.id}
+                                                style={[
+                                                    styles.reactionChip,
+                                                    {
+                                                        backgroundColor: reaction === r.id ? r.color : colorScheme.surface,
+                                                        borderColor: reaction === r.id ? r.color : colorScheme.border,
+                                                    }
+                                                ]}
+                                                onPress={() => setReaction(r.id)}
+                                            >
+                                                <MaterialIcons
+                                                    name={r.icon}
+                                                    size={16}
+                                                    color={reaction === r.id ? '#FFFFFF' : colorScheme.textSecondary}
+                                                />
+                                                <Text style={{
+                                                    color: reaction === r.id ? '#FFFFFF' : colorScheme.textPrimary,
+                                                    fontSize: Typography.fontSize.xs,
+                                                }}>
+                                                    {r.label}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </>
+                            )}
+
+                            {/* Save Button */}
+                            <TouchableOpacity
+                                style={[styles.saveButton, { backgroundColor: colorScheme.primary }]}
+                                onPress={handleAddEntry}
+                            >
+                                <Text style={styles.saveButtonText}>
+                                    {editingId ? 'Update Log' : 'Log Feeding'}
+                                </Text>
+                            </TouchableOpacity>
+                        </ScrollView>
+                    </KeyboardAvoidingView>
                 </View>
             </Modal>
         </View>
@@ -609,14 +664,35 @@ const styles = StyleSheet.create({
     },
     reactionChip: {
         flex: 1,
-        minWidth: 70,
+        minWidth: '45%',
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        gap: 4,
+        gap: 6,
         paddingVertical: Spacing.sm,
+        paddingHorizontal: Spacing.sm,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
+        marginBottom: 4,
+    },
+    reactionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        marginTop: 4,
+    },
+    reactionText: {
+        fontSize: 11,
+        fontWeight: '600',
+    },
+    logActions: {
+        alignItems: 'flex-end',
+    },
+    actionButtons: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    actionBtn: {
+        padding: 4,
     },
     textInput: {
         borderWidth: 1,

@@ -128,11 +128,11 @@ export default function PatientLookupScreen() {
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm }}>
                             <MaterialIcons name="security" size={24} color={colorScheme.primary} />
                             <Text style={[styles.searchTitle, { color: colorScheme.textPrimary, marginBottom: 0 }]}>
-                                Secure Verification
+                                Patient Identity Verification
                             </Text>
                         </View>
                         <Text style={[styles.searchSubtitle, { color: colorScheme.textSecondary }]}>
-                            Enter your child's registration number and date of birth to verify and link their account.
+                            Please provide your child's registration number and date of birth. This information will be cross-referenced with the Beacon Children's Centre clinical database to securely verify and confirm the patient's identity.
                         </Text>
 
                         {/* Registration Number */}

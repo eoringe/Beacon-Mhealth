@@ -73,11 +73,6 @@ export default function HelpScreen() {
                 />
 
                 <FAQItem
-                    question="Where can I find my child's prescriptions?"
-                    answer="Tap 'Prescriptions' from the Home screen Quick Actions. This shows all prescriptions issued by doctors at Beacon Children's Centre, including medication details and dosage instructions."
-                />
-
-                <FAQItem
                     question="How do I access medical reports?"
                     answer="Tap 'Medical Reports' from the Home screen Quick Actions. Here you can view and download any medical reports, test results, or documentation from your child's visits."
                 />

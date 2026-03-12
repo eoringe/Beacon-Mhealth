@@ -177,55 +177,10 @@ export const getMediaDownloadUrl = (mediaId) => {
     return `${API_URL}/media/download/${mediaId}`;
 };
 
-/**
- * Get prescriptions for a child by registration number (cached)
- */
-export const getPrescriptions = async (registrationNumber, forceRefresh = false) => {
-    try {
-        const token = await getAuthToken();
-        if (!token) {
-            throw new Error('Not authenticated');
-        }
-
-        const cacheKey = `prescriptions_${registrationNumber}`;
-
-        const result = await cacheService.fetchWithCache(
-            cacheKey,
-            async () => {
-                const response = await fetch(
-                    `${API_URL}/prescriptions/${encodeURIComponent(registrationNumber)}`,
-                    {
-                        method: 'GET',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json',
-                        },
-                    }
-                );
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || 'Failed to fetch prescriptions');
-                }
-
-                const result = await response.json();
-                return result.data || [];
-            },
-            { forceRefresh }
-        );
-
-        return result.data;
-    } catch (error) {
-        console.error('Error fetching prescriptions:', error);
-        throw error;
-    }
-};
-
 export default {
     lookupPatient,
     searchPatients,
     getMediaList,
     getMediaDownloadUrl,
-    getPrescriptions,
 };
 

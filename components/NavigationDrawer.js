@@ -30,7 +30,6 @@ const NAV_SECTIONS = [
             { id: 'growth', label: 'Growth Chart', icon: 'show-chart', route: '/dashboard/growth-chart', color: '#2196F3' },
             { id: 'vaccinations', label: 'Vaccinations', icon: 'vaccines', route: '/dashboard/vaccinations', color: '#4CAF50' },
             { id: 'milestone_check', label: 'Milestone Checker', icon: 'checklist', route: '/dashboard/milestone-checklist', color: '#4CAF50' },
-            { id: 'prescriptions', label: 'Prescriptions', icon: 'medication', route: '/dashboard/prescriptions', color: '#E91E63' },
             { id: 'reports', label: 'Medical Reports', icon: 'folder-open', route: '/dashboard/medical-reports', color: '#9C27B0' },
         ],
     },
