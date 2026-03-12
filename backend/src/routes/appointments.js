@@ -17,7 +17,8 @@ router.get('/specializations', doctorController.getSpecializations);
 router.get('/doctors/:doctorId/availability', appointmentController.getDoctorAvailability);
 
 // Get availability for a specialization (pools all doctors in that specialization)
-router.get('/specializations/:specializationId/availability', appointmentController.getSpecializationAvailability);
+router.get('/specialization/:specializationId/availability', appointmentController.getSpecializationAvailability);
+router.get('/specialization/:specializationId/tele-windows', appointmentController.getSpecializationTeleWindows);
 
 // Create a new appointment
 router.post('/', appointmentController.createAppointment);

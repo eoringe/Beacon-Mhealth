@@ -126,13 +126,13 @@ class AppointmentService {
     }
 
     // Get available time slots for a specialization on a specific date (pools all doctors)
-    async getSpecializationAvailability(specializationId, date) {
+    async getSpecializationAvailability(specializationId, date, appointmentType = 'IN_PERSON') {
         try {
             const token = await this.getToken();
             if (!token) throw new Error('No authentication token');
 
             const response = await fetch(
-                `${API_URL}/appointments/specializations/${specializationId}/availability?date=${date}`,
+                `${API_URL}/appointments/specialization/${specializationId}/availability?date=${date}&appointmentType=${appointmentType}`,
                 {
                     method: 'GET',
                     headers: {
@@ -151,6 +151,33 @@ class AppointmentService {
         } catch (error) {
             console.error('Error fetching specialization availability:', error);
             throw error;
+        }
+    }
+
+    // Get teleconsultation windows for a specialization
+    async getSpecializationTeleWindows(specializationId) {
+        try {
+            const token = await this.getToken();
+            if (!token) throw new Error('No authentication token');
+
+            const response = await fetch(
+                `${API_URL}/appointments/specialization/${specializationId}/tele-windows`,
+                {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch tele windows');
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error('Error fetching tele windows:', error);
+            return [];
         }
     }
 

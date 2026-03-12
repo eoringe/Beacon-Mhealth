@@ -96,10 +96,24 @@ const getDoctorsBySpecialization = async (req, res) => {
 const getSpecializations = async (req, res) => {
     try {
         const result = await externalQuery(`
-            SELECT ds.id, ds.specialization, ds.role_id,
-                   COUNT(s.id)::int as doctor_count
+            SELECT 
+                ds.id, 
+                ds.specialization, 
+                ds.role_id,
+                COUNT(s.id)::int as doctor_count,
+                EXISTS(
+                    SELECT 1 FROM doctor_teleconsultation_availabilities ta
+                    JOIN staff s2 ON ta.doctor_id = s2.id
+                    WHERE s2.specialization_id = ds.id AND s2.is_active = true
+                ) as has_teleconsult,
+                JSON_AGG(
+                    JSON_BUILD_OBJECT(
+                        'id', s.id, 
+                        'fullname', s.fullname
+                    )
+                ) FILTER (WHERE s.id IS NOT NULL AND s.is_active = true) as active_doctors
             FROM doctor_specialization ds
-            LEFT JOIN staff s ON s.specialization_id = ds.id
+            LEFT JOIN staff s ON s.specialization_id = ds.id AND s.is_active = true
             GROUP BY ds.id, ds.specialization, ds.role_id
             ORDER BY ds.specialization
         `);
@@ -111,7 +125,12 @@ const getSpecializations = async (req, res) => {
                 id: s.id,
                 name: s.specialization,
                 roleId: s.role_id,
-                doctorCount: s.doctor_count
+                doctorCount: s.doctor_count,
+                hasTeleconsult: s.has_teleconsult,
+                doctors: (s.active_doctors || []).map(d => ({
+                    id: d.id,
+                    name: formatStaffName(d.fullname)
+                }))
             }))
         });
 

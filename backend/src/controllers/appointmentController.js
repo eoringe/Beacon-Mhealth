@@ -97,10 +97,13 @@ exports.getDoctorAvailability = async (req, res) => {
             return res.status(400).json({ error: 'Date is required' });
         }
 
-        // Check if date is weekend
+        // Check if date is weekend (Default working hours are Mon-Fri)
         if (isWeekend(date)) {
             return res.json({ available: false, reason: 'Weekends are not available', slots: [] });
         }
+
+        const { appointmentType = 'IN_PERSON' } = req.query;
+        const dayOfWeek = new Date(date).getDay(); // 0 (Sunday) - 6 (Saturday)
 
         // Check for doctor unavailability
         const unavailability = await isDoctorUnavailableOnDate(doctorId, date);
@@ -112,19 +115,38 @@ exports.getDoctorAvailability = async (req, res) => {
             });
         }
 
-        // Check if doctor exists in external DB (using staff table)
+        // Check if doctor exists in external DB (using staff table) and is active
         const doctorCheck = await externalQuery(
-            `SELECT id, fullname FROM staff WHERE id = $1`,
+            `SELECT id, fullname FROM staff WHERE id = $1 AND is_active = true`,
             [doctorId]
         );
 
         if (doctorCheck.rows.length === 0) {
-            return res.status(404).json({ error: 'Doctor not found' });
+            return res.status(404).json({ error: 'Doctor not found or inactive' });
+        }
+
+        // TELECONSULTATION SPECIFIC: Check if doctor has tele-windows for this day
+        let teleWindows = [];
+        if (appointmentType === 'TELECONSULT') {
+            const teleResult = await externalQuery(
+                `SELECT start_time, end_time FROM doctor_teleconsultation_availabilities 
+                 WHERE doctor_id = $1 AND day_of_week = $2`,
+                [doctorId, dayOfWeek]
+            );
+
+            if (teleResult.rows.length === 0) {
+                return res.json({
+                    available: false,
+                    reason: 'Doctor is not available for teleconsultation on this day of the week',
+                    slots: []
+                });
+            }
+            teleWindows = teleResult.rows;
         }
 
         // Check doctor daily limit (max 10 appointments)
         const dailyCountResult = await externalQuery(
-            `SELECT COUNT(*) as count FROM appointments WHERE staff_id = $1 AND appointment_date = $2`,
+            `SELECT COUNT(*) as count FROM appointments WHERE (staff_id = $1 OR doctor_id = $1) AND appointment_date = $2`,
             [doctorId, date]
         );
 
@@ -147,8 +169,19 @@ exports.getDoctorAvailability = async (req, res) => {
         // Generate all possible slots and filter out booked ones
         const allSlots = generateTimeSlots();
         let availableSlots = allSlots.filter(slot => {
-            // Simple check: exact match of start time (since we currently use fixed 1hr slots)
-            return !bookedTimes.includes(slot);
+            // 1. Is it already booked?
+            if (bookedTimes.includes(slot)) return false;
+
+            // 2. If it's a teleconsult, does it fall within a tele-window?
+            if (appointmentType === 'TELECONSULT') {
+                return teleWindows.some(window => {
+                    const windowStart = window.start_time.substring(0, 5);
+                    const windowEnd = window.end_time.substring(0, 5);
+                    return slot >= windowStart && slot < windowEnd;
+                });
+            }
+
+            return true;
         });
 
         // Filter out past slots if date is today
@@ -157,7 +190,8 @@ exports.getDoctorAvailability = async (req, res) => {
         res.json({
             available: availableSlots.length > 0,
             date,
-            slots: availableSlots
+            slots: availableSlots,
+            appointmentType
         });
     } catch (error) {
         console.error('Error checking availability:', error);
@@ -179,10 +213,13 @@ exports.getSpecializationAvailability = async (req, res) => {
             return res.json({ available: false, reason: 'Weekends are not available', slots: [] });
         }
 
-        // Find all doctors with this specialization
+        const { appointmentType = 'IN_PERSON' } = req.query;
+        const dayOfWeek = new Date(date).getDay();
+
+        // Find all active doctors with this specialization
         const doctorsResult = await externalQuery(
             `SELECT s.id, s.fullname FROM staff s
-             WHERE s.specialization_id = $1`,
+             WHERE s.specialization_id = $1 AND s.is_active = true`,
             [specializationId]
         );
 
@@ -200,9 +237,21 @@ exports.getSpecializationAvailability = async (req, res) => {
             const unavailability = await isDoctorUnavailableOnDate(docId, date);
             if (unavailability.unavailable) continue;
 
+            // TELECONSULTATION SPECIFIC: Filter by tele-windows
+            let teleWindows = [];
+            if (appointmentType === 'TELECONSULT') {
+                const teleResult = await externalQuery(
+                    `SELECT start_time, end_time FROM doctor_teleconsultation_availabilities 
+                     WHERE doctor_id = $1 AND day_of_week = $2`,
+                    [docId, dayOfWeek]
+                );
+                if (teleResult.rows.length === 0) continue;
+                teleWindows = teleResult.rows;
+            }
+
             // Check daily limit
             const dailyCount = await externalQuery(
-                `SELECT COUNT(*) as count FROM appointments WHERE staff_id = $1 AND appointment_date = $2`,
+                `SELECT COUNT(*) as count FROM appointments WHERE (staff_id = $1 OR doctor_id = $1) AND appointment_date = $2`,
                 [docId, date]
             );
             if (parseInt(dailyCount.rows[0].count) >= 10) continue;
@@ -220,7 +269,16 @@ exports.getSpecializationAvailability = async (req, res) => {
             // Add available slots to the union set
             allSlots.forEach(slot => {
                 if (!bookedTimes.includes(slot)) {
-                    availableSlotsSet.add(slot);
+                    if (appointmentType === 'TELECONSULT') {
+                        const inWindow = teleWindows.some(window => {
+                            const windowStart = window.start_time.substring(0, 5);
+                            const windowEnd = window.end_time.substring(0, 5);
+                            return slot >= windowStart && slot < windowEnd;
+                        });
+                        if (inWindow) availableSlotsSet.add(slot);
+                    } else {
+                        availableSlotsSet.add(slot);
+                    }
                 }
             });
         }
@@ -233,7 +291,8 @@ exports.getSpecializationAvailability = async (req, res) => {
         res.json({
             available: availableSlots.length > 0,
             date,
-            slots: availableSlots
+            slots: availableSlots,
+            appointmentType
         });
     } catch (error) {
         console.error('Error checking specialization availability:', error);
@@ -241,12 +300,64 @@ exports.getSpecializationAvailability = async (req, res) => {
     }
 };
 
+// Get all teleconsultation windows for a specialization (union across all active doctors)
+exports.getSpecializationTeleWindows = async (req, res) => {
+    try {
+        const { specializationId } = req.params;
+
+        // Find all active doctors with this specialization
+        const doctorsResult = await externalQuery(
+            `SELECT s.id FROM staff s WHERE s.specialization_id = $1 AND s.is_active = true`,
+            [specializationId]
+        );
+
+        if (doctorsResult.rows.length === 0) {
+            return res.json([]);
+        }
+
+        const doctorIds = doctorsResult.rows.map(d => d.id);
+
+        // Fetch all windows for these doctors with names
+        const windowsResult = await externalQuery(
+            `SELECT ta.day_of_week, ta.start_time, ta.end_time, s.fullname as doctor_name
+             FROM doctor_teleconsultation_availabilities ta
+             JOIN staff s ON ta.doctor_id = s.id
+             WHERE ta.doctor_id = ANY($1)
+             ORDER BY s.fullname::text, ta.day_of_week, ta.start_time`,
+            [doctorIds]
+        );
+
+        // Format names in response
+        const windows = windowsResult.rows.map(w => {
+            let name = w.doctor_name;
+            try {
+                if (typeof w.doctor_name === 'string' && w.doctor_name.startsWith('{')) {
+                    const parsed = JSON.parse(w.doctor_name);
+                    name = `${parsed.first_name || ''} ${parsed.middle_name || ''} ${parsed.last_name || ''}`.trim().replace(/\s+/g, ' ');
+                } else if (typeof w.doctor_name === 'object') {
+                    name = `${w.doctor_name.first_name || ''} ${w.doctor_name.middle_name || ''} ${w.doctor_name.last_name || ''}`.trim().replace(/\s+/g, ' ');
+                }
+            } catch (e) { }
+
+            return {
+                ...w,
+                doctor_name: name
+            };
+        });
+
+        res.json(windows);
+    } catch (error) {
+        console.error('Error fetching tele windows:', error);
+        res.status(500).json({ error: 'Server error fetching tele windows' });
+    }
+};
+
 // Helper: Auto-assign a doctor from a specialization for a given date/time
 // Picks the doctor with fewest appointments that day who is free at the requested time
 const autoAssignDoctor = async (specializationId, appointmentDate, appointmentTime) => {
-    // Find all doctors with this specialization
+    // Find all active doctors with this specialization
     const doctorsResult = await externalQuery(
-        `SELECT s.id FROM staff s WHERE s.specialization_id = $1`,
+        `SELECT s.id FROM staff s WHERE s.specialization_id = $1 AND s.is_active = true`,
         [specializationId]
     );
 

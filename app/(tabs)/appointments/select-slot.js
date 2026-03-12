@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     View,
     Text,
@@ -36,7 +36,7 @@ export default function SelectSlotScreen() {
     const { user } = useAuth();
     const { showAlert } = useAlert();
 
-    const specialization = params.specialization ? JSON.parse(params.specialization) : null;
+    const specialization = useMemo(() => params.specialization ? JSON.parse(params.specialization) : null, [params.specialization]);
 
     // Detect if this is a guest booking (child has no registration number)
     const isGuestBooking = selectedChild && !selectedChild.registration_number && !selectedChild.registrationNumber;
@@ -53,6 +53,8 @@ export default function SelectSlotScreen() {
 
 
     const [appointmentType, setAppointmentType] = useState('IN_PERSON');
+    const [teleWindows, setTeleWindows] = useState([]);
+    const [fetchingWindows, setFetchingWindows] = useState(false);
 
     // Payment Modal States
     const [isPaymentModalVisible, setIsPaymentModalVisible] = useState(false);
@@ -79,21 +81,44 @@ export default function SelectSlotScreen() {
     }, [user]);
 
     useEffect(() => {
-        if (selectedDate && specialization) {
+        if (specialization?.id) {
+            fetchTeleWindows();
+        }
+    }, [specialization?.id]);
+
+    const fetchTeleWindows = async () => {
+        if (fetchingWindows) return;
+        try {
+            setFetchingWindows(true);
+            const windows = await appointmentService.getSpecializationTeleWindows(specialization.id);
+            if (windows && Array.isArray(windows)) {
+                setTeleWindows(windows);
+            }
+        } catch (error) {
+            console.error('Error fetching tele windows:', error);
+        } finally {
+            setFetchingWindows(false);
+        }
+    };
+
+    useEffect(() => {
+        if (selectedDate && specialization?.id) {
             fetchAvailability();
         } else {
             setAvailableSlots([]);
             setSelectedTime('');
         }
-    }, [selectedDate]);
+    }, [selectedDate, appointmentType, specialization?.id]);
 
     const fetchAvailability = async () => {
+        if (loadingSlots) return;
         try {
             setLoadingSlots(true);
             setSelectedTime('');
             const data = await appointmentService.getSpecializationAvailability(
                 specialization.id,
-                selectedDate
+                selectedDate,
+                appointmentType
             );
 
             if (!data.available) {
@@ -336,7 +361,7 @@ export default function SelectSlotScreen() {
                                 isGuest: paymentFlowType === 'GUEST' ? 'true' : 'false',
                             }
                         });
-                        showAlert('Success', `Payment successful (Receipt: ${statusData.mpesa_receipt_number}). Appointment booked!`, [], 'success');
+                        showAlert('Success', `Payment successful(Receipt: ${statusData.mpesa_receipt_number}).Appointment booked!`, [], 'success');
                     } catch (bookErr) {
                         setIsPolling(false);
                         setBooking(false);
@@ -356,9 +381,24 @@ export default function SelectSlotScreen() {
         }
     };
 
+    // Helper to disable weekends and non-teleconsult days
+    const isDateDisabled = (dateString) => {
+        if (isWeekend(dateString)) return true;
+
+        if (appointmentType === 'TELECONSULT') {
+            const [y, m, d] = dateString.split('-').map(Number);
+            const date = new Date(y, m - 1, d);
+            const dayOfWeek = date.getDay(); // 0-6
+            return !teleWindows.some(w => w.day_of_week === dayOfWeek);
+        }
+
+        return false;
+    };
+
     // Helper to disable weekends
     const isWeekend = (dateString) => {
-        const date = new Date(dateString);
+        const [y, m, d] = dateString.split('-').map(Number);
+        const date = new Date(y, m - 1, d);
         const day = date.getDay();
         return day === 0 || day === 6; // Sunday or Saturday
     };
@@ -369,7 +409,7 @@ export default function SelectSlotScreen() {
         const hour = parseInt(hours);
         const ampm = hour >= 12 ? 'PM' : 'AM';
         const hour12 = hour % 12 || 12;
-        return `${hour12}:${minutes} ${ampm}`;
+        return `${hour12}:${minutes} ${ampm} `;
     };
 
     if (!specialization) {
@@ -500,7 +540,62 @@ export default function SelectSlotScreen() {
                             </TouchableOpacity>
                         </View>
 
+                        {/* Teleconsult Availability Disclaimer */}
+                        {appointmentType === 'TELECONSULT' && (
+                            <View style={[styles.disclaimerContainer, { backgroundColor: colorScheme.primaryLight + '20' }]}>
+                                <View style={styles.disclaimerHeader}>
+                                    <MaterialIcons name="videocam" size={18} color={colorScheme.primary} />
+                                    <Text style={[styles.disclaimerTitle, { color: colorScheme.primary }]}>
+                                        Teleconsultation Availability
+                                    </Text>
+                                </View>
+                                {fetchingWindows ? (
+                                    <View style={styles.disclaimerLoading}>
+                                        <CustomLoading size={14} />
+                                    </View>
+                                ) : teleWindows.length > 0 ? (
+                                    <View style={styles.windowsList}>
+                                        {teleWindows.reduce((acc, window) => {
+                                            const doctorName = window.doctor_name || 'Assigned Doctor';
+                                            let doc = acc.find(d => d.name === doctorName);
+                                            if (!doc) {
+                                                doc = { name: doctorName, days: [] };
+                                                acc.push(doc);
+                                            }
 
+                                            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                                            const dayName = dayNames[window.day_of_week];
+                                            let day = doc.days.find(d => d.name === dayName);
+                                            if (!day) {
+                                                day = { name: dayName, times: [] };
+                                                doc.days.push(day);
+                                            }
+
+                                            day.times.push(`${window.start_time.substring(0, 5)} - ${window.end_time.substring(0, 5)} `);
+                                            return acc;
+                                        }, []).map((doc, dIdx) => (
+                                            <View key={dIdx} style={styles.doctorWindowGroup}>
+                                                <Text style={[styles.disclaimerDoctorName, { color: colorScheme.textPrimary }]}>
+                                                    Dr. {doc.name}
+                                                </Text>
+                                                {doc.days.map((day, dayIdx) => (
+                                                    <Text key={dayIdx} style={[styles.disclaimerText, { color: colorScheme.textSecondary }]}>
+                                                        • {day.name}: {day.times.join(', ')}
+                                                    </Text>
+                                                ))}
+                                            </View>
+                                        ))}
+                                    </View>
+                                ) : (
+                                    <Text style={[styles.disclaimerText, { color: colorScheme.error }]}>
+                                        No teleconsultation windows defined for this specialization.
+                                    </Text>
+                                )}
+                                <Text style={[styles.disclaimerFooter, { color: colorScheme.textTertiary }]}>
+                                    * Only the above days are enabled on the calendar below.
+                                </Text>
+                            </View>
+                        )}
                     </View>
 
                     {/* Guest Booking Notice & Parent/Guardian Details */}
@@ -578,7 +673,7 @@ export default function SelectSlotScreen() {
                         <View style={[styles.calendarCard, { backgroundColor: colorScheme.surface }]}>
                             <Calendar
                                 onDayPress={(day) => {
-                                    if (!isWeekend(day.dateString)) {
+                                    if (!isDateDisabled(day.dateString)) {
                                         setSelectedDate(day.dateString);
                                     }
                                 }}
@@ -596,7 +691,7 @@ export default function SelectSlotScreen() {
                                     return `${year}-${month}-${day}`;
                                 })()}
                                 dayComponent={({ date, state }) => {
-                                    const isDisabled = isWeekend(date.dateString) || state === 'disabled';
+                                    const isDisabled = isDateDisabled(date.dateString) || state === 'disabled';
                                     return (
                                         <TouchableOpacity
                                             onPress={() => {
@@ -1082,5 +1177,47 @@ const styles = StyleSheet.create({
     modalPayText: {
         color: '#FFFFFF',
         fontWeight: Typography.fontWeight.semibold,
+    },
+    disclaimerContainer: {
+        marginTop: Spacing.md,
+        padding: Spacing.md,
+        borderRadius: BorderRadius.md,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
+    },
+    disclaimerHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.xs,
+        marginBottom: Spacing.xs,
+    },
+    disclaimerTitle: {
+        fontSize: Typography.fontSize.sm,
+        fontWeight: Typography.fontWeight.bold,
+    },
+    disclaimerText: {
+        fontSize: Typography.fontSize.xs,
+        lineHeight: 18,
+        marginLeft: Spacing.sm,
+    },
+    disclaimerDoctorName: {
+        fontSize: Typography.fontSize.sm,
+        fontWeight: Typography.fontWeight.semibold,
+        marginBottom: 2,
+    },
+    doctorWindowGroup: {
+        marginBottom: Spacing.sm,
+    },
+    disclaimerFooter: {
+        fontSize: 10,
+        marginTop: Spacing.xs,
+        fontStyle: 'italic',
+    },
+    windowsList: {
+        marginTop: Spacing.xs,
+    },
+    disclaimerLoading: {
+        paddingVertical: Spacing.sm,
+        alignItems: 'center',
     },
 });

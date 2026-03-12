@@ -154,9 +154,24 @@ export default function BookAppointmentScreen() {
                                     />
                                 </View>
                                 <View style={styles.specInfo}>
-                                    <Text style={[styles.specName, { color: colorScheme.textPrimary }]}>
-                                        {spec.name}
-                                    </Text>
+                                    <View style={styles.specTitleRow}>
+                                        <Text style={[styles.specName, { color: colorScheme.textPrimary }]}>
+                                            {spec.name}
+                                        </Text>
+                                        {spec.hasTeleconsult && (
+                                            <View style={[styles.teleBadge, { backgroundColor: colorScheme.primary + '15' }]}>
+                                                <MaterialIcons name="videocam" size={12} color={colorScheme.primary} />
+                                                <Text style={[styles.teleBadgeText, { color: colorScheme.primary }]}>Teleconsult</Text>
+                                            </View>
+                                        )}
+                                    </View>
+
+                                    {spec.doctors && spec.doctors.length > 0 && (
+                                        <Text style={[styles.doctorsList, { color: colorScheme.textSecondary }]} numberOfLines={1}>
+                                            {spec.doctors.map(d => d.name).join(', ')}
+                                        </Text>
+                                    )}
+
                                     {spec.doctorCount > 0 && (
                                         <Text style={[styles.doctorCount, { color: colorScheme.textTertiary }]}>
                                             {spec.doctorCount} {spec.doctorCount === 1 ? 'doctor' : 'doctors'} available
@@ -234,5 +249,28 @@ const styles = StyleSheet.create({
     emptyText: {
         fontSize: Typography.fontSize.base,
         textAlign: 'center',
+    },
+    specTitleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 2,
+    },
+    teleBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: Spacing.xs,
+        paddingVertical: 2,
+        borderRadius: BorderRadius.sm,
+        gap: 2,
+    },
+    teleBadgeText: {
+        fontSize: 10,
+        fontWeight: 'bold',
+    },
+    doctorsList: {
+        fontSize: Typography.fontSize.xs,
+        marginBottom: 2,
+        fontStyle: 'italic',
     },
 });

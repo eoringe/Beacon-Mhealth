@@ -1,0 +1,21 @@
+﻿[dotenv@17.2.3] injecting env (26) from .env -- tip: ≡ƒùé∩╕Å backup and recover secrets: https://dotenvx.com/ops
+--- ALL ACTIVE DOCTORS ACROSS CATEGORIES ---
+
+
+CATEGORY: Developmental Paediatrician
+  - [ID: 3] Florence Nafula Oringe
+
+CATEGORY: Occupational Therapist
+  - [ID: 11] Richard Kebenei
+
+CATEGORY: Speech Therapist
+  - [ID: 12] Angeline
+  - [ID: 8] Jesica Kerubo
+  - [ID: 9] Lauryn Mwendwa
+  - [ID: 7] Teresia Njeri
+
+CATEGORY: General / Uncategorized
+  - [ID: 1] Admin Beacon
+  - [ID: 2] Emmanuel Magunga Oringe
+  - [ID: 5] Milka Kemunto Omariba
+  - [ID: 10] Victor Kimotho Gichuru
