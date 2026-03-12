@@ -318,12 +318,20 @@ export default function AppointmentsScreen() {
                             </View>
                         )}
                         <View style={styles.doctorDetails}>
-                            <Text style={[styles.doctorName, { color: colorScheme.textPrimary }]}>
-                                {appointment.doctor_name}
-                            </Text>
-                            <Text style={[styles.specialty, { color: colorScheme.textSecondary }]}>
-                                {appointment.doctor_specialty}
-                            </Text>
+                            {appointment.doctor_specialty?.includes('Developmental Paediatrician') ? (
+                                <>
+                                    <Text style={[styles.doctorName, { color: colorScheme.textPrimary }]}>
+                                        {appointment.doctor_name}
+                                    </Text>
+                                    <Text style={[styles.specialty, { color: colorScheme.textSecondary }]}>
+                                        {appointment.doctor_specialty}
+                                    </Text>
+                                </>
+                            ) : (
+                                <Text style={[styles.doctorName, { color: colorScheme.textPrimary }]}>
+                                    {appointment.doctor_specialty || 'Therapy Session'}
+                                </Text>
+                            )}
                         </View>
                     </View>
 
