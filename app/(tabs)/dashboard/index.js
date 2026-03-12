@@ -18,9 +18,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAlert } from '@/contexts/AlertContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChild } from '@/contexts/ChildContext';
-import { useAlert } from '@/contexts/AlertContext';
 import { useDrawer } from '@/contexts/DrawerContext';
 import appointmentService from '@/services/appointmentService';
 import { milestoneService } from '@/services/milestoneService';
@@ -71,7 +71,7 @@ function SmoothCarousel({ data, renderCard, autoScrollMs = 7000, cardHeight = 14
 
     return (
         <View>
-            <Animated.View style={{ opacity: fadeAnim, transform: [{ translateX: slideAnim }], minHeight: cardHeight }}>
+            <Animated.View style={{ opacity: fadeAnim, transform: [{ translateX: slideAnim }], minHeight: cardHeight, width: '100%' }}>
                 {renderCard(data[activeIndex], activeIndex)}
             </Animated.View>
             {data.length > 1 && (
@@ -95,10 +95,10 @@ export default function DashboardScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { colorScheme } = useTheme();
+    const { showAlert } = useAlert();
     const { user } = useAuth();
     const { selectedChild } = useChild();
     const { notifications, clearAll } = useNotifications();
-    const { showAlert } = useAlert();
     const { openDrawer } = useDrawer();
 
     // State
@@ -211,7 +211,10 @@ export default function DashboardScreen() {
     const scheduleReminder = async () => {
         try {
             const { status } = await Notifications.requestPermissionsAsync();
-            if (status !== 'granted') { Alert.alert('Notifications', 'Please enable notifications!'); return; }
+            if (status !== 'granted') {
+                showAlert('Notifications', 'Please enable notifications!', [], 'info');
+                return;
+            }
             await Notifications.scheduleNotificationAsync({
                 content: { title: '⚠️ Milestone Reminder', body: "Don't forget to discuss your child's milestones.", sound: true },
                 trigger: { type: 'timeInterval', seconds: 172800 },
@@ -588,7 +591,7 @@ const styles = StyleSheet.create({
     childName: { fontSize: Typography.fontSize.md, fontWeight: Typography.fontWeight.bold, marginBottom: 2 },
     childDetails: { fontSize: Typography.fontSize.sm },
     // Insight Card
-    insightCard: { borderRadius: BorderRadius.lg, padding: Spacing.lg },
+    insightCard: { borderRadius: BorderRadius.lg, padding: Spacing.lg, width: '100%' },
     insightHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.sm, gap: Spacing.sm },
     insightEmoji: { fontSize: 28 },
     insightBadge: { backgroundColor: 'rgba(255,255,255,0.25)', paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: BorderRadius.md },
@@ -604,7 +607,7 @@ const styles = StyleSheet.create({
     statDate: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.bold },
     statIcon: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.xs },
     // Feature Card
-    featureCard: { borderRadius: BorderRadius.lg, padding: Spacing.lg },
+    featureCard: { borderRadius: BorderRadius.lg, padding: Spacing.lg, width: '100%' },
     featureIcon: { width: 48, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.sm },
     featureTitle: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.bold, marginBottom: 4 },
     featureDesc: { fontSize: Typography.fontSize.xs, lineHeight: 18, marginBottom: Spacing.sm },

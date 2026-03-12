@@ -12,6 +12,7 @@ import {
     Platform,
     UIManager,
     Linking,
+    Dimensions,
 } from 'react-native';
 
 if (Platform.OS === 'android') {
@@ -28,6 +29,9 @@ import { CustomLoading } from '@/components/CustomLoading';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import appointmentService from '@/services/appointmentService';
 import { useAlert } from '@/contexts/AlertContext';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const isSmallDevice = SCREEN_WIDTH < 430;
 import { useChild } from '@/contexts/ChildContext'; // Import Child Context
 
 export default function AppointmentsScreen() {
@@ -706,7 +710,7 @@ const styles = StyleSheet.create({
     },
     appointmentCard: {
         borderRadius: BorderRadius.lg,
-        padding: Spacing.lg,
+        padding: isSmallDevice ? Spacing.md : Spacing.lg,
         marginBottom: Spacing.md,
         ...Shadow.md,
     },
@@ -722,13 +726,13 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     doctorPhoto: {
-        width: 48,
-        height: 48,
+        width: isSmallDevice ? 40 : 48,
+        height: isSmallDevice ? 40 : 48,
         borderRadius: BorderRadius.xl,
     },
     doctorAvatar: {
-        width: 48,
-        height: 48,
+        width: isSmallDevice ? 40 : 48,
+        height: isSmallDevice ? 40 : 48,
         borderRadius: BorderRadius.xl,
         justifyContent: 'center',
         alignItems: 'center',
@@ -838,20 +842,25 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
     },
     linkActions: {
-        flexDirection: 'row',
+        flexDirection: isSmallDevice ? 'column' : 'row',
+        flexWrap: 'wrap',
         gap: Spacing.sm,
         marginTop: Spacing.md,
     },
     linkButton: {
+        flex: 1,
+        minWidth: isSmallDevice ? '100%' : 140,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 8,
+        justifyContent: 'center',
+        paddingVertical: 10,
         paddingHorizontal: 12,
         borderRadius: BorderRadius.md,
-        gap: 6,
+        gap: 8,
     },
     linkButtonText: {
-        fontSize: 13,
+        fontSize: isSmallDevice ? 12 : 13,
         fontWeight: '600',
+        textAlign: 'center',
     },
 });

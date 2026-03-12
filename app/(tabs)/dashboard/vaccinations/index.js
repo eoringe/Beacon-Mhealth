@@ -70,7 +70,7 @@ export default function VaccinationsScreen() {
     };
 
     const handleMarkAsGiven = useCallback((vaccine) => {
-        Alert.alert(
+        showAlert(
             'Mark Vaccine as Given',
             `Mark "${vaccine.name}" as given on ${new Date().toLocaleDateString()}?`,
             [
@@ -78,20 +78,24 @@ export default function VaccinationsScreen() {
                 {
                     text: 'Mark as Given',
                     onPress: () => {
-                        const updated = [...completedVaccines, {
-                            id: vaccine.id,
-                            givenDate: new Date().toISOString(),
-                        }];
+                        const updated = [
+                            ...completedVaccines,
+                            {
+                                id: vaccine.id,
+                                givenDate: new Date().toISOString(),
+                            },
+                        ];
                         setCompletedVaccines(updated);
                         saveCompletedVaccines(updated);
-                    }
-                }
-            ]
+                    },
+                },
+            ],
+            'info'
         );
     }, [completedVaccines, selectedChild]);
 
     const handleMarkAsNotGiven = useCallback((vaccine) => {
-        Alert.alert(
+        showAlert(
             'Remove Vaccine Record',
             `Remove "${vaccine.name}" from given vaccines?`,
             [
@@ -103,9 +107,10 @@ export default function VaccinationsScreen() {
                         const updated = completedVaccines.filter(v => v.id !== vaccine.id);
                         setCompletedVaccines(updated);
                         saveCompletedVaccines(updated);
-                    }
-                }
-            ]
+                    },
+                },
+            ],
+            'warning'
         );
     }, [completedVaccines, selectedChild]);
 
@@ -129,11 +134,11 @@ export default function VaccinationsScreen() {
     const handleMarkAllOverdueAsGiven = useCallback(() => {
         const overdueVaccines = vaccinationStatus.overdueVaccines;
         if (overdueVaccines.length === 0) {
-            Alert.alert('No Overdue Vaccines', 'All vaccines are up to date!');
+            showAlert('No Overdue Vaccines', 'All vaccines are up to date!', [], 'info');
             return;
         }
 
-        Alert.alert(
+        showAlert(
             'Mark All Overdue as Given',
             `Mark ${overdueVaccines.length} overdue vaccine(s) as given today?`,
             [
@@ -141,16 +146,17 @@ export default function VaccinationsScreen() {
                 {
                     text: 'Mark All as Given',
                     onPress: () => {
-                        const newCompleted = overdueVaccines.map(v => ({
+                        const newCompleted = overdueVaccines.map((v) => ({
                             id: v.id,
                             givenDate: new Date().toISOString(),
                         }));
                         const updated = [...completedVaccines, ...newCompleted];
                         setCompletedVaccines(updated);
                         saveCompletedVaccines(updated);
-                    }
-                }
-            ]
+                    },
+                },
+            ],
+            'info'
         );
     }, [vaccinationStatus.overdueVaccines, completedVaccines, selectedChild]);
 

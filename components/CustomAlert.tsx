@@ -6,7 +6,22 @@ import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 
 const { width } = Dimensions.get('window');
 
-export const CustomAlert = ({
+interface AlertButton {
+    text: string;
+    onPress?: () => void;
+    style?: 'default' | 'cancel' | 'destructive';
+}
+
+interface CustomAlertProps {
+    visible: boolean;
+    title: string;
+    message: string;
+    type?: 'success' | 'error' | 'warning' | 'info';
+    buttons?: AlertButton[];
+    onClose: () => void;
+}
+
+export const CustomAlert: React.FC<CustomAlertProps> = ({
     visible,
     title,
     message,
@@ -65,12 +80,10 @@ export const CustomAlert = ({
                                             borderColor: colorScheme.border
                                         } : {
                                             backgroundColor: btn.style === 'destructive' ? colorScheme.error : colorScheme.primary
-                                        },
-                                        buttons.length > 1 && { flex: 1 }
+                                        }
                                     ]}
                                     onPress={() => {
                                         if (btn.onPress) btn.onPress();
-                                        // The context handles closing, but we ensure onPress is called
                                     }}
                                 >
                                     <Text style={[
@@ -135,9 +148,9 @@ const styles = StyleSheet.create({
         lineHeight: 22,
     },
     buttonContainer: {
-        flexDirection: 'row',
+        flexDirection: 'column',
         width: '100%',
-        gap: Spacing.md,
+        gap: Spacing.sm,
     },
     button: {
         paddingVertical: Spacing.md,
@@ -145,7 +158,7 @@ const styles = StyleSheet.create({
         borderRadius: BorderRadius.lg,
         alignItems: 'center',
         justifyContent: 'center',
-        flex: 1,
+        width: '100%',
     },
     buttonText: {
         fontWeight: Typography.fontWeight.semibold,

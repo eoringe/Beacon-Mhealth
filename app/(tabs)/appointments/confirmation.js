@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useAlert } from '@/contexts/AlertContext';
 import { SafeHeader } from '@/components/SafeHeader';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 
@@ -20,6 +21,7 @@ export default function AppointmentConfirmationScreen() {
     const router = useRouter();
     const params = useLocalSearchParams();
     const { colorScheme } = useTheme();
+    const { showAlert } = useAlert();
 
     const { doctorName, specialty, date, time, appointmentType, meetLink } = params;
 
@@ -30,7 +32,7 @@ export default function AppointmentConfirmationScreen() {
             try {
                 await Linking.openURL(meetLink);
             } catch (error) {
-                Alert.alert('Error', 'Could not open the Meet link. Please open it manually.');
+                showAlert('Error', 'Could not open the Meet link. Please open it manually.', [], 'error');
             }
         }
     };

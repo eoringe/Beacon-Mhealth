@@ -122,7 +122,7 @@ export default function SelectSlotScreen() {
             );
 
             if (!data.available) {
-                Alert.alert('Unavailable', data.reason || 'No slots available for this date');
+                showAlert('Unavailable', data.reason || 'No slots available for this date', [], 'warning');
                 setAvailableSlots([]);
             } else {
                 let slots = data.slots || [];
@@ -153,7 +153,7 @@ export default function SelectSlotScreen() {
                 setAvailableSlots(slots);
             }
         } catch (error) {
-            Alert.alert('Error', 'Failed to check availability. Please try again.');
+            showAlert('Error', 'Failed to check availability. Please try again.', [], 'error');
             console.error('Error fetching availability:', error);
             setAvailableSlots([]);
         } finally {
@@ -163,18 +163,18 @@ export default function SelectSlotScreen() {
 
     const handleBookAppointment = async () => {
         if (!selectedDate || !selectedTime) {
-            Alert.alert('Missing Information', 'Please select a date and time');
+            showAlert('Missing Information', 'Please select a date and time', [], 'warning');
             return;
         }
 
         // Validate guest booking fields
         if (isGuestBooking) {
             if (!parentFirstName || !parentLastName) {
-                Alert.alert('Missing Information', 'Please enter parent/guardian name');
+                showAlert('Missing Information', 'Please enter parent/guardian name', [], 'warning');
                 return;
             }
             if (!parentPhone) {
-                Alert.alert('Missing Information', 'Please enter parent phone number');
+                showAlert('Missing Information', 'Please enter parent phone number', [], 'warning');
                 return;
             }
         }
@@ -226,10 +226,7 @@ export default function SelectSlotScreen() {
                 });
                 showAlert('Success', response.message || 'Appointment booked successfully!', [], 'success');
             } catch (error) {
-                Alert.alert(
-                    'Booking Failed',
-                    error.message || 'Failed to book appointment. Please try again.'
-                );
+                showAlert('Booking Failed', error.message || 'Failed to book appointment. Please try again.', [], 'error');
                 console.error('Error booking guest appointment:', error);
             } finally {
                 setBooking(false);
@@ -274,10 +271,7 @@ export default function SelectSlotScreen() {
                 }
             });
         } catch (error) {
-            Alert.alert(
-                'Booking Failed',
-                error.message || 'Failed to book appointment. Please try again.'
-            );
+            showAlert('Booking Failed', error.message || 'Failed to book appointment. Please try again.', [], 'error');
             console.error('Error booking appointment:', error);
         } finally {
             setBooking(false);
@@ -287,7 +281,7 @@ export default function SelectSlotScreen() {
     const executePaymentAndBooking = async () => {
         const phone = paymentPhoneInput.trim();
         if (!phone || phone.length < 9) {
-            Alert.alert('Invalid Number', 'Please provide a valid phone number to pay via M-Pesa.');
+            showAlert('Invalid Number', 'Please provide a valid phone number to pay via M-Pesa.', [], 'error');
             return;
         }
 
@@ -366,19 +360,19 @@ export default function SelectSlotScreen() {
                     } catch (bookErr) {
                         setIsPolling(false);
                         setBooking(false);
-                        Alert.alert('Booking Error', 'Payment received but appointment creation failed. Please contact support.');
+                        showAlert('Booking Error', 'Payment received but appointment creation failed. Please contact support.', [], 'error');
                     }
                 },
                 (failureReason) => {
                     setIsPolling(false);
                     setBooking(false);
-                    Alert.alert('Payment Failed', failureReason);
+                    showAlert('Payment Failed', failureReason, [], 'error');
                 }
             );
         } catch (error) {
             setBooking(false);
             setProcessingPayment(false);
-            Alert.alert('Payment Error', error.message || 'Failed to initiate payment');
+            showAlert('Payment Error', error.message || 'Failed to initiate payment', [], 'error');
         }
     };
 

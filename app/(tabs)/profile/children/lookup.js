@@ -68,7 +68,7 @@ export default function PatientLookupScreen() {
 
     const handleAddChild = async () => {
         if (!patientData?.patient) {
-            Alert.alert('Error', 'No patient data to add');
+            showAlert('Error', 'No patient data to add', [], 'error');
             return;
         }
 
@@ -84,11 +84,11 @@ export default function PatientLookupScreen() {
                 allergies: '',
                 registrationNumber: patient.registrationNumber
             });
-            Alert.alert('Success', 'Child profile added successfully!', [
+            showAlert('Success', 'Child profile added successfully!', [
                 { text: 'OK', onPress: () => router.replace('/children') }
-            ]);
+            ], 'success');
         } catch (err) {
-            Alert.alert('Error', err.message || 'Failed to add child');
+            showAlert('Error', err.message || 'Failed to add child', [], 'error');
         } finally {
             setSaving(false);
         }

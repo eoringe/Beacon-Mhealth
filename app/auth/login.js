@@ -50,7 +50,7 @@ export default function AuthScreen() {
 
     const handleLogin = async () => {
         if (!email || !password) {
-            Alert.alert('Error', 'Please enter email and password');
+            showAlert('Error', 'Please enter email and password', [], 'error');
             return;
         }
 

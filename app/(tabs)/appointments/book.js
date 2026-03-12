@@ -17,6 +17,7 @@ import { SafeHeader } from '@/components/SafeHeader';
 import { LoadingScreen } from '@/components/LoadingComponents';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import appointmentService from '@/services/appointmentService';
+import { useAlert } from '@/contexts/AlertContext';
 
 // Map specialization names to icons
 const SPECIALIZATION_ICONS = {
@@ -47,6 +48,7 @@ export default function BookAppointmentScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { colorScheme } = useTheme();
+    const { showAlert } = useAlert();
 
     const [specializations, setSpecializations] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -64,7 +66,7 @@ export default function BookAppointmentScreen() {
             const data = await appointmentService.getSpecializations(forceRefresh);
             setSpecializations(data);
         } catch (error) {
-            Alert.alert('Error', 'Failed to load specializations. Please try again.');
+            showAlert('Error', 'Failed to load specializations. Please try again.', [], 'error');
             console.error('Error fetching specializations:', error);
         } finally {
             setLoading(false);

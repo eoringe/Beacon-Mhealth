@@ -5,29 +5,31 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
 import { MaterialIcons } from '@expo/vector-icons';
+import { useAlert } from '@/contexts/AlertContext';
 
 export default function ForgotPasswordScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { forgotPassword } = useAuth();
+    const { showAlert } = useAlert();
 
     const [email, setEmail] = useState('');
     const [loading, setLoading] = useState(false);
 
     const handleResetPassword = async () => {
         if (!email) {
-            Alert.alert('Error', 'Please enter your email address');
+            showAlert('Error', 'Please enter your email address', [], 'error');
             return;
         }
 
         setLoading(true);
         try {
             const result = await forgotPassword(email);
-            Alert.alert('Success', result.message, [
+            showAlert('Success', result.message, [
                 { text: 'Back to Login', onPress: () => router.back() }
-            ]);
-        } catch (error) {
-            Alert.alert('Error', error.message);
+            ], 'success');
+        } catch (error: any) {
+            showAlert('Error', error.message, [], 'error');
         } finally {
             setLoading(false);
         }
