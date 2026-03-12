@@ -576,7 +576,7 @@ export default function SelectSlotScreen() {
                                         }, []).map((doc, dIdx) => (
                                             <View key={dIdx} style={styles.doctorWindowGroup}>
                                                 <Text style={[styles.disclaimerDoctorName, { color: colorScheme.textPrimary }]}>
-                                                    Dr. {doc.name}
+                                                    {specialization.name === 'Developmental Paediatrician' ? 'Dr. ' : ''}{doc.name}
                                                 </Text>
                                                 {doc.days.map((day, dayIdx) => (
                                                     <Text key={dayIdx} style={[styles.disclaimerText, { color: colorScheme.textSecondary }]}>

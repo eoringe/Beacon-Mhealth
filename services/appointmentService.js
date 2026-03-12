@@ -337,7 +337,7 @@ class AppointmentService {
                             if (doctor) {
                                 return {
                                     ...apt,
-                                    doctor_name: cleanName(doctor.name),
+                                    doctor_name: (doctor.specialization === 'Developmental Paediatrician' ? 'Dr. ' : '') + cleanName(doctor.name),
                                     doctor_photo: doctor.photo_url || apt.doctor_photo,
                                     doctor_specialty: doctor.specialization || apt.doctor_specialty
                                 };

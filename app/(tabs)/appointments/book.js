@@ -168,7 +168,7 @@ export default function BookAppointmentScreen() {
 
                                     {spec.doctors && spec.doctors.length > 0 && (
                                         <Text style={[styles.doctorsList, { color: colorScheme.textSecondary }]} numberOfLines={1}>
-                                            {spec.doctors.map(d => d.name).join(', ')}
+                                            {spec.doctors.map(d => (spec.name === 'Developmental Paediatrician' ? 'Dr. ' : '') + d.name).join(', ')}
                                         </Text>
                                     )}
 
