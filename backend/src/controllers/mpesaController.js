@@ -148,7 +148,7 @@ exports.initiateStkPush = async (req, res) => {
             PartyB: shortcode,
             PhoneNumber: formattedPhone,
             CallBackURL: process.env.MPESA_CALLBACK_URL,
-            AccountReference: `Appt-${appointment_data.child_id}`,
+            AccountReference: `BCC-${String(appointment_data.child_id).substring(0, 8)}`,
             TransactionDesc: 'Consultation Fee'
         };
 
