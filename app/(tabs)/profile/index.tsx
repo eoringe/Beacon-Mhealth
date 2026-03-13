@@ -146,7 +146,7 @@ export default function ProfileScreen() {
                         color: colorScheme.textSecondary,
                         hasArrow: true,
                         onPress: () => {
-                            Linking.openURL('https://beaconchildrencenter.co.ke/terms-of-use?token=mobile-app-secure-access');
+                            Linking.openURL('https://www.beaconchildrencenter.co.ke/terms-of-service');
                         },
                     },
                     {
@@ -155,7 +155,7 @@ export default function ProfileScreen() {
                         color: colorScheme.textSecondary,
                         hasArrow: true,
                         onPress: () => {
-                            Linking.openURL('https://beaconchildrencenter.co.ke/privacy-policy?token=mobile-app-secure-access');
+                            Linking.openURL('https://www.beaconchildrencenter.co.ke/privacy-policy');
                         },
                     },
                     {

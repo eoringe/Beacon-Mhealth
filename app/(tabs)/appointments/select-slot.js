@@ -25,6 +25,14 @@ import { CustomLoading } from '@/components/CustomLoading';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import appointmentService from '@/services/appointmentService';
 import mpesaService from '@/services/mpesaService';
+import { Colors } from '@/constants/theme';
+
+const CONSULTATION_PRICES = {
+    'Developmental Paediatrician': 2500,
+    'Occupational Therapy': 1000,
+    'Speech Therapy': 1500,
+    'Default': 1000 // Fallback price
+};
 
 
 export default function SelectSlotScreen() {
@@ -290,7 +298,10 @@ export default function SelectSlotScreen() {
         setProcessingPayment(true);
 
         try {
-            const amount = 1; // 1 KES for testing
+            // Determine price based on specialization name
+            const specName = specialization.name;
+            const amount = CONSULTATION_PRICES[specName] || CONSULTATION_PRICES['Default'];
+
             const paymentResponse = await mpesaService.initiateAppointmentPayment(
                 phone,
                 amount,
@@ -535,6 +546,19 @@ export default function SelectSlotScreen() {
                             </TouchableOpacity>
                         </View>
 
+                        {/* Price Display for Teleconsult */}
+                        {appointmentType === 'TELECONSULT' && (
+                            <View style={[styles.priceTag, { backgroundColor: colorScheme.success + '15', borderColor: colorScheme.success }]}>
+                                <MaterialIcons name="payments" size={20} color={colorScheme.success} />
+                                <View>
+                                    <Text style={[styles.priceLabel, { color: colorScheme.textSecondary }]}>Teleconsultation Fee</Text>
+                                    <Text style={[styles.priceValue, { color: colorScheme.success }]}>
+                                        KES {(CONSULTATION_PRICES[specialization.name] || CONSULTATION_PRICES['Default']).toLocaleString()}
+                                    </Text>
+                                </View>
+                            </View>
+                        )}
+
                         {/* Teleconsult Availability Disclaimer */}
                         {appointmentType === 'TELECONSULT' && (
                             <View style={[styles.disclaimerContainer, { backgroundColor: colorScheme.primaryLight + '20' }]}>
@@ -551,33 +575,24 @@ export default function SelectSlotScreen() {
                                 ) : teleWindows.length > 0 ? (
                                     <View style={styles.windowsList}>
                                         {teleWindows.reduce((acc, window) => {
-                                            const doctorName = window.doctor_name || 'Assigned Doctor';
-                                            let doc = acc.find(d => d.name === doctorName);
-                                            if (!doc) {
-                                                doc = { name: doctorName, days: [] };
-                                                acc.push(doc);
-                                            }
-
                                             const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                                             const dayName = dayNames[window.day_of_week];
-                                            let day = doc.days.find(d => d.name === dayName);
+                                            let day = acc.find(d => d.name === dayName);
                                             if (!day) {
-                                                day = { name: dayName, times: [] };
-                                                doc.days.push(day);
+                                                day = { name: dayName, times: [], dayIndex: window.day_of_week };
+                                                acc.push(day);
                                             }
 
-                                            day.times.push(`${window.start_time.substring(0, 5)} - ${window.end_time.substring(0, 5)} `);
+                                            const timeRange = `${window.start_time.substring(0, 5)} - ${window.end_time.substring(0, 5)}`;
+                                            if (!day.times.includes(timeRange)) {
+                                                day.times.push(timeRange);
+                                            }
                                             return acc;
-                                        }, []).map((doc, dIdx) => (
+                                        }, []).sort((a, b) => a.dayIndex - b.dayIndex).map((day, dIdx) => (
                                             <View key={dIdx} style={styles.doctorWindowGroup}>
-                                                <Text style={[styles.disclaimerDoctorName, { color: colorScheme.textPrimary }]}>
-                                                    {specialization.name === 'Developmental Paediatrician' ? 'Dr. ' : ''}{doc.name}
+                                                <Text style={[styles.disclaimerText, { color: colorScheme.textSecondary }]}>
+                                                    • {day.name}: {day.times.join(', ')}
                                                 </Text>
-                                                {doc.days.map((day, dayIdx) => (
-                                                    <Text key={dayIdx} style={[styles.disclaimerText, { color: colorScheme.textSecondary }]}>
-                                                        • {day.name}: {day.times.join(', ')}
-                                                    </Text>
-                                                ))}
                                             </View>
                                         ))}
                                     </View>
@@ -1217,5 +1232,22 @@ const styles = StyleSheet.create({
     disclaimerLoading: {
         paddingVertical: Spacing.sm,
         alignItems: 'center',
+    },
+    priceTag: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: Spacing.md,
+        borderRadius: BorderRadius.md,
+        borderWidth: 1,
+        marginTop: Spacing.md,
+        gap: Spacing.md,
+    },
+    priceLabel: {
+        fontSize: 12,
+        fontWeight: Typography.fontWeight.medium,
+    },
+    priceValue: {
+        fontSize: 18,
+        fontWeight: Typography.fontWeight.bold,
     },
 });
