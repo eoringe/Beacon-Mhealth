@@ -23,7 +23,7 @@ if (!CLIENT_ID || !CLIENT_SECRET) {
 const oauth2Client = new google.auth.OAuth2(
     CLIENT_ID,
     CLIENT_SECRET,
-    'urn:ietf:wg:oauth:2.0:oob'  // This is the redirect URI for installed apps (prompts user to paste code)
+    'http://localhost:8080'
 );
 
 const SCOPES = [
@@ -46,23 +46,41 @@ console.log('STEP 2: Authorize with your Google account');
 console.log('STEP 3: Copy the authorization code shown');
 console.log('==============================================\n');
 
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-rl.question('Paste the authorization code here: ', async (code) => {
-    rl.close();
+const http = require('http');
+const url = require('url');
+
+const server = http.createServer(async (req, res) => {
     try {
-        const { tokens } = await oauth2Client.getToken(code.trim());
-        console.log('\n==============================================');
-        console.log('SUCCESS! Your new tokens:');
-        console.log('==============================================');
-        console.log('Access Token:', tokens.access_token);
-        console.log('\nREFRESH TOKEN (put this in .env as GOOGLE_REFRESH_TOKEN):');
-        console.log(tokens.refresh_token);
-        console.log('\n==============================================');
-        console.log('Update your .env:');
-        console.log(`GOOGLE_REFRESH_TOKEN="${tokens.refresh_token}"`);
-        console.log('==============================================\n');
-    } catch (err) {
-        console.error('Error getting tokens:', err.message);
+        if (req.url.indexOf('/?code=') !== -1) {
+            const qs = new url.URL(req.url, 'http://localhost:8080').searchParams;
+            const code = qs.get('code');
+            res.end('Authentication successful! You can close this tab and return to the terminal.');
+            server.close();
+
+            const { tokens } = await oauth2Client.getToken(code);
+            console.log('\n==============================================');
+            console.log('SUCCESS! Your new tokens:');
+            console.log('==============================================');
+            console.log('Access Token:', tokens.access_token);
+            console.log('\nREFRESH TOKEN (put this in .env as GOOGLE_REFRESH_TOKEN):');
+            console.log(tokens.refresh_token);
+            console.log('\n==============================================');
+            console.log('Update your backend/.env:');
+            console.log(`GOOGLE_REFRESH_TOKEN="${tokens.refresh_token}"`);
+            console.log('==============================================\n');
+            process.exit(0);
+        }
+    } catch (e) {
+        console.error('Error:', e);
+        res.end('Authentication failed.');
         process.exit(1);
     }
+}).listen(8080, () => {
+    console.log('\n==============================================');
+    console.log('STEP 1: Ensure "http://localhost:8080" is added to');
+    console.log('        "Authorized redirect URIs" in Google Console.');
+    console.log('STEP 2: Open this URL in your browser:');
+    console.log('==============================================');
+    console.log(authUrl);
+    console.log('\nWaiting for authentication...\n');
 });
