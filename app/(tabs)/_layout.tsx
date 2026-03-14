@@ -125,7 +125,7 @@ function TabLayoutInner() {
         <Tabs.Screen
           name="explore"
           options={{
-            title: 'Milestones',
+            title: 'Milestone Overview',
             tabBarIcon: ({ color, size }) => (
               <MaterialIcons name="flag" size={size} color={color} />
             ),

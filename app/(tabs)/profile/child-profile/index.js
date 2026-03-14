@@ -216,7 +216,7 @@ export default function ChildProfileScreen() {
                         <View style={[styles.profilePhotoPlaceholder, { backgroundColor: `${colorScheme.primary}20`, borderColor: colorScheme.surface }]}>
                             <MaterialIcons name="person" size={60} color={colorScheme.primary} />
                         </View>
-                        <TouchableOpacity style={[styles.editPhotoButton, { backgroundColor: colorScheme.primary }]}>
+                        <TouchableOpacity style={[styles.editPhotoButton, { backgroundColor: colorScheme.primary, borderColor: colorScheme.surface }]}>
                             <MaterialIcons name="camera-alt" size={20} color="#FFFFFF" />
                         </TouchableOpacity>
                     </View>
@@ -480,7 +480,6 @@ const styles = StyleSheet.create({
         height: 120,
         borderRadius: 60,
         borderWidth: 4,
-        borderColor: '#FFFFFF',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -494,7 +493,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 3,
-        borderColor: '#FFFFFF',
     },
     childName: {
         fontSize: Typography.fontSize.xxl,

@@ -131,6 +131,9 @@ export const searchPatients = async (query) => {
  */
 export const getMediaList = async (registrationNumber, forceRefresh = false) => {
     try {
+        if (!registrationNumber) {
+            return [];
+        }
         const token = await getAuthToken();
         if (!token) {
             throw new Error('Not authenticated');

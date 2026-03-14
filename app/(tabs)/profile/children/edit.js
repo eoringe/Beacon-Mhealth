@@ -8,13 +8,13 @@ import {
     ScrollView,
     KeyboardAvoidingView,
     Platform,
-    Alert,
 } from 'react-native';
 import { CustomLoading } from '@/components/CustomLoading';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useChild } from '@/contexts/ChildContext';
-import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme';
+import { useTheme } from '@/contexts/ThemeContext';
+import { Spacing, Typography, BorderRadius } from '@/constants/theme';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAlert } from '@/contexts/AlertContext';
 
@@ -22,6 +22,7 @@ export default function EditChildScreen() {
     const router = useRouter();
     const { id } = useLocalSearchParams();
     const { children, updateChild } = useChild();
+    const { colorScheme, isDark } = useTheme();
     const { showAlert } = useAlert();
     const [loading, setLoading] = useState(false);
 
@@ -41,7 +42,6 @@ export default function EditChildScreen() {
                 setGender(child.gender);
             } else {
                 showAlert('Error', 'Child not found', [{ text: 'OK', onPress: () => router.back() }], 'error');
-                // Note: router.back() is called in onPress to ensure user sees error
             }
         }
     }, [id, children]);
@@ -77,12 +77,15 @@ export default function EditChildScreen() {
     };
 
     return (
-        <View style={styles.container}>
-            <View style={styles.header}>
+        <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
+            <View style={[styles.header, {
+                backgroundColor: colorScheme.surface,
+                borderBottomColor: colorScheme.border
+            }]}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <MaterialIcons name="arrow-back" size={24} color={Colors.textPrimary} />
+                    <MaterialIcons name="arrow-back" size={24} color={colorScheme.textPrimary} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Edit Child</Text>
+                <Text style={[styles.headerTitle, { color: colorScheme.textPrimary }]}>Edit Child</Text>
                 <View style={{ width: 24 }} />
             </View>
 
@@ -96,35 +99,48 @@ export default function EditChildScreen() {
                     keyboardShouldPersistTaps="handled"
                 >
                     <View style={styles.inputGroup}>
-                        <Text style={styles.label}>First Name *</Text>
+                        <Text style={[styles.label, { color: colorScheme.textPrimary }]}>First Name *</Text>
                         <TextInput
-                            style={styles.input}
+                            style={[styles.input, {
+                                backgroundColor: colorScheme.surface,
+                                borderColor: colorScheme.border,
+                                color: colorScheme.textPrimary
+                            }]}
                             value={firstName}
                             onChangeText={setFirstName}
                             placeholder="Enter first name"
+                            placeholderTextColor={colorScheme.textTertiary}
                         />
                     </View>
 
                     <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Last Name</Text>
+                        <Text style={[styles.label, { color: colorScheme.textPrimary }]}>Last Name</Text>
                         <TextInput
-                            style={styles.input}
+                            style={[styles.input, {
+                                backgroundColor: colorScheme.surface,
+                                borderColor: colorScheme.border,
+                                color: colorScheme.textPrimary
+                            }]}
                             value={lastName}
                             onChangeText={setLastName}
                             placeholder="Enter last name"
+                            placeholderTextColor={colorScheme.textTertiary}
                         />
                     </View>
 
                     <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Date of Birth *</Text>
+                        <Text style={[styles.label, { color: colorScheme.textPrimary }]}>Date of Birth *</Text>
                         <TouchableOpacity
-                            style={styles.dateInput}
+                            style={[styles.dateInput, {
+                                backgroundColor: colorScheme.surface,
+                                borderColor: colorScheme.border
+                            }]}
                             onPress={() => setShowDatePicker(true)}
                         >
-                            <Text style={styles.dateText}>
+                            <Text style={[styles.dateText, { color: colorScheme.textPrimary }]}>
                                 {dateOfBirth.toLocaleDateString()}
                             </Text>
-                            <MaterialIcons name="calendar-today" size={20} color={Colors.textSecondary} />
+                            <MaterialIcons name="calendar-today" size={20} color={colorScheme.textSecondary} />
                         </TouchableOpacity>
                         {showDatePicker && (
                             <DateTimePicker
@@ -133,25 +149,34 @@ export default function EditChildScreen() {
                                 display="default"
                                 onChange={onDateChange}
                                 maximumDate={new Date()}
+                                themeVariant={isDark ? 'dark' : 'light'}
                             />
                         )}
                     </View>
 
                     <View style={styles.inputGroup}>
-                        <Text style={styles.label}>Gender *</Text>
+                        <Text style={[styles.label, { color: colorScheme.textPrimary }]}>Gender *</Text>
                         <View style={styles.genderContainer}>
                             {['Male', 'Female'].map((g) => (
                                 <TouchableOpacity
                                     key={g}
                                     style={[
                                         styles.genderButton,
-                                        gender === g && styles.genderButtonActive
+                                        {
+                                            backgroundColor: colorScheme.surface,
+                                            borderColor: colorScheme.border
+                                        },
+                                        gender === g && {
+                                            backgroundColor: colorScheme.primary,
+                                            borderColor: colorScheme.primary
+                                        }
                                     ]}
                                     onPress={() => setGender(g)}
                                 >
                                     <Text
                                         style={[
                                             styles.genderText,
+                                            { color: colorScheme.textPrimary },
                                             gender === g && styles.genderTextActive
                                         ]}
                                     >
@@ -163,7 +188,7 @@ export default function EditChildScreen() {
                     </View>
 
                     <TouchableOpacity
-                        style={styles.saveButton}
+                        style={[styles.saveButton, { backgroundColor: colorScheme.primary }]}
                         onPress={handleSave}
                         disabled={loading}
                     >
@@ -182,7 +207,6 @@ export default function EditChildScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.background,
     },
     header: {
         flexDirection: 'row',
@@ -191,14 +215,11 @@ const styles = StyleSheet.create({
         paddingHorizontal: Spacing.lg,
         paddingTop: Spacing.xl + 20,
         paddingBottom: Spacing.md,
-        backgroundColor: Colors.white,
         borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
     },
     headerTitle: {
         fontSize: Typography.fontSize.lg,
         fontWeight: Typography.fontWeight.bold,
-        color: Colors.textPrimary,
     },
     content: {
         padding: Spacing.lg,
@@ -209,35 +230,24 @@ const styles = StyleSheet.create({
     label: {
         fontSize: Typography.fontSize.sm,
         fontWeight: Typography.fontWeight.medium,
-        color: Colors.textPrimary,
         marginBottom: Spacing.xs,
     },
     input: {
-        backgroundColor: Colors.white,
         borderWidth: 1,
-        borderColor: Colors.border,
         borderRadius: BorderRadius.md,
         padding: Spacing.md,
         fontSize: Typography.fontSize.md,
-        color: Colors.textPrimary,
-    },
-    textArea: {
-        height: 100,
-        textAlignVertical: 'top',
     },
     dateInput: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: Colors.white,
         borderWidth: 1,
-        borderColor: Colors.border,
         borderRadius: BorderRadius.md,
         padding: Spacing.md,
     },
     dateText: {
         fontSize: Typography.fontSize.md,
-        color: Colors.textPrimary,
     },
     genderContainer: {
         flexDirection: 'row',
@@ -247,33 +257,28 @@ const styles = StyleSheet.create({
         flex: 1,
         paddingVertical: Spacing.md,
         borderWidth: 1,
-        borderColor: Colors.border,
         borderRadius: BorderRadius.md,
         alignItems: 'center',
-        backgroundColor: Colors.white,
-    },
-    genderButtonActive: {
-        backgroundColor: Colors.primary,
-        borderColor: Colors.primary,
     },
     genderText: {
         fontSize: Typography.fontSize.md,
-        color: Colors.textPrimary,
     },
     genderTextActive: {
-        color: Colors.white,
+        color: '#FFFFFF',
         fontWeight: Typography.fontWeight.bold,
     },
     saveButton: {
-        backgroundColor: Colors.primary,
         paddingVertical: Spacing.lg,
         borderRadius: BorderRadius.md,
         alignItems: 'center',
         marginTop: Spacing.lg,
     },
     saveButtonText: {
-        color: Colors.white,
+        color: '#FFFFFF',
         fontSize: Typography.fontSize.md,
         fontWeight: Typography.fontWeight.bold,
+    },
+    backButton: {
+        padding: Spacing.xs,
     },
 });

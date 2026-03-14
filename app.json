@@ -2,13 +2,13 @@
   "expo": {
     "name": "Beacon Children's Centre",
     "slug": "beacon-children-center",
-    "version": "1.0.1",
+    "version": "1.1.0",
     "orientation": "default",
     "icon": "./assets/images/beacon_30.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/images/beacon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -49,8 +49,8 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "image": "./assets/images/beacon.png",
+          "imageWidth": 250,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }

@@ -35,7 +35,7 @@ export default function MedicalReportsScreen() {
             fetchMedia();
         } else {
             setLoading(false);
-            setError('Child has no registration number');
+            setError(null); // Clear error because we'll show instructions instead
         }
     }, [selectedChild]);
 
@@ -134,13 +134,60 @@ export default function MedicalReportsScreen() {
                     </View>
                 )}
 
-                {/* Empty State */}
+                {/* Empty State / Missing Reg Number Instructions */}
                 {!loading && !error && mediaList.length === 0 && (
                     <View style={styles.centerContent}>
-                        <MaterialIcons name="folder-off" size={48} color={colorScheme.textTertiary} />
-                        <Text style={[styles.statusText, { color: colorScheme.textSecondary }]}>
-                            No medical reports found
-                        </Text>
+                        {selectedChild?.registration_number ? (
+                            <>
+                                <MaterialIcons name="folder-off" size={48} color={colorScheme.textTertiary} />
+                                <Text style={[styles.statusText, { color: colorScheme.textSecondary }]}>
+                                    No medical reports found
+                                </Text>
+                            </>
+                        ) : (
+                            <View style={styles.instructionsContainer}>
+                                <View style={[styles.instructionIconCircle, { backgroundColor: `${colorScheme.primary}15` }]}>
+                                    <MaterialIcons name="info-outline" size={32} color={colorScheme.primary} />
+                                </View>
+                                <Text style={[styles.instructionTitle, { color: colorScheme.textPrimary }]}>
+                                    How to get Medical Reports
+                                </Text>
+                                <View style={styles.instructionSteps}>
+                                    <View style={styles.instructionStep}>
+                                        <View style={[styles.stepNumber, { backgroundColor: colorScheme.primary }]}>
+                                            <Text style={styles.stepNumberText}>1</Text>
+                                        </View>
+                                        <Text style={[styles.instructionText, { color: colorScheme.textSecondary }]}>
+                                            Ensure your child is registered at Beacon Children's Centre.
+                                        </Text>
+                                    </View>
+                                    <View style={styles.instructionStep}>
+                                        <View style={[styles.stepNumber, { backgroundColor: colorScheme.primary }]}>
+                                            <Text style={styles.stepNumberText}>2</Text>
+                                        </View>
+                                        <Text style={[styles.instructionText, { color: colorScheme.textSecondary }]}>
+                                            Book an appointment to Beacon Children's Centre through the app.
+                                        </Text>
+                                    </View>
+                                    <View style={styles.instructionStep}>
+                                        <View style={[styles.stepNumber, { backgroundColor: colorScheme.primary }]}>
+                                            <Text style={styles.stepNumberText}>3</Text>
+                                        </View>
+                                        <Text style={[styles.instructionText, { color: colorScheme.textSecondary }]}>
+                                            A registration number will automatically be assigned for the child after the first physical visit.
+                                        </Text>
+                                    </View>
+                                </View>
+                                <TouchableOpacity 
+                                    style={[styles.updateProfileButton, { borderColor: colorScheme.primary }]}
+                                    onPress={() => router.push('/profile/child-profile')}
+                                >
+                                    <Text style={[styles.updateProfileButtonText, { color: colorScheme.primary }]}>
+                                        Go to Child Profile
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
                     </View>
                 )}
 
@@ -285,5 +332,64 @@ const styles = StyleSheet.create({
     },
     dateText: {
         fontSize: Typography.fontSize.xs,
+    },
+    instructionsContainer: {
+        paddingHorizontal: Spacing.xl,
+        alignItems: 'center',
+        width: '100%',
+    },
+    instructionIconCircle: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: Spacing.lg,
+    },
+    instructionTitle: {
+        fontSize: Typography.fontSize.lg,
+        fontWeight: Typography.fontWeight.bold,
+        marginBottom: Spacing.xl,
+        textAlign: 'center',
+    },
+    instructionSteps: {
+        width: '100%',
+        gap: Spacing.lg,
+        marginBottom: Spacing.xxl,
+    },
+    instructionStep: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: Spacing.md,
+    },
+    stepNumber: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: 2,
+    },
+    stepNumberText: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: 'bold',
+    },
+    instructionText: {
+        flex: 1,
+        fontSize: Typography.fontSize.md,
+        lineHeight: 22,
+    },
+    updateProfileButton: {
+        borderWidth: 1,
+        paddingHorizontal: Spacing.xl,
+        paddingVertical: Spacing.md,
+        borderRadius: BorderRadius.md,
+        width: '100%',
+        alignItems: 'center',
+    },
+    updateProfileButtonText: {
+        fontWeight: Typography.fontWeight.semibold,
+        fontSize: Typography.fontSize.md,
     },
 });

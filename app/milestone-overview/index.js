@@ -78,7 +78,7 @@ export default function MilestoneOverview() {
   return (
     <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
       <SafeHeader
-        title="Developmental Milestones"
+        title="Milestone Overview"
         showBack={true}
       />
       <ScrollView
