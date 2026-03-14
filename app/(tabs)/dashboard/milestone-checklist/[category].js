@@ -221,6 +221,18 @@ export default function MilestoneCategory() {
     setScrollPosition(newPosition);
   };
 
+  // Auto-scroll to selected age on load
+  useEffect(() => {
+    if (scrollViewRef && containerWidth > 0 && contentWidth > 0) {
+      const ageIndex = allAges.indexOf(selectedAge);
+      if (ageIndex !== -1) {
+        const itemWidth = contentWidth / allAges.length;
+        const scrollX = Math.max(0, (ageIndex * itemWidth) - (containerWidth / 2) + (itemWidth / 2));
+        scrollViewRef.scrollTo({ x: scrollX, animated: true });
+      }
+    }
+  }, [scrollViewRef, containerWidth, contentWidth, selectedAge, allAges]);
+
 
 
   const completedCount = Object.values(milestoneResponses).filter(Boolean).length;

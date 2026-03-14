@@ -52,7 +52,7 @@ interface AuthContextType {
     initializing: boolean;
     signup: (email: string, password: string, displayName?: string) => Promise<{ success: boolean; message: string; requiresEmailVerification?: boolean }>;
     login: (email: string, password: string) => Promise<{ success: boolean; user?: User; requiresVerification?: boolean }>;
-    loginWithGoogle: () => Promise<{ success: boolean; user: User }>;
+    loginWithGoogle: () => Promise<{ success: boolean; user?: User }>;
     logout: () => Promise<void>;
     resendVerificationEmail: () => Promise<{ success: boolean; message: string }>;
     forgotPassword: (email: string) => Promise<{ success: boolean; message: string }>;
@@ -301,7 +301,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             console.log('AuthContext: Extracted idToken:', idToken ? 'Token exists' : 'Token is MISSING');
 
             if (!idToken) {
-                throw new Error('No ID token found in Google Sign-In response');
+                console.log('AuthContext: No ID token found (user likely cancelled or dismissed)');
+                return { success: false };
             }
 
             // Create a Google credential with the token
@@ -329,7 +330,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         } catch (error: any) {
             if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-                throw new Error('Sign in cancelled');
+                console.log('AuthContext: Google Sign-In cancelled by user');
+                return { success: false };
             } else if (error.code === statusCodes.IN_PROGRESS) {
                 throw new Error('Sign in in progress');
             } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {

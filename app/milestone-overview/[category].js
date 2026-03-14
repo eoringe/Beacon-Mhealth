@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -63,6 +63,18 @@ export default function MilestoneOverviewCategory() {
     scrollViewRef.scrollTo({ x: newPosition, animated: true });
     setScrollPosition(newPosition);
   };
+
+  // Auto-scroll to selected age on load
+  useEffect(() => {
+    if (scrollViewRef && containerWidth > 0 && contentWidth > 0) {
+      const ageIndex = allAges.indexOf(selectedAge);
+      if (ageIndex !== -1) {
+        const itemWidth = contentWidth / allAges.length;
+        const scrollX = Math.max(0, (ageIndex * itemWidth) - (containerWidth / 2) + (itemWidth / 2));
+        scrollViewRef.scrollTo({ x: scrollX, animated: true });
+      }
+    }
+  }, [scrollViewRef, containerWidth, contentWidth, selectedAge, allAges]);
 
 
 

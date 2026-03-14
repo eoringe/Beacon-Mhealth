@@ -94,8 +94,11 @@ export default function AuthScreen() {
 
     const handleGoogleLogin = async () => {
         try {
-            // Navigation is handled by AuthContext/RootLayout
-            await loginWithGoogle();
+            const result = await loginWithGoogle();
+            if (result && !result.success) {
+                // Silently return on cancellation (which now returns { success: false })
+                return;
+            }
         } catch (error) {
             showAlert('Google Login Failed', error.message, [], 'error');
         }

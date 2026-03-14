@@ -24,11 +24,7 @@ export default function RootLayout() {
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
 
-  useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [loaded]);
+  // We will hide the splash screen in NavigationWrapper once auth is ready
 
   if (!loaded) {
     return null;
@@ -58,6 +54,13 @@ function NavigationWrapper() {
   const router = useRouter();
 
   useEffect(() => {
+    // Hide splash screen once auth is initialized
+    if (!initializing && !authLoading) {
+      SplashScreen.hideAsync().catch(() => {
+        /* Ignore if already hidden */
+      });
+    }
+
     // Don't navigate while still loading or initializing
     if (authLoading || initializing) return;
 
@@ -88,13 +91,9 @@ function NavigationWrapper() {
     },
   };
 
-  // Show loading during initialization or auth state changes
+  // Show loading during auth state changes (but not initial boot)
   if (authLoading || initializing) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colorScheme.background }}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
-    );
+    return null; // Keep showing splash screen (or empty if splash hidden)
   }
 
   return (
