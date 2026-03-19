@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useChild } from '@/contexts/ChildContext';
 import { SafeHeader } from '@/components/SafeHeader';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import growthService from '@/services/growthService';
@@ -25,8 +26,11 @@ export default function AddMeasurementScreen() {
     const router = useRouter();
     const { childId } = useLocalSearchParams();
     const { colorScheme } = useTheme();
+    const { selectedChild, loading: contextLoading } = useChild();
     const { showAlert } = useAlert();
     const [loading, setLoading] = useState(false);
+
+    const activeChildId = childId || selectedChild?.id;
 
     const [measurementData, setMeasurementData] = useState({
         date: new Date().toISOString().split('T')[0],
@@ -34,12 +38,16 @@ export default function AddMeasurementScreen() {
         height: '',
         weight: '',
         headCircumference: '',
-        notes: '',
     });
 
     const handleSave = async () => {
-        if (!childId) {
-            showAlert('Error', 'Child ID is missing', [], 'error');
+        if (contextLoading) {
+            showAlert('Wait', 'Loading child data, please try again in a moment.', [], 'info');
+            return;
+        }
+
+        if (!activeChildId) {
+            showAlert('Child Missing', 'No active child selected. Please select a child from the dashboard before adding measurements.', [], 'warning');
             return;
         }
 
@@ -55,12 +63,11 @@ export default function AddMeasurementScreen() {
 
         setLoading(true);
         try {
-            await growthService.addMeasurement(childId, {
+            await growthService.addMeasurement(activeChildId, {
                 date: measurementData.date,
                 weight: measurementData.weight ? parseFloat(measurementData.weight) : null,
                 height: measurementData.height ? parseFloat(measurementData.height) : null,
                 headCircumference: measurementData.headCircumference ? parseFloat(measurementData.headCircumference) : null,
-                notes: measurementData.notes,
             });
             showAlert('Success', 'Measurement added successfully', [
                 { text: 'OK', onPress: () => router.back() }
@@ -86,6 +93,7 @@ export default function AddMeasurementScreen() {
                             <Text
                                 style={[styles.saveButton, { color: colorScheme.primary }]}
                                 numberOfLines={1}
+                                adjustsFontSizeToFit
                             >
                                 Save
                             </Text>
@@ -218,26 +226,6 @@ export default function AddMeasurementScreen() {
                             />
                         </View>
 
-                        {/* Notes */}
-                        <View style={styles.formGroup}>
-                            <Text style={[styles.label, { color: colorScheme.textSecondary }]}>
-                                Notes (Optional)
-                            </Text>
-                            <TextInput
-                                style={[styles.textArea, {
-                                    backgroundColor: colorScheme.surface,
-                                    color: colorScheme.textPrimary,
-                                    borderColor: colorScheme.border,
-                                }]}
-                                value={measurementData.notes}
-                                onChangeText={(text) => setMeasurementData({ ...measurementData, notes: text })}
-                                placeholder="Add any relevant notes about this measurement"
-                                placeholderTextColor={colorScheme.textTertiary}
-                                multiline
-                                numberOfLines={4}
-                                textAlignVertical="top"
-                            />
-                        </View>
 
                         {/* Save Button */}
                         <TouchableOpacity
@@ -308,14 +296,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: Spacing.md,
         paddingVertical: Spacing.md,
         fontSize: Typography.fontSize.base,
-    },
-    textArea: {
-        borderWidth: 1,
-        borderRadius: BorderRadius.md,
-        paddingHorizontal: Spacing.md,
-        paddingVertical: Spacing.md,
-        fontSize: Typography.fontSize.base,
-        minHeight: 100,
     },
     saveButtonLarge: {
         flexDirection: 'row',

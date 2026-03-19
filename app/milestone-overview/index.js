@@ -5,7 +5,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Modal
+  Modal,
+  Linking
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -13,10 +14,10 @@ import { MaterialIcons } from '@expo/vector-icons';
 import {
   MILESTONE_CATEGORIES,
   MILESTONE_AGES,
-  WHO_MILESTONES,
   getMilestonesForAge,
   calculateAgeInMonths,
-  formatAgeMonths
+  formatAgeMonths,
+  CDC_SOURCE_URL
 } from '../../constants/milestones';
 import { SafeHeader } from '@/components/SafeHeader';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -114,13 +115,25 @@ export default function MilestoneOverview() {
           <MaterialIcons name="expand-more" size={24} color={colorScheme.textTertiary} />
         </TouchableOpacity>
 
-        {/* WHO Attribution */}
-        <View style={[styles.whoCard, { backgroundColor: '#E3F2FD' }]}>
-          <MaterialIcons name="verified" size={20} color="#1976D2" />
-          <Text style={[styles.whoText, { color: '#1976D2' }]}>
-            Based on WHO Child Development Standards
-          </Text>
-        </View>
+        {/* CDC Attribution */}
+        <TouchableOpacity
+          style={[styles.whoCard, { backgroundColor: '#E3F2FD' }]}
+          onPress={() => Linking.openURL(CDC_SOURCE_URL)}
+        >
+          <MaterialIcons name="info" size={24} color="#1976D2" />
+          <View style={styles.whoTextContainer}>
+            <Text style={[styles.whoTitle, { color: '#1976D2' }]}>
+              Source of Milestone Data
+            </Text>
+            <Text style={[styles.whoText, { color: '#1976D2' }]}>
+              These milestones are based on the CDC's "Learn the Signs. Act Early." program (2022).
+            </Text>
+            <Text style={[styles.whoUrl, { color: '#1565C0', textDecorationLine: 'underline' }]}>
+              cdc.gov/act-early/milestones
+            </Text>
+          </View>
+          <MaterialIcons name="open-in-new" size={20} color="#1976D2" />
+        </TouchableOpacity>
 
         {/* Domain Cards */}
         {MILESTONE_CATEGORIES.map((category) => (
@@ -321,15 +334,29 @@ const styles = StyleSheet.create({
   whoCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: Spacing.md,
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.lg,
-    padding: Spacing.sm,
-    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: '#BBDEFB',
+  },
+  whoTextContainer: {
+    flex: 1,
+    gap: 2,
+  },
+  whoTitle: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.bold,
+  },
+  whoUrl: {
+    fontSize: Typography.fontSize.xs,
+    marginTop: 2,
   },
   whoText: {
     fontSize: Typography.fontSize.xs,
-    fontWeight: Typography.fontWeight.medium,
+    lineHeight: 16,
   },
   categorySection: {
     marginBottom: Spacing.md,

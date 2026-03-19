@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -7,7 +7,8 @@ import {
   MILESTONE_CATEGORIES,
   MILESTONE_AGES,
   getMilestonesForAge,
-  calculateAgeInMonths as calculateAgeHelper
+  calculateAgeInMonths as calculateAgeHelper,
+  CDC_SOURCE_URL
 } from '@/constants/milestones';
 import { SafeHeader } from '@/components/SafeHeader';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -54,6 +55,26 @@ export default function MilestoneChecklist() {
           <Text style={[styles.ageLabel, { color: colorScheme.primary }]}>Age: {selectedAge} months</Text>
         </View>
 
+        {/* CDC Attribution */}
+        <TouchableOpacity
+          style={[styles.whoCard, { backgroundColor: '#E3F2FD' }]}
+          onPress={() => Linking.openURL(CDC_SOURCE_URL)}
+        >
+          <MaterialIcons name="info" size={24} color="#1976D2" />
+          <View style={styles.whoTextContainer}>
+            <Text style={[styles.whoTitle, { color: '#1976D2' }]}>
+              Source of Milestone Data
+            </Text>
+            <Text style={[styles.whoText, { color: '#1976D2' }]}>
+              These milestones are based on the CDC's "Learn the Signs. Act Early." program (2022).
+            </Text>
+            <Text style={[styles.whoUrl, { color: '#1565C0', textDecorationLine: 'underline' }]}>
+              cdc.gov/act-early/milestones
+            </Text>
+          </View>
+          <MaterialIcons name="open-in-new" size={20} color="#1976D2" />
+        </TouchableOpacity>
+
         {MILESTONE_CATEGORIES.map((category) => {
           const milestones = getMilestonesForAge(selectedAge)?.[category.id] || [];
           return (
@@ -89,10 +110,36 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
   },
   ageSelector: {
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.md,
     padding: Spacing.lg,
     borderRadius: BorderRadius.lg,
     ...Shadow.md,
+  },
+  whoCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    marginBottom: Spacing.xl,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: '#BBDEFB',
+  },
+  whoTextContainer: {
+    flex: 1,
+    gap: 2,
+  },
+  whoTitle: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.bold,
+  },
+  whoUrl: {
+    fontSize: Typography.fontSize.xs,
+    marginTop: 2,
+  },
+  whoText: {
+    fontSize: Typography.fontSize.xs,
+    lineHeight: 16,
   },
   ageLabel: {
     fontSize: Typography.fontSize.md,

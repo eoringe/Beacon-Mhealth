@@ -8,6 +8,7 @@ import {
     TextInput,
     Alert,
     Modal,
+    Linking,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -261,16 +262,22 @@ export default function VaccinationsScreen() {
             >
                 {/* Child Info & Age */}
                 <View style={[styles.childInfoCard, { backgroundColor: colorScheme.primary }]}>
-                    <MaterialIcons name="vaccines" size={32} color="#FFFFFF" />
-                    <View style={styles.childInfoText}>
-                        <Text style={styles.childName}>{childName}'s Immunization</Text>
-                        <Text style={styles.childAge}>Age: {childAge}</Text>
+                    <View style={styles.childInfoTopRow}>
+                        <MaterialIcons name="vaccines" size={32} color="#FFFFFF" />
+                        <View style={styles.childInfoText}>
+                            <Text style={styles.childName} allowFontScaling={false} numberOfLines={2}>
+                                {childName}'s Immunization
+                            </Text>
+                            <Text style={styles.childAge} allowFontScaling={false}>
+                                Age: {childAge}
+                            </Text>
+                        </View>
                     </View>
                     <TouchableOpacity
                         style={styles.viewScheduleBtn}
                         onPress={() => setShowScheduleModal(true)}
                     >
-                        <Text style={styles.viewScheduleBtnText}>View Full Schedule</Text>
+                        <Text style={styles.viewScheduleBtnText} allowFontScaling={false}>View Full Schedule</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -411,6 +418,12 @@ export default function VaccinationsScreen() {
                                         <Text style={[styles.scheduleAge, { color: colorScheme.textTertiary }]}>
                                             Schedule: {vaccine.ageLabel}
                                         </Text>
+                                        {vaccine.highRiskCountiesOnly && (
+                                            <View style={styles.highRiskBadge}>
+                                                <MaterialIcons name="location-on" size={10} color="#E65100" />
+                                                <Text style={styles.highRiskBadgeText}>High-Risk Counties Only</Text>
+                                            </View>
+                                        )}
                                     </View>
                                     <View style={styles.vaccineRight}>
                                         <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(vaccine.status)}20` }]}>
@@ -493,9 +506,19 @@ export default function VaccinationsScreen() {
                 </View>
 
                 {/* Kenya MOH Attribution */}
-                <View style={styles.attribution}>
-                    <Text style={[styles.attributionText, { color: colorScheme.textTertiary }]}>
-                        Based on Kenya Ministry of Health Immunization Schedule (KEPI)
+                <View style={[styles.attribution, { paddingHorizontal: 20 }]}>
+                    <Text style={[styles.attributionText, { color: colorScheme.textTertiary, textAlign: 'center', lineHeight: 18 }]}>
+                        Based on Kenya Ministry of Health Immunization Schedule (KEPI).{'\n'}Source:{' '}
+                    </Text>
+                    <TouchableOpacity
+                        onPress={() => Linking.openURL('http://guidelines.health.go.ke:8000/media/Kenya_National_Immunization_Policy_Guidelines_Version_signed.pdf')}
+                    >
+                        <Text style={[styles.attributionText, { color: '#1565C0', textDecorationLine: 'underline', textAlign: 'center' }]}>
+                            Kenya MOH Immunization Guidelines
+                        </Text>
+                    </TouchableOpacity>
+                    <Text style={[styles.attributionText, { color: colorScheme.textTertiary, textAlign: 'center', lineHeight: 18, marginTop: 6 }]}>
+                        Disclaimer: The Beacon Children's Centre app is an independent platform and does not represent the Kenya Ministry of Health or any other government entity.
                     </Text>
                 </View>
             </ScrollView>
@@ -576,16 +599,21 @@ const styles = StyleSheet.create({
         padding: Spacing.sm,
     },
     childInfoCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flexWrap: 'wrap',
-        gap: Spacing.md,
+        flexDirection: 'column',
+        gap: Spacing.sm,
         margin: Spacing.lg,
         padding: Spacing.lg,
         borderRadius: BorderRadius.lg,
     },
+    childInfoTopRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.md,
+        flexShrink: 1,
+    },
     childInfoText: {
         flex: 1,
+        flexShrink: 1,
     },
     childName: {
         color: '#FFFFFF',
@@ -602,6 +630,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: Spacing.md,
         paddingVertical: Spacing.xs,
         borderRadius: BorderRadius.sm,
+        alignSelf: 'flex-start',
     },
     viewScheduleBtnText: {
         color: '#FFFFFF',
@@ -745,6 +774,22 @@ const styles = StyleSheet.create({
     scheduleAge: {
         fontSize: Typography.fontSize.xs,
         marginTop: 2,
+    },
+    highRiskBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+        marginTop: 4,
+        backgroundColor: '#FBE9E7',
+        alignSelf: 'flex-start',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    highRiskBadgeText: {
+        fontSize: 9,
+        color: '#E65100',
+        fontWeight: '600',
     },
     vaccineRight: {
         alignItems: 'flex-end',

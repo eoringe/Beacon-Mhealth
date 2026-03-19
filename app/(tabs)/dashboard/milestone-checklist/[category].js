@@ -278,26 +278,29 @@ export default function MilestoneCategory() {
                 snapToInterval={containerWidth * 0.4} // Adjust based on your item width
                 snapToAlignment="center"
               >
-                {allAges.map((age) => (
-                  <TouchableOpacity
-                    key={age}
-                    style={[
-                      styles.agePill,
-                      selectedAge === age
-                        ? { backgroundColor: colorScheme.primary }
-                        : isDark
-                          ? { backgroundColor: colorScheme.border }
-                          : { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#000000' },
-                    ]}
-                    onPress={() => {
-                      setSelectedAge(age);
-                    }}
-                  >
-                    <Text style={[styles.agePillText, { color: selectedAge === age ? '#FFFFFF' : colorScheme.textPrimary }]}>
-                      {age === 12 ? '1 year' : `${age} ${age === 1 ? 'month' : 'months'}`}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {allAges.map((ageVal) => {
+                  const ageOption = MILESTONE_AGES.find(a => a.value === ageVal);
+                  return (
+                    <TouchableOpacity
+                      key={ageVal}
+                      style={[
+                        styles.agePill,
+                        selectedAge === ageVal
+                          ? { backgroundColor: colorScheme.primary }
+                          : isDark
+                            ? { backgroundColor: colorScheme.border }
+                            : { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#000000' },
+                      ]}
+                      onPress={() => {
+                        setSelectedAge(ageVal);
+                      }}
+                    >
+                      <Text style={[styles.agePillText, { color: selectedAge === ageVal ? '#FFFFFF' : colorScheme.textPrimary }]}>
+                        {ageOption?.label ?? `${ageVal} months`}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </ScrollView>
             </View>
 
@@ -320,7 +323,7 @@ export default function MilestoneCategory() {
 
           <View style={styles.milestonesHeader}>
             <Text style={[styles.milestonesTitle, { color: colorScheme.textPrimary }]}>
-              {milestones.length} milestones for {selectedAge} month{selectedAge > 1 ? 's' : ''} old
+              {milestones.length} milestones · {MILESTONE_AGES.find(a => a.value === selectedAge)?.label ?? `${selectedAge} months`}
             </Text>
           </View>
           <View style={styles.progressContainer}>

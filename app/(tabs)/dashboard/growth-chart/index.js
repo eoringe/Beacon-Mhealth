@@ -6,6 +6,7 @@ import {
     ScrollView,
     TouchableOpacity,
     Dimensions,
+    RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -30,32 +31,44 @@ export default function GrowthChartScreen() {
 
     const [selectedTab, setSelectedTab] = useState('height');
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [measurements, setMeasurements] = useState([]);
     const [child, setChild] = useState(null);
 
-    const fetchData = async () => {
-        if (!childId) return;
-        setLoading(true);
+    const activeChildId = childId || selectedChild?.id;
+
+    const fetchData = async (forceRefresh = false) => {
+        if (!activeChildId) {
+            setLoading(false);
+            return;
+        }
+        if (!forceRefresh) setLoading(true);
         try {
             // Fetch child details to get DOB
             const children = await childService.getChildren();
-            const currentChild = children.find(c => c.id === childId);
+            const currentChild = children.find(c => c.id === activeChildId);
             setChild(currentChild);
 
-            // Fetch measurements
-            const data = await growthService.getMeasurements(childId);
+            // Fetch measurements (bypassing cache if pulled to refresh)
+            const data = await growthService.getMeasurements(activeChildId, forceRefresh);
             setMeasurements(data);
         } catch (error) {
             console.error('Error fetching growth data:', error);
         } finally {
-            setLoading(false);
+            if (!forceRefresh) setLoading(false);
         }
     };
+
+    const onRefresh = useCallback(async () => {
+        setRefreshing(true);
+        await fetchData(true);
+        setRefreshing(false);
+    }, [activeChildId]);
 
     useFocusEffect(
         useCallback(() => {
             fetchData();
-        }, [childId])
+        }, [activeChildId])
     );
 
     const calculateAgeInMonths = (birthDate, recordDate) => {
@@ -121,7 +134,7 @@ export default function GrowthChartScreen() {
                 title="Growth Chart"
                 showBack={true}
                 rightComponent={
-                    <TouchableOpacity onPress={() => router.push({ pathname: '/growth-chart/add-measurement', params: { childId } })}>
+                    <TouchableOpacity onPress={() => router.push({ pathname: '/dashboard/growth-chart/add-measurement', params: { childId: activeChildId } })}>
                         <MaterialIcons name="add" size={24} color={colorScheme.primary} />
                     </TouchableOpacity>
                 }
@@ -131,6 +144,14 @@ export default function GrowthChartScreen() {
                 style={styles.content}
                 contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl }}
                 showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        colors={[colorScheme.primary]}
+                        tintColor={colorScheme.primary}
+                    />
+                }
             >
                 {/* Tabs */}
                 <View style={styles.tabsContainer}>
@@ -158,6 +179,8 @@ export default function GrowthChartScreen() {
                                         color: selectedTab === tab.id ? '#FFFFFF' : colorScheme.textPrimary,
                                     },
                                 ]}
+                                adjustsFontSizeToFit
+                                numberOfLines={1}
                             >
                                 {tab.label}
                             </Text>
@@ -270,21 +293,23 @@ const styles = StyleSheet.create({
     tabsContainer: {
         flexDirection: 'row',
         padding: Spacing.lg,
-        gap: Spacing.sm,
+        gap: Spacing.xs,
     },
     tab: {
         flex: 1,
-        flexDirection: 'row',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: Spacing.xs,
-        paddingVertical: Spacing.md,
+        paddingVertical: Spacing.sm,
+        paddingHorizontal: 2,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
+        gap: 2,
     },
     tabText: {
-        fontSize: Typography.fontSize.sm,
+        fontSize: 10,
         fontWeight: Typography.fontWeight.medium,
+        textAlign: 'center',
     },
     latestCard: {
         marginHorizontal: Spacing.lg,

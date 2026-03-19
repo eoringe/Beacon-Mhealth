@@ -25,7 +25,7 @@ import { useDrawer } from '@/contexts/DrawerContext';
 import appointmentService from '@/services/appointmentService';
 import { milestoneService } from '@/services/milestoneService';
 import { getDailyPick } from '@/constants/activitiesData';
-import { calculateAgeInMonths, getMilestonesForAge } from '@/constants/milestones';
+import { calculateAgeInMonths, getMilestonesForAge, MILESTONE_AGES } from '@/constants/milestones';
 import { Spacing, Typography, BorderRadius, Shadow, Colors } from '@/constants/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -33,7 +33,7 @@ const CARD_WIDTH = SCREEN_WIDTH - Spacing.lg * 2;
 
 // ─── Feature Discovery Slides ───
 const FEATURE_SLIDES = [
-    { id: 'track', icon: 'show-chart', title: 'Track Growth', desc: 'Monitor height & weight with WHO charts', color: '#2196F3', route: '/dashboard/growth-chart' },
+    { id: 'track', icon: 'show-chart', title: 'Track Growth', desc: 'Monitor height & weight charts', color: '#2196F3', route: '/dashboard/growth-chart' },
     { id: 'vaccine', icon: 'vaccines', title: 'Vaccination Schedule', desc: 'Never miss an immunization date', color: '#4CAF50', route: '/dashboard/vaccinations' },
     { id: 'appt', icon: 'calendar-today', title: 'Book Appointments', desc: 'Schedule doctor visits in seconds', color: '#FF9800', route: '/(tabs)/appointments' },
     { id: 'miles', icon: 'checklist', title: 'Milestone Checker', desc: 'Track developmental milestones by age', color: '#9C27B0', route: '/dashboard/milestone-checklist' },
@@ -239,22 +239,31 @@ export default function DashboardScreen() {
             }
             setMilestoneAlertDismissed(false);
 
-            // Get total milestones available for this child's age (across ALL categories)
-            const childAge = ageInMonths || 12;
-            const milestonesForAge = getMilestonesForAge(childAge);
+            // Get the tracking bucket age using MILESTONE_AGES logic
+            const childAgeRaw = ageInMonths || 12;
+            const allAges = MILESTONE_AGES.map(a => a.value);
+            let trackingAge = allAges[0];
+            for (const a of allAges) {
+                if (childAgeRaw >= a) trackingAge = a;
+                else break;
+            }
+
+            // Get total milestones available for this child's milestone age (across ALL categories)
+            const milestonesForAge = getMilestonesForAge(trackingAge);
             let totalMilestones = 0;
             if (milestonesForAge) {
                 for (const catId of Object.keys(milestonesForAge)) {
+                    if (catId === 'ageLabel') continue;
                     const items = milestonesForAge[catId];
                     totalMilestones += Array.isArray(items) ? items.length : 0;
                 }
             }
 
-            const allResponses = await milestoneService.getAllMilestoneResponsesForChild(selectedChild.id);
+            const allResponses = await milestoneService.getAllMilestoneResponsesForChild(selectedChild.id, true);
             if (!allResponses || allResponses.length === 0) { setMilestoneConcern(false); setMilestoneProgress(totalMilestones > 0 ? 0 : null); return; }
 
             // Filter responses to ONLY the current age we are tracking, otherwise achieved counts past ages too
-            const currentAgeResponses = allResponses.filter(r => Number(r.age_months) === childAge);
+            const currentAgeResponses = allResponses.filter(r => Number(r.age_months) === trackingAge);
 
             let achieved = 0, hasConcern = false;
             for (const cat of currentAgeResponses) {
@@ -442,7 +451,7 @@ export default function DashboardScreen() {
                     <View style={styles.statsRow}>
                         <TouchableOpacity style={[styles.statCard, { backgroundColor: colorScheme.surface }]} onPress={() => navigateTo('/dashboard/milestone-checklist')}>
                             <View style={[styles.progressRing, { borderColor: milestoneProgress != null ? colorScheme.primary : colorScheme.border }]}>
-                                <Text style={[styles.progressText, { color: colorScheme.primary }]}>{milestoneProgress != null ? `${milestoneProgress}%` : '—'}</Text>
+                                <Text style={[styles.progressText, { color: colorScheme.primary }]} adjustsFontSizeToFit numberOfLines={1}>{milestoneProgress != null ? `${milestoneProgress}%` : '—'}</Text>
                             </View>
                             <Text style={[styles.statLabel, { color: colorScheme.textSecondary }]}>Milestones</Text>
                             <Text style={[styles.statSub, { color: colorScheme.textTertiary }]}>{milestoneProgress != null ? 'achieved' : 'not started'}</Text>
@@ -600,8 +609,8 @@ const styles = StyleSheet.create({
     // Stats
     statsRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.lg },
     statCard: { flex: 1, borderRadius: BorderRadius.lg, padding: Spacing.md, alignItems: 'center', ...Shadow.sm },
-    progressRing: { width: 54, height: 54, borderRadius: 27, borderWidth: 4, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.xs },
-    progressText: { fontSize: Typography.fontSize.md, fontWeight: Typography.fontWeight.bold },
+    progressRing: { width: 64, height: 64, borderRadius: 32, borderWidth: 4, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.xs },
+    progressText: { fontSize: Typography.fontSize.lg, fontWeight: Typography.fontWeight.bold, textAlign: 'center', paddingHorizontal: 4 },
     statLabel: { fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.medium, marginTop: 2 },
     statSub: { fontSize: 10, marginTop: 1 },
     statDate: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.bold },
@@ -634,10 +643,10 @@ const styles = StyleSheet.create({
     warningRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: Spacing.md },
     warningTextWrap: { flex: 1, marginLeft: Spacing.sm },
     warningTitle: { fontSize: Typography.fontSize.md, fontWeight: Typography.fontWeight.semibold, marginBottom: Spacing.xs },
-    warningMsg: { fontSize: Typography.fontSize.sm, lineHeight: 20 },
-    warningButtons: { flexDirection: 'row', gap: Spacing.sm },
-    warningBtn: { flex: 1, paddingVertical: Spacing.sm, borderRadius: BorderRadius.md, alignItems: 'center' },
-    warningBtnText: { color: '#FFF', fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold },
-    warningBtnSec: { flex: 1, paddingVertical: Spacing.sm, borderRadius: BorderRadius.md, borderWidth: 1, alignItems: 'center', backgroundColor: 'transparent' },
-    warningBtnSecText: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold },
+    warningMsg: { fontSize: Typography.fontSize.sm, lineHeight: 22 },
+    warningButtons: { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap' },
+    warningBtn: { minWidth: '45%', flexGrow: 1, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.sm, borderRadius: BorderRadius.md, alignItems: 'center' },
+    warningBtnText: { color: '#FFF', fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, textAlign: 'center' },
+    warningBtnSec: { minWidth: '45%', flexGrow: 1, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.sm, borderRadius: BorderRadius.md, borderWidth: 1, alignItems: 'center', backgroundColor: 'transparent' },
+    warningBtnSecText: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, textAlign: 'center' },
 });
