@@ -17,7 +17,7 @@ import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 export default function MilestoneOverviewCategory() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colorScheme } = useTheme();
+  const { colorScheme, isDark } = useTheme();
   const { category, age } = useLocalSearchParams();
 
   const allAges = useMemo(() => MILESTONE_AGES.map(a => a.value), []);
@@ -85,9 +85,9 @@ export default function MilestoneOverviewCategory() {
         showBack={true}
       />
 
-      <View style={[styles.ageSelectorContainer, { backgroundColor: colorScheme.surface, borderBottomWidth: 1, borderBottomColor: colorScheme.border }]}>
+      <View style={[styles.ageSelectorContainer, { backgroundColor: isDark ? colorScheme.surface : '#FFFFFF', borderBottomWidth: 1, borderBottomColor: colorScheme.border }]}>
         <TouchableOpacity
-          style={[styles.arrowButton, { backgroundColor: colorScheme.primaryLight }, !scrollPosition && styles.arrowButtonDisabled]}
+          style={[styles.arrowButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colorScheme.primaryLight }, !scrollPosition && styles.arrowButtonDisabled]}
           onPress={() => scrollToAge('prev')}
           disabled={!scrollPosition}
         >
@@ -139,7 +139,7 @@ export default function MilestoneOverviewCategory() {
         <TouchableOpacity
           style={[
             styles.arrowButton,
-            { backgroundColor: colorScheme.primaryLight },
+            { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colorScheme.primaryLight },
             scrollPosition >= contentWidth - containerWidth - 10 && styles.arrowButtonDisabled
           ]}
           onPress={() => scrollToAge('next')}
@@ -184,7 +184,7 @@ export default function MilestoneOverviewCategory() {
           )}
         </View>
 
-        <View style={[styles.infoBox, { backgroundColor: colorScheme.primaryLight }]}>
+        <View style={[styles.infoBox, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : colorScheme.primaryLight }]}>
           <MaterialIcons name="info" size={20} color={colorScheme.primary} style={styles.infoIcon} />
           <Text style={[styles.infoText, { color: colorScheme.textSecondary }]}>
             Remember that every child develops at their own pace. If you have concerns about your child's development, please consult with a healthcare professional.

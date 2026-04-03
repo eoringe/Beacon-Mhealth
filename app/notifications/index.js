@@ -18,7 +18,7 @@ import { formatDistanceToNow } from 'date-fns';
 export default function NotificationsScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
-    const { colorScheme } = useTheme();
+    const { colorScheme, isDark } = useTheme();
     const {
         notifications,
         unreadCount,
@@ -111,8 +111,8 @@ export default function NotificationsScreen() {
                                     backgroundColor:
                                         selectedCategory === category.id
                                             ? colorScheme.primary
-                                            : colorScheme.surface,
-                                    borderColor: colorScheme.border,
+                                            : (isDark ? colorScheme.surface : '#FFFFFF'),
+                                    borderColor: isDark ? colorScheme.border : (selectedCategory === category.id ? colorScheme.primary : '#E5E7EB'),
                                 },
                             ]}
                             onPress={() => setSelectedCategory(category.id)}
@@ -170,7 +170,7 @@ export default function NotificationsScreen() {
                                     {
                                         backgroundColor: notification.isRead
                                             ? colorScheme.surface
-                                            : `${colorScheme.primaryLight}`,
+                                            : (isDark ? `${colorScheme.primary}20` : '#F0F7FF'),
                                         borderLeftColor: getCategoryColor(notification.category),
                                     },
                                 ]}

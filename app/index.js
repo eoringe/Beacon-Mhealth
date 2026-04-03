@@ -26,7 +26,7 @@ export default function WelcomeScreen() {
 
   return (
     <ImageBackground
-      source={require('../assets/images/Mhealth_home_image.png')}
+      source={require('../assets/images/Welcome_Screen_New.jpeg')}
       style={styles.container}
       resizeMode="cover"
     >

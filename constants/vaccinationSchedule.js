@@ -5,6 +5,7 @@
  *
  * highRiskCountiesOnly: true = vaccine is only administered in high-risk counties
  */
+import { calculateAgeInMonths } from './milestones';
 
 export const VACCINATION_SCHEDULE = [
     // ── CONTACT 1: At birth or at first contact ──────────────────────────────
@@ -428,7 +429,7 @@ export function calculateAgeInWeeks(dateOfBirth) {
  * @param {string[]} completedVaccineIds - Array of vaccine IDs already administered
  * @returns {Object} Object with dueVaccines, upcomingVaccines, overdueVaccines, and completedVaccines
  */
-export function getVaccinationStatus(dateOfBirth, completedVaccineIds = []) {
+export function getVaccinationStatus(dateOfBirth, completedVaccineIds = [], skippedVaccineIds = []) {
     const ageInWeeks = calculateAgeInWeeks(dateOfBirth);
 
     const dueVaccines = [];
@@ -442,6 +443,10 @@ export function getVaccinationStatus(dateOfBirth, completedVaccineIds = []) {
     VACCINATION_SCHEDULE.forEach(vaccine => {
         if (completedVaccineIds.includes(vaccine.id)) {
             completedVaccines.push(vaccine);
+        } else if (skippedVaccineIds.includes(vaccine.id)) {
+            // Treat as completed but don't add to visible lists if logic requires
+            // For now, just exclude from due/overdue
+            completedVaccines.push({ ...vaccine, status: 'skipped' });
         } else if (ageInWeeks >= vaccine.ageWeeks - gracePeriodWeeks &&
             ageInWeeks <= vaccine.ageWeeks + gracePeriodWeeks) {
             // Due now (within grace period)
@@ -457,6 +462,7 @@ export function getVaccinationStatus(dateOfBirth, completedVaccineIds = []) {
 
     return {
         ageInWeeks,
+        ageInMonths: calculateAgeInMonths(dateOfBirth),
         dueVaccines,
         overdueVaccines,
         upcomingVaccines,
@@ -468,7 +474,24 @@ export function getVaccinationStatus(dateOfBirth, completedVaccineIds = []) {
 /**
  * Format age in weeks to human-readable string
  */
-export function formatAge(ageInWeeks) {
+export function formatAge(ageInWeeks, dateOfBirth = null) {
+    if (dateOfBirth) {
+        const months = calculateAgeInMonths(dateOfBirth);
+        if (months === 0) {
+            return `${ageInWeeks} week${ageInWeeks !== 1 ? 's' : ''}`;
+        }
+        if (months < 12) {
+            return `${months} month${months !== 1 ? 's' : ''}`;
+        }
+        const years = Math.floor(months / 12);
+        const remainingMonths = months % 12;
+        if (remainingMonths > 0) {
+            return `${years} year${years !== 1 ? 's' : ''}, ${remainingMonths} month${remainingMonths !== 1 ? 's' : ''}`;
+        }
+        return `${years} year${years !== 1 ? 's' : ''}`;
+    }
+
+    // Fallback to week-based if no DOB provided
     if (ageInWeeks < 4) {
         return `${ageInWeeks} week${ageInWeeks !== 1 ? 's' : ''}`;
     } else if (ageInWeeks < 52) {

@@ -13,8 +13,11 @@ export default function ProfileLayout() {
             <Stack.Screen name="index" />
             <Stack.Screen name="edit" />
             <Stack.Screen name="change-password" />
-            <Stack.Screen name="children" />
             <Stack.Screen name="child-profile" />
+            <Stack.Screen name="children/index" />
+            <Stack.Screen name="children/add" />
+            <Stack.Screen name="children/edit" />
+            <Stack.Screen name="children/lookup" />
         </Stack>
     );
 }

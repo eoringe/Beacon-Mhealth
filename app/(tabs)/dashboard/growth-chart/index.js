@@ -12,12 +12,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
+import * as WebBrowser from 'expo-web-browser';
 import { useChild } from '@/contexts/ChildContext';
 import { useAlert } from '@/contexts/AlertContext';
 import { SafeHeader } from '@/components/SafeHeader';
 import { LoadingScreen } from '@/components/LoadingComponents';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
-import { GrowthLineChart } from '@/components/GrowthLineChart';
+import { WHOChart } from '@/components/WHOChart';
 import growthService from '@/services/growthService';
 import { childService } from '@/services/childService';
 
@@ -131,11 +132,11 @@ export default function GrowthChartScreen() {
     return (
         <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
             <SafeHeader
-                title="Growth Chart"
+                title="Growth Tracker"
                 showBack={true}
                 rightComponent={
                     <TouchableOpacity onPress={() => router.push({ pathname: '/dashboard/growth-chart/add-measurement', params: { childId: activeChildId } })}>
-                        <MaterialIcons name="add" size={24} color={colorScheme.primary} />
+                        <MaterialIcons name="add" size={24} color="#FFFFFF" />
                     </TouchableOpacity>
                 }
             />
@@ -153,6 +154,17 @@ export default function GrowthChartScreen() {
                     />
                 }
             >
+                {/* Introduction Instruction */}
+                <View style={[styles.introCard, { backgroundColor: `${colorScheme.primary}08`, borderColor: `${colorScheme.primary}20` }]}>
+                    <View style={styles.introHeader}>
+                        <MaterialIcons name="info" size={20} color={colorScheme.primary} />
+                        <Text style={[styles.introTitle, { color: colorScheme.textPrimary }]}>How to start tracking</Text>
+                    </View>
+                    <Text style={[styles.introText, { color: colorScheme.textSecondary }]}>
+                        Enter your child's growth measurements (Height, Weight, or Head Circumference) to start tracking their development against WHO global standards.
+                    </Text>
+                </View>
+
                 {/* Tabs */}
                 <View style={styles.tabsContainer}>
                     {tabs.map((tab) => (
@@ -213,25 +225,25 @@ export default function GrowthChartScreen() {
                 )}
 
                 {/* Chart */}
-                {currentData.length > 0 && (
-                    <View style={[styles.chartCard, { backgroundColor: colorScheme.surface }]}>
-                        <Text style={[styles.chartTitle, { color: colorScheme.textPrimary }]}>
-                            {getCurrentLabel()} Over Time
-                        </Text>
+                <View style={[styles.chartCard, { backgroundColor: colorScheme.surface }]}>
+                    <Text style={[styles.chartTitle, { color: colorScheme.textPrimary }]}>
+                        {getCurrentLabel()} Over Time
+                    </Text>
 
-                        <View style={styles.chartContainer}>
-                            <GrowthLineChart
-                                data={currentData}
-                                width={Dimensions.get('window').width - (Spacing.lg * 2)}
-                                height={300}
-                                color={getCurrentColor()}
-                                label={getCurrentLabel()}
-                                unit={selectedTab === 'weight' ? 'kg' : 'cm'}
-                                isDark={isDark}
-                            />
-                        </View>
+                    <View style={styles.chartContainer}>
+                        <WHOChart
+                            childData={currentData}
+                            gender={child?.gender || selectedChild?.gender}
+                            type={selectedTab}
+                            color={getCurrentColor()}
+                            unit={selectedTab === 'weight' ? 'kg' : 'cm'}
+                            isDark={isDark}
+                        />
                     </View>
-                )}
+                    <Text style={[styles.chartStatus, { color: colorScheme.textTertiary }]}>
+                        Plotted against WHO global growth standards
+                    </Text>
+                </View>
 
                 {/* Measurement History */}
                 <View style={styles.historySection}>
@@ -278,6 +290,18 @@ export default function GrowthChartScreen() {
                         })
                     )}
                 </View>
+
+                {/* WHO Standard Link */}
+                <TouchableOpacity 
+                    style={[styles.whoLinkContainer, { backgroundColor: `${colorScheme.primary}10` }]}
+                    onPress={() => WebBrowser.openBrowserAsync('https://www.who.int/tools/child-growth-standards')}
+                >
+                    <MaterialIcons name="info-outline" size={20} color={colorScheme.primary} />
+                    <Text style={[styles.whoLinkText, { color: colorScheme.primary }]}>
+                        Learn more about WHO Child Growth Standards
+                    </Text>
+                    <MaterialIcons name="open-in-new" size={14} color={colorScheme.primary} />
+                </TouchableOpacity>
             </ScrollView>
         </View>
     );
@@ -289,6 +313,26 @@ const styles = StyleSheet.create({
     },
     content: {
         flex: 1,
+    },
+    introCard: {
+        margin: Spacing.lg,
+        padding: Spacing.md,
+        borderRadius: BorderRadius.lg,
+        borderWidth: 1,
+    },
+    introHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.xs,
+        marginBottom: Spacing.xs,
+    },
+    introTitle: {
+        fontSize: Typography.fontSize.base,
+        fontWeight: Typography.fontWeight.semibold,
+    },
+    introText: {
+        fontSize: Typography.fontSize.sm,
+        lineHeight: 20,
     },
     tabsContainer: {
         flexDirection: 'row',
@@ -346,6 +390,12 @@ const styles = StyleSheet.create({
     chartContainer: {
         alignItems: 'center',
         justifyContent: 'center',
+        marginBottom: Spacing.md,
+    },
+    chartStatus: {
+        fontSize: 10,
+        textAlign: 'center',
+        fontStyle: 'italic',
     },
     historySection: {
         paddingHorizontal: Spacing.lg,
@@ -383,5 +433,18 @@ const styles = StyleSheet.create({
     historyDate: {
         fontSize: Typography.fontSize.sm,
         marginTop: 2,
+    },
+    whoLinkContainer: {
+        margin: Spacing.lg,
+        padding: Spacing.md,
+        borderRadius: BorderRadius.md,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: Spacing.xs,
+    },
+    whoLinkText: {
+        fontSize: Typography.fontSize.sm,
+        fontWeight: Typography.fontWeight.medium,
     },
 });

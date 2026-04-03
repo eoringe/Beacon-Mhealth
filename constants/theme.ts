@@ -4,25 +4,25 @@
 
 export const Colors = {
   // Primary
-  primary: '#2E5BFF',
-  primaryLight: '#F0F5FF',
-  primaryDark: '#1E3A8A',
+  primary: '#1E63D8',
+  primaryLight: '#D6E4FF',
+  primaryDark: '#0D3C9D',
 
   // Neutral
   white: '#FFFFFF',
   black: '#000000',
-  background: '#F8F9FB',
+  background: '#E6EFFF',
   surface: '#FFFFFF',
 
   // Text
-  textPrimary: '#333333',
-  textSecondary: '#666666',
-  textTertiary: '#999999',
-  textDisabled: '#CCCCCC',
+  textPrimary: '#0F2744',
+  textSecondary: '#3A5B82',
+  textTertiary: '#7F9BBF',
+  textDisabled: '#B0C4DE',
 
   // Border & Divider
-  border: '#E5E5E5',
-  divider: '#E0E0E0',
+  border: '#C2D6F3',
+  divider: '#C2D6F3',
 
   // Status
   success: '#10B981',
@@ -35,7 +35,7 @@ export const Colors = {
   overlayLight: 'rgba(0, 0, 0, 0.2)',
 
   // Chart Colors
-  chartHeight: '#4CAF50',
+  chartHeight: '#9C27B0', // Purple (distinct from WHO Median Green)
   chartWeight: '#2196F3',
   chartHeadCirc: '#FF9800',
 
@@ -52,25 +52,25 @@ export const Colors = {
 
 export const DarkColors = {
   // Primary
-  primary: '#5B85FF',
-  primaryLight: '#1A2744',
-  primaryDark: '#3D6BFF',
+  primary: '#3B82F6',
+  primaryLight: '#1E3A8A',
+  primaryDark: '#60A5FA',
 
   // Neutral
   white: '#FFFFFF',
   black: '#000000',
-  background: '#0F1419',
-  surface: '#1A1F29',
+  background: '#0B1120',
+  surface: '#1E293B',
 
   // Text
-  textPrimary: '#E8EAED',
-  textSecondary: '#9AA0A6',
-  textTertiary: '#6E7681',
-  textDisabled: '#484F58',
+  textPrimary: '#F1F5F9',
+  textSecondary: '#94A3B8',
+  textTertiary: '#64748B',
+  textDisabled: '#475569',
 
   // Border & Divider
-  border: '#2D333B',
-  divider: '#21262D',
+  border: '#334155',
+  divider: '#334155',
 
   // Status
   success: '#3FB950',
@@ -83,7 +83,7 @@ export const DarkColors = {
   overlayLight: 'rgba(0, 0, 0, 0.4)',
 
   // Chart Colors
-  chartHeight: '#66BB6A',
+  chartHeight: '#BA68C8', // Lighter Purple for Dark Mode
   chartWeight: '#42A5F5',
   chartHeadCirc: '#FFA726',
 

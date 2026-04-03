@@ -5,17 +5,17 @@ import {
     StyleSheet,
     TouchableOpacity,
     FlatList,
-    Alert,
-    ActivityIndicator
+    ActivityIndicator,
+    Image
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { useChild } from '@/contexts/ChildContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { LoadingScreen } from '@/components/LoadingComponents';
 import { Spacing, Typography, BorderRadius } from '@/constants/theme';
 import { useAlert } from '@/contexts/AlertContext';
+import { SafeHeader } from '@/components/SafeHeader';
 
 export default function ChildrenListScreen() {
     const router = useRouter();
@@ -104,12 +104,16 @@ export default function ChildrenListScreen() {
                 onPress={() => handleSelectChild(item)}
                 disabled={selectingId !== null}
             >
-                <View style={[styles.avatarContainer, { backgroundColor: `${colorScheme.primary}20` }]}>
-                    <MaterialIcons
-                        name="face"
-                        size={32}
-                        color={colorScheme.primary}
-                    />
+                <View style={[styles.avatarContainer, { backgroundColor: `${colorScheme.primary}20`, overflow: 'hidden' }]}>
+                    {item.photo_url ? (
+                        <Image source={{ uri: item.photo_url }} style={{ width: '100%', height: '100%' }} />
+                    ) : (
+                        <MaterialIcons
+                            name="face"
+                            size={32}
+                            color={colorScheme.primary}
+                        />
+                    )}
                 </View>
                 <View style={styles.childInfo}>
                     <Text style={[
@@ -162,21 +166,16 @@ export default function ChildrenListScreen() {
 
     return (
         <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
-            <View style={[styles.header, {
-                backgroundColor: colorScheme.surface,
-                borderBottomColor: colorScheme.border,
-                paddingTop: insets.top + Spacing.md
-            }]}>
-                <Text style={[styles.headerTitle, { color: colorScheme.textPrimary }]}>My Children</Text>
-                <View style={styles.headerActions}>
+            <SafeHeader title="My Children" showBack onBackPress={() => router.replace('/profile')} rightComponent={
+                <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
                     <TouchableOpacity onPress={() => router.push('/profile/children/lookup')} style={styles.headerButton}>
-                        <MaterialIcons name="search" size={24} color={colorScheme.primary} />
+                        <MaterialIcons name="search" size={24} color="#FFFFFF" />
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => router.push('/profile/children/add')} style={styles.headerButton}>
-                        <MaterialIcons name="add" size={28} color={colorScheme.primary} />
+                        <MaterialIcons name="add" size={28} color="#FFFFFF" />
                     </TouchableOpacity>
                 </View>
-            </View>
+            } />
 
             {loading && children.length === 0 ? (
                 <LoadingScreen text="Loading children..." />

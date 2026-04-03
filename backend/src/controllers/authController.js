@@ -79,20 +79,20 @@ class AuthController {
     async updateProfile(req, res, next) {
         try {
             const { uid } = req.user;
-            const { displayName, phoneNumber } = req.body;
+            const { displayName, phoneNumber, photoUrl } = req.body;
 
             console.log('[AuthController] Updating profile for:', uid, req.body);
 
             // Update user record
-            // We map displayName to display_name (Firebase style)
             const result = await query(
                 `UPDATE users 
                  SET display_name = COALESCE($1, display_name), 
                      phone_number = COALESCE($2, phone_number),
+                     photo_url = COALESCE($3, photo_url),
                      updated_at = NOW()
-                 WHERE firebase_uid = $3
-                 RETURNING id, firebase_uid, email, display_name, phone_number`,
-                [displayName, phoneNumber, uid]
+                 WHERE firebase_uid = $4
+                 RETURNING id, firebase_uid, email, display_name, phone_number, photo_url`,
+                [displayName, phoneNumber, photoUrl, uid]
             );
 
             if (result.rows.length === 0) {

@@ -47,6 +47,25 @@ const isPastTime = (dateStr, timeStr) => {
     return false;
 };
 
+// Helper: Check if a slot falls within at least one availability window
+const isTimeInWindows = (time, windows) => {
+    if (!Array.isArray(windows) || windows.length === 0) return false;
+    return windows.some(window => {
+        const windowStart = window.start_time.substring(0, 5);
+        const windowEnd = window.end_time.substring(0, 5);
+        return time >= windowStart && time < windowEnd;
+    });
+};
+
+// Helper: Normalize incoming appointment type values from query/body.
+const normalizeAppointmentType = (value) => {
+    if (!value) return 'IN_PERSON';
+    const normalized = String(value).trim().toUpperCase().replace(/[\s-]+/g, '_');
+    if (normalized === 'INPERSON' || normalized === 'IN_PERSON') return 'IN_PERSON';
+    if (normalized === 'TELECONSULT' || normalized === 'TELE_CONSULT') return 'TELECONSULT';
+    return normalized;
+};
+
 // Helper: Check if doctor is unavailable on a specific date (external doctor_unavailabilities table)
 const isDoctorUnavailableOnDate = async (doctorId, date) => {
     try {
@@ -102,7 +121,7 @@ exports.getDoctorAvailability = async (req, res) => {
             return res.json({ available: false, reason: 'Weekends are not available', slots: [] });
         }
 
-        const { appointmentType = 'IN_PERSON' } = req.query;
+        const appointmentType = normalizeAppointmentType(req.query.appointmentType || req.query.appointment_type);
         const dayOfWeek = new Date(date).getDay(); // 0 (Sunday) - 6 (Saturday)
 
         // Check for doctor unavailability
@@ -123,6 +142,25 @@ exports.getDoctorAvailability = async (req, res) => {
 
         if (doctorCheck.rows.length === 0) {
             return res.status(404).json({ error: 'Doctor not found or inactive' });
+        }
+
+        // IN-PERSON: doctor must be explicitly available via in_person windows for the day
+        let inPersonWindows = [];
+        if (appointmentType === 'IN_PERSON') {
+            const inPersonResult = await externalQuery(
+                `SELECT start_time, end_time FROM doctor_teleconsultation_availabilities
+                 WHERE doctor_id = $1 AND day_of_week = $2 AND window_type = 'in_person'`,
+                [doctorId, dayOfWeek]
+            );
+
+            if (inPersonResult.rows.length === 0) {
+                return res.json({
+                    available: false,
+                    reason: 'Doctor is not available for in-person visits on this day of the week',
+                    slots: []
+                });
+            }
+            inPersonWindows = inPersonResult.rows;
         }
 
         // TELECONSULTATION SPECIFIC: Check if doctor has tele-windows for this day
@@ -174,11 +212,12 @@ exports.getDoctorAvailability = async (req, res) => {
 
             // 2. If it's a teleconsult, does it fall within a tele-window?
             if (appointmentType === 'TELECONSULT') {
-                return teleWindows.some(window => {
-                    const windowStart = window.start_time.substring(0, 5);
-                    const windowEnd = window.end_time.substring(0, 5);
-                    return slot >= windowStart && slot < windowEnd;
-                });
+                return isTimeInWindows(slot, teleWindows);
+            }
+
+            // 3. In-person must also fall within configured in-person windows
+            if (appointmentType === 'IN_PERSON') {
+                return isTimeInWindows(slot, inPersonWindows);
             }
 
             return true;
@@ -213,13 +252,16 @@ exports.getSpecializationAvailability = async (req, res) => {
             return res.json({ available: false, reason: 'Weekends are not available', slots: [] });
         }
 
-        const { appointmentType = 'IN_PERSON' } = req.query;
+        const appointmentType = normalizeAppointmentType(req.query.appointmentType || req.query.appointment_type);
         const dayOfWeek = new Date(date).getDay();
 
-        // Find all active doctors with this specialization
+        // Find all active doctors with this specialization (many-to-many via staff_specialization)
+        // DISTINCT ON (s.id): fullname is json — plain DISTINCT cannot compare json columns
         const doctorsResult = await externalQuery(
-            `SELECT s.id, s.fullname FROM staff s
-             WHERE s.specialization_id = $1 AND s.is_active = true`,
+            `SELECT DISTINCT ON (s.id) s.id, s.fullname FROM staff s
+             INNER JOIN staff_specialization ss ON ss.staff_id = s.id
+             WHERE ss.specialization_id = $1 AND s.is_active = true
+             ORDER BY s.id`,
             [specializationId]
         );
 
@@ -236,6 +278,18 @@ exports.getSpecializationAvailability = async (req, res) => {
             // Check for doctor unavailability
             const unavailability = await isDoctorUnavailableOnDate(docId, date);
             if (unavailability.unavailable) continue;
+
+            // IN-PERSON: Filter by explicit in_person windows
+            let inPersonWindows = [];
+            if (appointmentType === 'IN_PERSON') {
+                const inPersonResult = await externalQuery(
+                    `SELECT start_time, end_time FROM doctor_teleconsultation_availabilities
+                     WHERE doctor_id = $1 AND day_of_week = $2 AND window_type = 'in_person'`,
+                    [docId, dayOfWeek]
+                );
+                if (inPersonResult.rows.length === 0) continue;
+                inPersonWindows = inPersonResult.rows;
+            }
 
             // TELECONSULTATION SPECIFIC: Filter by tele-windows
             let teleWindows = [];
@@ -270,11 +324,10 @@ exports.getSpecializationAvailability = async (req, res) => {
             allSlots.forEach(slot => {
                 if (!bookedTimes.includes(slot)) {
                     if (appointmentType === 'TELECONSULT') {
-                        const inWindow = teleWindows.some(window => {
-                            const windowStart = window.start_time.substring(0, 5);
-                            const windowEnd = window.end_time.substring(0, 5);
-                            return slot >= windowStart && slot < windowEnd;
-                        });
+                        const inWindow = isTimeInWindows(slot, teleWindows);
+                        if (inWindow) availableSlotsSet.add(slot);
+                    } else if (appointmentType === 'IN_PERSON') {
+                        const inWindow = isTimeInWindows(slot, inPersonWindows);
                         if (inWindow) availableSlotsSet.add(slot);
                     } else {
                         availableSlotsSet.add(slot);
@@ -305,9 +358,11 @@ exports.getSpecializationTeleWindows = async (req, res) => {
     try {
         const { specializationId } = req.params;
 
-        // Find all active doctors with this specialization
+        // Find all active doctors with this specialization (many-to-many via staff_specialization)
         const doctorsResult = await externalQuery(
-            `SELECT s.id FROM staff s WHERE s.specialization_id = $1 AND s.is_active = true`,
+            `SELECT DISTINCT s.id FROM staff s
+             INNER JOIN staff_specialization ss ON ss.staff_id = s.id
+             WHERE ss.specialization_id = $1 AND s.is_active = true`,
             [specializationId]
         );
 
@@ -354,10 +409,12 @@ exports.getSpecializationTeleWindows = async (req, res) => {
 
 // Helper: Auto-assign a doctor from a specialization for a given date/time
 // Picks the doctor with fewest appointments that day who is free at the requested time
-const autoAssignDoctor = async (specializationId, appointmentDate, appointmentTime) => {
-    // Find all active doctors with this specialization
+const autoAssignDoctor = async (specializationId, appointmentDate, appointmentTime, appointmentType = 'IN_PERSON') => {
+    // Find all active doctors with this specialization (many-to-many via staff_specialization)
     const doctorsResult = await externalQuery(
-        `SELECT s.id FROM staff s WHERE s.specialization_id = $1 AND s.is_active = true`,
+        `SELECT DISTINCT s.id FROM staff s
+         INNER JOIN staff_specialization ss ON ss.staff_id = s.id
+         WHERE ss.specialization_id = $1 AND s.is_active = true`,
         [specializationId]
     );
 
@@ -373,6 +430,19 @@ const autoAssignDoctor = async (specializationId, appointmentDate, appointmentTi
         if (unavailability.unavailable) {
             console.log(`[AutoAssign] Skipping doctor ${doc.id} - Marked as unavailable: ${unavailability.reason}`);
             continue;
+        }
+
+        // IN-PERSON: enforce explicit in_person window for the requested day/time
+        if (appointmentType === 'IN_PERSON') {
+            const dayOfWeek = new Date(appointmentDate).getDay();
+            const inPersonResult = await externalQuery(
+                `SELECT start_time, end_time FROM doctor_teleconsultation_availabilities
+                 WHERE doctor_id = $1 AND day_of_week = $2 AND window_type = 'in_person'`,
+                [doc.id, dayOfWeek]
+            );
+            if (!isTimeInWindows(appointmentTime, inPersonResult.rows)) {
+                continue;
+            }
         }
 
         // Check daily limit
@@ -429,13 +499,27 @@ async function createAppointmentLogic(appointmentData, userId) {
             notes,
             appointmentType = 'IN_PERSON'
         } = appointmentData;
+        const normalizedAppointmentType = normalizeAppointmentType(appointmentType);
 
-        console.log(`[AppointmentLogic] START - type: ${appointmentType}, doctor: ${requestedDoctorId}, spec: ${specializationId}, child: ${childId}, date: ${appointmentDate}, time: ${appointmentTime}`);
+        console.log(`[AppointmentLogic] START - type: ${normalizedAppointmentType}, doctor: ${requestedDoctorId}, spec: ${specializationId}, child: ${childId}, date: ${appointmentDate}, time: ${appointmentTime}`);
 
         // 1. Resolve Doctor
         let doctorId = requestedDoctorId;
         if (!doctorId && specializationId) {
-            doctorId = await autoAssignDoctor(specializationId, appointmentDate, appointmentTime);
+            doctorId = await autoAssignDoctor(specializationId, appointmentDate, appointmentTime, normalizedAppointmentType);
+        }
+
+        // Enforce explicit in-person windows at booking time as a final server-side guard.
+        if (normalizedAppointmentType === 'IN_PERSON') {
+            const dayOfWeek = new Date(appointmentDate).getDay();
+            const inPersonResult = await externalQuery(
+                `SELECT start_time, end_time FROM doctor_teleconsultation_availabilities
+                 WHERE doctor_id = $1 AND day_of_week = $2 AND window_type = 'in_person'`,
+                [doctorId, dayOfWeek]
+            );
+            if (!isTimeInWindows(appointmentTime, inPersonResult.rows)) {
+                throw new Error('Doctor is not available for in-person visits at the selected time');
+            }
         }
 
         // 2. Resolve Child & External Registration
@@ -530,15 +614,15 @@ async function createAppointmentLogic(appointmentData, userId) {
                 appointment_date, start_time, end_time, status, appointment_type, 
                 created_at, updated_at
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, NOW(), NOW()) RETURNING *`,
-            [externalChildId, doctorId, 1, childFullName, appointmentDate, appointmentTime, endTimeStr, appointmentType]
+            [externalChildId, doctorId, 1, childFullName, appointmentDate, appointmentTime, endTimeStr, normalizedAppointmentType]
         );
 
         const appointment = appResult.rows[0];
         console.log(`[AppointmentLogic] Appointment INSERT result - id: ${appointment.id}, type: ${appointment.appointment_type}`);
 
         // 6. Google Calendar Integration for Teleconsults
-        console.log(`[AppointmentLogic] Checking teleconsult: appointmentType=${appointmentType}, condition=${appointmentType === 'TELECONSULT'}`);
-        if (appointmentType === 'TELECONSULT') {
+        console.log(`[AppointmentLogic] Checking teleconsult: appointmentType=${normalizedAppointmentType}, condition=${normalizedAppointmentType === 'TELECONSULT'}`);
+        if (normalizedAppointmentType === 'TELECONSULT') {
             try {
                 googleCalendarService.initialize();
                 if (googleCalendarService.isConfigured()) {

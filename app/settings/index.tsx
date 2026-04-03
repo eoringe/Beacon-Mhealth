@@ -122,6 +122,11 @@ export default function SettingsScreen() {
                     </Text>
                     <View style={[styles.sectionContent, { backgroundColor: colorScheme.surface }]}>
                         <SettingItem
+                            icon="child-care"
+                            title="My Children"
+                            onPress={() => router.push('/profile/children')}
+                        />
+                        <SettingItem
                             icon="delete-forever"
                             title={isDeleting ? "Deleting..." : "Delete Account"}
                             onPress={handleDeleteAccount}

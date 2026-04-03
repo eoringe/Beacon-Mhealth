@@ -17,11 +17,11 @@ exports.addChild = async (req, res) => {
         }
 
         const query = `
-            INSERT INTO children (parent_id, first_name, last_name, date_of_birth, gender, registration_number)
-            VALUES ($1, $2, $3, $4, $5, $6)
+            INSERT INTO children (parent_id, first_name, last_name, date_of_birth, gender, registration_number, photo_url)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING *
         `;
-        const values = [userId, firstName, lastName, dateOfBirth, gender, registrationNumber];
+        const values = [userId, firstName, lastName, dateOfBirth, gender, registrationNumber, req.body.photoUrl || null];
 
         const result = await client.query(query, values);
         console.log('[ChildController] Child added successfully:', result.rows[0].id);
@@ -69,11 +69,16 @@ exports.updateChild = async (req, res) => {
 
         const updateQuery = `
             UPDATE children 
-            SET first_name = $1, last_name = $2, date_of_birth = $3, gender = $4, updated_at = NOW()
-            WHERE id = $5
+            SET first_name = COALESCE($1, first_name), 
+                last_name = COALESCE($2, last_name), 
+                date_of_birth = COALESCE($3, date_of_birth), 
+                gender = COALESCE($4, gender), 
+                photo_url = COALESCE($5, photo_url),
+                updated_at = NOW()
+            WHERE id = $6
             RETURNING *
         `;
-        const values = [firstName, lastName, dateOfBirth, gender, id];
+        const values = [firstName, lastName, dateOfBirth, gender, req.body.photoUrl, id];
         const result = await client.query(updateQuery, values);
         res.json(result.rows[0]);
     } catch (error) {

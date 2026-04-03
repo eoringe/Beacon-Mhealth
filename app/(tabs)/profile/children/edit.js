@@ -17,6 +17,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Spacing, Typography, BorderRadius } from '@/constants/theme';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAlert } from '@/contexts/AlertContext';
+import { SafeHeader } from '@/components/SafeHeader';
 
 export default function EditChildScreen() {
     const router = useRouter();
@@ -78,16 +79,7 @@ export default function EditChildScreen() {
 
     return (
         <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
-            <View style={[styles.header, {
-                backgroundColor: colorScheme.surface,
-                borderBottomColor: colorScheme.border
-            }]}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <MaterialIcons name="arrow-back" size={24} color={colorScheme.textPrimary} />
-                </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: colorScheme.textPrimary }]}>Edit Child</Text>
-                <View style={{ width: 24 }} />
-            </View>
+            <SafeHeader title="Edit Child" showBack />
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

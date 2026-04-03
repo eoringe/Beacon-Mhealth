@@ -18,6 +18,7 @@ import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { useChild } from '@/contexts/ChildContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAlert } from '@/contexts/AlertContext';
+import { SafeHeader } from '@/components/SafeHeader';
 import { searchPatients, verifyPatient } from '@/services/patientService';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -368,17 +369,7 @@ export default function AddChildScreen() {
 
     return (
         <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
-            <View style={[styles.header, {
-                backgroundColor: colorScheme.surface,
-                borderBottomColor: colorScheme.border,
-                paddingTop: Spacing.xl + 20
-            }]}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <MaterialIcons name="arrow-back" size={24} color={colorScheme.textPrimary} />
-                </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: colorScheme.textPrimary }]}>Add Child</Text>
-                <View style={{ width: 24 }} />
-            </View>
+            <SafeHeader title="Add Child" showBack />
 
             <View style={[styles.content, { paddingBottom: 0 }]}>
                 {/* Toggle Switch */}

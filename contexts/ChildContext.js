@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { childService } from '@/services/childService';
+import asdService from '@/services/asdService';
 import { useAuth } from './AuthContext';
 
 const ChildContext = createContext({});
@@ -13,6 +14,8 @@ export const ChildProvider = ({ children }) => {
     const [selectedChild, setSelectedChild] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [asdScreenings, setAsdScreenings] = useState([]);
+    const [asdLoading, setAsdLoading] = useState(false);
 
     // Load children when user logs in
     useEffect(() => {
@@ -52,8 +55,40 @@ export const ChildProvider = ({ children }) => {
         setSelectedChild(child);
         try {
             await AsyncStorage.setItem('selectedChildId', child.id);
+            // Also refresh ASD screenings for the new child
+            if (child?.id) {
+                refreshAsdScreenings(child.id);
+            }
         } catch (e) {
             console.error('Failed to save selected child', e);
+        }
+    };
+
+    const refreshAsdScreenings = async (childId) => {
+        if (!childId) return;
+        setAsdLoading(true);
+        try {
+            const data = await asdService.getAsdScreeningsForChild(childId);
+            setAsdScreenings(data);
+            return data;
+        } catch (err) {
+            console.error('Error fetching ASD screenings:', err);
+        } finally {
+            setAsdLoading(false);
+        }
+    };
+
+    const saveAsdScreening = async (childId, screeningData) => {
+        setAsdLoading(true);
+        try {
+            const result = await asdService.saveAsdScreening(childId, screeningData);
+            await refreshAsdScreenings(childId);
+            return result;
+        } catch (err) {
+            console.error('Error saving ASD screening:', err);
+            throw err;
+        } finally {
+            setAsdLoading(false);
         }
     };
 
@@ -158,7 +193,11 @@ export const ChildProvider = ({ children }) => {
                 updateChild,
                 deleteChild,
                 selectChild,
-                refreshChildren
+                refreshChildren,
+                asdScreenings,
+                asdLoading,
+                refreshAsdScreenings,
+                saveAsdScreening
             }}
         >
             {children}

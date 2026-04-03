@@ -88,11 +88,11 @@ export default function MilestoneOverview() {
         showsVerticalScrollIndicator={false}
       >
         {/* Child Info Card */}
-        <View style={[styles.childCard, { backgroundColor: colorScheme.primary }]}>
+        <View style={[styles.childCard, { backgroundColor: isDark ? colorScheme.surface : colorScheme.primary }]}>
           <MaterialIcons name="child-care" size={40} color="#FFFFFF" />
           <View style={styles.childInfo}>
-            <Text style={styles.childName}>{childName}</Text>
-            <Text style={styles.childAge}>Age: {formatAgeMonths(childAgeMonths)}</Text>
+            <Text style={[styles.childName, { color: '#FFFFFF' }]}>{childName}</Text>
+            <Text style={[styles.childAge, { color: 'rgba(255, 255, 255, 0.9)' }]}>Age: {formatAgeMonths(childAgeMonths)}</Text>
           </View>
         </View>
 
@@ -117,22 +117,25 @@ export default function MilestoneOverview() {
 
         {/* CDC Attribution */}
         <TouchableOpacity
-          style={[styles.whoCard, { backgroundColor: '#E3F2FD' }]}
+          style={[styles.whoCard, { 
+            backgroundColor: isDark ? colorScheme.surface : '#E3F2FD',
+            borderColor: isDark ? colorScheme.border : '#BBDEFB'
+          }]}
           onPress={() => Linking.openURL(CDC_SOURCE_URL)}
         >
-          <MaterialIcons name="info" size={24} color="#1976D2" />
+          <MaterialIcons name="info" size={24} color={isDark ? colorScheme.primary : '#1976D2'} />
           <View style={styles.whoTextContainer}>
-            <Text style={[styles.whoTitle, { color: '#1976D2' }]}>
+            <Text style={[styles.whoTitle, { color: isDark ? colorScheme.textPrimary : '#1976D2' }]}>
               Source of Milestone Data
             </Text>
-            <Text style={[styles.whoText, { color: '#1976D2' }]}>
+            <Text style={[styles.whoText, { color: isDark ? colorScheme.textSecondary : '#1976D2' }]}>
               These milestones are based on the CDC's "Learn the Signs. Act Early." program (2022).
             </Text>
-            <Text style={[styles.whoUrl, { color: '#1565C0', textDecorationLine: 'underline' }]}>
+            <Text style={[styles.whoUrl, { color: isDark ? colorScheme.primary : '#1565C0', textDecorationLine: 'underline' }]}>
               cdc.gov/act-early/milestones
             </Text>
           </View>
-          <MaterialIcons name="open-in-new" size={20} color="#1976D2" />
+          <MaterialIcons name="open-in-new" size={20} color={isDark ? colorScheme.textTertiary : '#1976D2'} />
         </TouchableOpacity>
 
         {/* Domain Cards */}
@@ -177,7 +180,7 @@ export default function MilestoneOverview() {
                       styles.milestoneItem,
                       index < milestones[category.id].length - 1 && {
                         borderBottomWidth: 1,
-                        borderBottomColor: isDark ? colorScheme.border : '#000000',
+                        borderBottomColor: isDark ? colorScheme.border : 'rgba(0,0,0,0.05)',
                       }
                     ]}
                   >
@@ -205,11 +208,11 @@ export default function MilestoneOverview() {
         ))}
 
         {/* Tips Section */}
-        <View style={[styles.tipsCard, { backgroundColor: '#FFF8E1' }]}>
-          <MaterialIcons name="lightbulb" size={24} color="#F9A825" />
+        <View style={[styles.tipsCard, { backgroundColor: isDark ? 'rgba(255,193,7,0.1)' : '#FFF8E1' }]}>
+          <MaterialIcons name="lightbulb" size={24} color={isDark ? '#FFC107' : '#F9A825'} />
           <View style={styles.tipsContent}>
-            <Text style={[styles.tipsTitle, { color: '#F57F17' }]}>Remember</Text>
-            <Text style={[styles.tipsText, { color: '#8D6E63' }]}>
+            <Text style={[styles.tipsTitle, { color: isDark ? '#FFC107' : '#F57F17' }]}>Remember</Text>
+            <Text style={[styles.tipsText, { color: isDark ? colorScheme.textSecondary : '#8D6E63' }]}>
               Children develop at their own pace. These milestones are guidelines, not strict rules.
               Contact your healthcare provider if you have concerns.
             </Text>

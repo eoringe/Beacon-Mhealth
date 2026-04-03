@@ -97,9 +97,15 @@ export default function MilestoneCategory() {
   const [contentWidth, setContentWidth] = useState(0);
   const [containerWidth, setContainerWidth] = useState(0);
   const scrollViewPadding = 16;
-
   const categoryInfo = MILESTONE_CATEGORIES.find(cat => cat.id === category);
 
+  const nextCategory = useMemo(() => {
+    const currentIndex = MILESTONE_CATEGORIES.findIndex(cat => cat.id === category);
+    if (currentIndex >= 0 && currentIndex < MILESTONE_CATEGORIES.length - 1) {
+      return MILESTONE_CATEGORIES[currentIndex + 1];
+    }
+    return null;
+  }, [category]);
   // Get milestones using the helper function and map to string array if objects
   const milestones = useMemo(() => {
     const data = getMilestonesForAge(selectedAge);
@@ -107,6 +113,31 @@ export default function MilestoneCategory() {
     // Handle both string arrays (legacy) and object arrays (new WHO)
     return categoryData.map(m => typeof m === 'string' ? m : m.milestone);
   }, [selectedAge, category]);
+
+  // Determine the child's current "active" milestone bucket
+  const currentMilestoneBucket = useMemo(() => {
+    if (!selectedChild?.date_of_birth) return null;
+    const childAge = calculateAgeHelper(selectedChild.date_of_birth);
+    let bucket = null;
+    for (const a of allAges) {
+      if (childAge >= a) bucket = a;
+      else break;
+    }
+    return bucket;
+  }, [selectedChild?.date_of_birth, allAges]);
+
+  const actualChildAge = useMemo(() => {
+    if (!selectedChild?.date_of_birth) return 0;
+    return calculateAgeHelper(selectedChild.date_of_birth);
+  }, [selectedChild?.date_of_birth]);
+
+  const isReadOnly = useMemo(() => {
+    // Newborns (0 months) cannot fill any milestones (first start at 2 months)
+    if (actualChildAge === 0) return true;
+    
+    // Only current milestone bucket is editable
+    return selectedAge !== currentMilestoneBucket;
+  }, [selectedAge, currentMilestoneBucket, actualChildAge]);
 
   // Load saved milestone responses when component mounts or age/category changes
   useEffect(() => {
@@ -178,6 +209,8 @@ export default function MilestoneCategory() {
   }, [milestoneResponses, selectedChild?.id, selectedAge, category]);
 
   const handleResponse = (milestoneIndex, response) => {
+    if (isReadOnly) return;
+
     const updatedResponses = {
       ...milestoneResponses,
       [milestoneIndex]: response
@@ -362,6 +395,25 @@ export default function MilestoneCategory() {
           </View>
         </View>
 
+        {/* Read-Only Restriction Banner */}
+        {isReadOnly && (
+          <View style={[styles.readOnlyBanner, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)', borderColor: colorScheme.border }]}>
+            <MaterialIcons name="lock-outline" size={20} color={colorScheme.textSecondary} />
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.readOnlyTitle, { color: colorScheme.textPrimary }]}>
+                {actualChildAge === 0 ? "Tracking starts at 2 months" : "View mode only"}
+              </Text>
+              <Text style={[styles.readOnlySub, { color: colorScheme.textSecondary }]}>
+                {actualChildAge === 0 
+                  ? "Milestone checks begin at 2 months. Your child is still a newborn!" 
+                  : selectedAge < currentMilestoneBucket 
+                    ? `This is a past milestone age. Edits are disabled.`
+                    : `This checklist is for the future. You can start this at ${selectedAge} months.`}
+              </Text>
+            </View>
+          </View>
+        )}
+
         {milestones.map((milestone, index) => {
           const currentResponse = milestoneResponses[index];
           return (
@@ -379,12 +431,14 @@ export default function MilestoneCategory() {
                     }
                   ]}
                   onPress={() => handleResponse(index, 'yes')}
+                  disabled={isReadOnly}
                 >
                   <Text style={[
                     styles.responseButtonText,
                     {
                       color: currentResponse === 'yes' ? '#FFFFFF' : colorScheme.success,
-                      fontWeight: currentResponse === 'yes' ? '700' : '500'
+                      fontWeight: currentResponse === 'yes' ? '700' : '500',
+                      opacity: isReadOnly && currentResponse !== 'yes' ? 0.3 : 1
                     }
                   ]}>
                     Yes
@@ -399,12 +453,14 @@ export default function MilestoneCategory() {
                     }
                   ]}
                   onPress={() => handleResponse(index, 'no')}
+                  disabled={isReadOnly}
                 >
                   <Text style={[
                     styles.responseButtonText,
                     {
                       color: currentResponse === 'no' ? '#FFFFFF' : colorScheme.error,
-                      fontWeight: currentResponse === 'no' ? '700' : '500'
+                      fontWeight: currentResponse === 'no' ? '700' : '500',
+                      opacity: isReadOnly && currentResponse !== 'no' ? 0.3 : 1
                     }
                   ]}>
                     No
@@ -419,12 +475,14 @@ export default function MilestoneCategory() {
                     }
                   ]}
                   onPress={() => handleResponse(index, 'unsure')}
+                  disabled={isReadOnly}
                 >
                   <Text style={[
                     styles.responseButtonText,
                     {
                       color: currentResponse === 'unsure' ? '#FFFFFF' : colorScheme.warning,
-                      fontWeight: currentResponse === 'unsure' ? '700' : '500'
+                      fontWeight: currentResponse === 'unsure' ? '700' : '500',
+                      opacity: isReadOnly && currentResponse !== 'unsure' ? 0.3 : 1
                     }
                   ]}>
                     Not Sure
@@ -434,6 +492,24 @@ export default function MilestoneCategory() {
             </View>
           );
         })}
+
+        {nextCategory ? (
+          <TouchableOpacity
+            style={[styles.nextCategoryButton, { backgroundColor: colorScheme.primary }]}
+            onPress={() => router.replace(`/dashboard/milestone-checklist/${nextCategory.id}?age=${selectedAge}`)}
+          >
+            <Text style={styles.nextCategoryButtonText}>Continue to {nextCategory.title}</Text>
+            <MaterialIcons name="arrow-forward" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[styles.nextCategoryButton, { backgroundColor: colorScheme.success }]}
+            onPress={() => router.push('/dashboard/milestone-checklist')}
+          >
+            <Text style={styles.nextCategoryButtonText}>Finish Checklist</Text>
+            <MaterialIcons name="check-circle" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+        )}
       </ScrollView>
     </View>
   );
@@ -564,5 +640,41 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.sm,
     fontWeight: Typography.fontWeight.medium,
   },
-  // Modal styles
+  nextCategoryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xl,
+    gap: Spacing.sm,
+    ...Shadow.md,
+  },
+  nextCategoryButtonText: {
+    color: '#FFFFFF',
+    fontSize: Typography.fontSize.md,
+    fontWeight: Typography.fontWeight.semibold,
+    flexShrink: 1,
+    textAlign: 'center',
+  },
+  readOnlyBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    gap: Spacing.md,
+    borderStyle: 'dashed',
+  },
+  readOnlyTitle: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.bold,
+  },
+  readOnlySub: {
+    fontSize: 10,
+    lineHeight: 14,
+    marginTop: 1,
+  },
 });

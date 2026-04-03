@@ -31,14 +31,18 @@ export function SafeHeader({
 }: SafeHeaderProps) {
     const insets = useSafeAreaInsets();
     const router = useRouter();
-    const { colorScheme } = useTheme();
+    const { colorScheme, isDark } = useTheme();
     const { openDrawer } = useDrawer();
 
     const handleBackPress = () => {
         if (onBackPress) {
             onBackPress();
         } else {
-            router.back();
+            if (router.canGoBack()) {
+                router.back();
+            } else {
+                router.replace('/(tabs)/dashboard');
+            }
         }
     };
 
@@ -48,8 +52,8 @@ export function SafeHeader({
                 styles.container,
                 {
                     paddingTop: insets.top,
-                    backgroundColor: colorScheme.surface,
-                    borderBottomColor: colorScheme.border,
+                    backgroundColor: isDark ? colorScheme.surface : colorScheme.primary,
+                    borderBottomColor: isDark ? colorScheme.border : colorScheme.primary,
                 },
             ]}
         >
@@ -65,7 +69,7 @@ export function SafeHeader({
                             <MaterialIcons
                                 name="menu"
                                 size={24}
-                                color={colorScheme.textPrimary}
+                                color="#FFFFFF"
                             />
                         </TouchableOpacity>
                     ) : showBack ? (
@@ -77,7 +81,7 @@ export function SafeHeader({
                             <MaterialIcons
                                 name="arrow-back"
                                 size={24}
-                                color={colorScheme.textPrimary}
+                                color="#FFFFFF"
                             />
                         </TouchableOpacity>
                     ) : null}
@@ -87,7 +91,7 @@ export function SafeHeader({
                 <View style={styles.centerContainer}>
                     {title && (
                         <Text
-                            style={[styles.title, { color: colorScheme.textPrimary }]}
+                            style={[styles.title, { color: '#FFFFFF' }]}
                             numberOfLines={1}
                         >
                             {title}

@@ -6,20 +6,24 @@ const { externalQuery } = require('../config/externalDatabase');
  */
 const getDoctors = async (req, res) => {
     try {
+        // UPDATED: Many-to-Many join through staff_specialization pivot
+        // Using STRING_AGG to list all specializations for each doctor
         const result = await externalQuery(`
             SELECT 
                 s.id,
-                s.fullname,
-                s.staff_no,
-                s.email,
-                r.role,
-                ds.specialization
+                MAX(s.fullname::text) as fullname,
+                MAX(s.staff_no) as staff_no,
+                MAX(s.email) as email,
+                MAX(r.role) as role,
+                STRING_AGG(ds.specialization, ', ') as specialization
             FROM staff s
             LEFT JOIN roles r ON s.role_id = r.id
-            LEFT JOIN doctor_specialization ds ON s.specialization_id = ds.id
+            LEFT JOIN staff_specialization ss ON s.id = ss.staff_id
+            LEFT JOIN doctor_specialization ds ON ss.specialization_id = ds.id
             WHERE r.role IN ('Doctor', 'Therapist')
-               OR ds.specialization IS NOT NULL
-            ORDER BY r.role, s.fullname->>'first_name'
+               OR ds.id IS NOT NULL
+            GROUP BY s.id
+            ORDER BY MAX(r.role), MAX(s.fullname->>'first_name')
         `);
 
         // Format response with proper name parsing
@@ -56,6 +60,7 @@ const getDoctorsBySpecialization = async (req, res) => {
     const { specialization } = req.params;
 
     try {
+        // UPDATED: Many-to-Many join through staff_specialization pivot
         const result = await externalQuery(`
             SELECT 
                 s.id,
@@ -63,7 +68,8 @@ const getDoctorsBySpecialization = async (req, res) => {
                 s.staff_no,
                 ds.specialization
             FROM staff s
-            LEFT JOIN doctor_specialization ds ON s.specialization_id = ds.id
+            JOIN staff_specialization ss ON s.id = ss.staff_id
+            JOIN doctor_specialization ds ON ss.specialization_id = ds.id
             WHERE ds.specialization ILIKE $1
             ORDER BY s.fullname->>'first_name'
         `, [`%${specialization}%`]);
@@ -95,6 +101,7 @@ const getDoctorsBySpecialization = async (req, res) => {
  */
 const getSpecializations = async (req, res) => {
     try {
+        // UPDATED: Many-to-Many join through staff_specialization pivot
         const result = await externalQuery(`
             SELECT 
                 ds.id, 
@@ -104,7 +111,8 @@ const getSpecializations = async (req, res) => {
                 EXISTS(
                     SELECT 1 FROM doctor_teleconsultation_availabilities ta
                     JOIN staff s2 ON ta.doctor_id = s2.id
-                    WHERE s2.specialization_id = ds.id AND s2.is_active = true
+                    JOIN staff_specialization ss2 ON ss2.staff_id = s2.id
+                    WHERE ss2.specialization_id = ds.id AND s2.is_active = true
                 ) as has_teleconsult,
                 JSON_AGG(
                     JSON_BUILD_OBJECT(
@@ -113,7 +121,8 @@ const getSpecializations = async (req, res) => {
                     )
                 ) FILTER (WHERE s.id IS NOT NULL AND s.is_active = true) as active_doctors
             FROM doctor_specialization ds
-            LEFT JOIN staff s ON s.specialization_id = ds.id AND s.is_active = true
+            LEFT JOIN staff_specialization ss ON ds.id = ss.specialization_id
+            LEFT JOIN staff s ON ss.staff_id = s.id AND s.is_active = true
             GROUP BY ds.id, ds.specialization, ds.role_id
             ORDER BY ds.specialization
         `);

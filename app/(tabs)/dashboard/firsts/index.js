@@ -167,7 +167,7 @@ export default function FirstsJournalScreen() {
                 showBack={true}
                 rightComponent={
                     <TouchableOpacity onPress={() => setShowAddCustom(true)}>
-                        <MaterialIcons name="add" size={24} color={colorScheme.primary} />
+                        <MaterialIcons name="add" size={24} color="#FFFFFF" />
                     </TouchableOpacity>
                 }
             />

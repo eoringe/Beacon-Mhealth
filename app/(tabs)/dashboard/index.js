@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import {
     View,
     Text,
@@ -9,6 +9,7 @@ import {
     Alert,
     Animated,
     Easing,
+    Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -26,6 +27,7 @@ import appointmentService from '@/services/appointmentService';
 import { milestoneService } from '@/services/milestoneService';
 import { getDailyPick } from '@/constants/activitiesData';
 import { calculateAgeInMonths, getMilestonesForAge, MILESTONE_AGES } from '@/constants/milestones';
+import { getVaccinationStatus } from '@/constants/vaccinationSchedule';
 import { Spacing, Typography, BorderRadius, Shadow, Colors } from '@/constants/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -42,7 +44,8 @@ const FEATURE_SLIDES = [
 ];
 
 // ─── Smooth Crossfade Carousel Component ───
-function SmoothCarousel({ data, renderCard, autoScrollMs = 7000, cardHeight = 140 }) {
+function SmoothCarousel({ data, renderCard, autoScrollMs = 15000, cardHeight = 140 }) {
+    const { colorScheme, isDark } = useTheme();
     const [activeIndex, setActiveIndex] = useState(0);
     const fadeAnim = useRef(new Animated.Value(1)).current;
     const slideAnim = useRef(new Animated.Value(0)).current;
@@ -77,7 +80,7 @@ function SmoothCarousel({ data, renderCard, autoScrollMs = 7000, cardHeight = 14
             {data.length > 1 && (
                 <View style={carouselStyles.dotsRow}>
                     {data.map((_, i) => (
-                        <View key={i} style={[carouselStyles.dot, i === activeIndex && carouselStyles.dotActive]} />
+                        <View key={i} style={[carouselStyles.dot, { backgroundColor: isDark ? 'rgba(255,255,255,0.3)' : '#D1D5DB' }, i === activeIndex && [carouselStyles.dotActive, { backgroundColor: colorScheme.primary }]]} />
                     ))}
                 </View>
             )}
@@ -86,26 +89,33 @@ function SmoothCarousel({ data, renderCard, autoScrollMs = 7000, cardHeight = 14
 }
 
 const carouselStyles = StyleSheet.create({
-    dotsRow: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: Spacing.sm },
+    dotsRow: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 0 },
     dot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#D1D5DB' },
-    dotActive: { backgroundColor: Colors.primary, width: 18 },
+    dotActive: { width: 18 }, // backgroundColor will be applied dynamically
 });
 
 export default function DashboardScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
-    const { colorScheme } = useTheme();
+    const { colorScheme, isDark } = useTheme();
     const { showAlert } = useAlert();
     const { user } = useAuth();
-    const { selectedChild } = useChild();
+    const { selectedChild, asdScreenings } = useChild();
     const { notifications, clearAll } = useNotifications();
     const { openDrawer } = useDrawer();
 
     // State
     const [milestoneConcern, setMilestoneConcern] = useState(false);
     const [milestoneAlertDismissed, setMilestoneAlertDismissed] = useState(false);
+
+    // ASD Screening Logic
+    const latestAsdScreening = asdScreenings && asdScreenings.length > 0 ? asdScreenings[0] : null;
+    const isAsdDue = latestAsdScreening && 
+                    latestAsdScreening.risk_level === 'Low' && 
+                    (new Date() - new Date(latestAsdScreening.created_at)) > (30 * 24 * 60 * 60 * 1000);
     const [upcomingAppointments, setUpcomingAppointments] = useState([]);
     const [milestoneProgress, setMilestoneProgress] = useState(null);
+    const [vaccineActionNeeded, setVaccineActionNeeded] = useState(false);
 
     // Tracker Stats for Dynamic Insights
     const [trackerStats, setTrackerStats] = useState({
@@ -115,7 +125,14 @@ export default function DashboardScreen() {
         firstsCount: 0,
     });
 
-    const recentActivity = notifications.slice(0, 3);
+    const recentActivity = useMemo(() => {
+        const seen = new Set();
+        return (notifications || []).filter(n => {
+            if (seen.has(n.category)) return false;
+            seen.add(n.category);
+            return true;
+        }).slice(0, 3);
+    }, [notifications]);
 
     // Time-of-day greeting
     const getGreeting = () => {
@@ -260,7 +277,7 @@ export default function DashboardScreen() {
             }
 
             const allResponses = await milestoneService.getAllMilestoneResponsesForChild(selectedChild.id, true);
-            if (!allResponses || allResponses.length === 0) { setMilestoneConcern(false); setMilestoneProgress(totalMilestones > 0 ? 0 : null); return; }
+            if (!allResponses || allResponses.length === 0) { setMilestoneConcern(false); setMilestoneProgress(null); return; }
 
             // Filter responses to ONLY the current age we are tracking, otherwise achieved counts past ages too
             const currentAgeResponses = allResponses.filter(r => Number(r.age_months) === trackingAge);
@@ -303,6 +320,15 @@ export default function DashboardScreen() {
             const firstsRaw = await AsyncStorage.getItem(`firsts_journal_${childId}`);
             const firstsData = firstsRaw ? JSON.parse(firstsRaw) : { entries: {} };
             const firstsCount = Object.keys(firstsData.entries || {}).length;
+
+            // 5. Vaccination check
+            const vaccinesRaw = await AsyncStorage.getItem(`completed_vaccines_${childId}`);
+            const completedVaccines = vaccinesRaw ? JSON.parse(vaccinesRaw) : [];
+            const completedIds = completedVaccines.map(v => v.id);
+            if (selectedChild.date_of_birth) {
+                const status = getVaccinationStatus(selectedChild.date_of_birth, completedIds);
+                setVaccineActionNeeded((status.dueVaccines.length + status.overdueVaccines.length) > 0);
+            } else setVaccineActionNeeded(false);
 
             setTrackerStats({
                 feedingToday,
@@ -360,18 +386,22 @@ export default function DashboardScreen() {
     return (
         <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
             {/* Header */}
-            <View style={[styles.header, { paddingTop: insets.top + Spacing.lg, backgroundColor: colorScheme.surface, borderBottomColor: colorScheme.border }]}>
+            <View style={[styles.header, { 
+                paddingTop: insets.top + Spacing.lg, 
+                backgroundColor: isDark ? colorScheme.surface : colorScheme.primary, 
+                borderBottomColor: isDark ? colorScheme.border : colorScheme.primary 
+            }]}>
                 <View style={styles.headerLeft}>
                     <TouchableOpacity style={styles.menuButton} onPress={openDrawer}>
-                        <MaterialIcons name="menu" size={26} color={colorScheme.textPrimary} />
+                        <MaterialIcons name="menu" size={26} color="#FFFFFF" />
                     </TouchableOpacity>
                     <View>
-                        <Text style={[styles.greeting, { color: colorScheme.textSecondary }]}>{getGreeting()},</Text>
-                        <Text style={[styles.userName, { color: colorScheme.textPrimary }]}>{user?.displayName || 'Parent'}</Text>
+                        <Text style={[styles.greeting, { color: 'rgba(255, 255, 255, 0.8)' }]}>{getGreeting()},</Text>
+                        <Text style={[styles.userName, { color: '#FFFFFF' }]}>{user?.displayName || 'Parent'}</Text>
                     </View>
                 </View>
                 <TouchableOpacity style={styles.notificationButton} onPress={() => router.push('/notifications')}>
-                    <MaterialIcons name="notifications-none" size={24} color={colorScheme.textPrimary} />
+                    <MaterialIcons name="notifications-none" size={24} color="#FFFFFF" />
                 </TouchableOpacity>
             </View>
 
@@ -379,9 +409,13 @@ export default function DashboardScreen() {
                 {/* Child Selector */}
                 <View style={styles.section}>
                     {selectedChild ? (
-                        <TouchableOpacity style={[styles.childCard, { backgroundColor: colorScheme.surface }]} onPress={() => router.push('/profile/children')}>
-                            <View style={[styles.avatarContainer, { backgroundColor: `${colorScheme.primary}20` }]}>
-                                <MaterialIcons name="face" size={30} color={colorScheme.primary} />
+                        <TouchableOpacity style={[styles.childCard, { backgroundColor: isDark ? colorScheme.surface : '#FFFFFF' }]} onPress={() => router.push('/profile/children')}>
+                            <View style={[styles.avatarContainer, { backgroundColor: isDark ? `${colorScheme.primary}25` : `${colorScheme.primary}10`, overflow: 'hidden' }]}>
+                                {selectedChild.photo_url ? (
+                                    <Image source={{ uri: selectedChild.photo_url }} style={{ width: '100%', height: '100%' }} />
+                                ) : (
+                                    <MaterialIcons name="face" size={30} color={colorScheme.primary} />
+                                )}
                             </View>
                             <View style={styles.childInfo}>
                                 <Text style={[styles.childName, { color: colorScheme.textPrimary }]}>{selectedChild.first_name} {selectedChild.last_name}</Text>
@@ -390,16 +424,33 @@ export default function DashboardScreen() {
                             <MaterialIcons name="chevron-right" size={24} color={colorScheme.textTertiary} />
                         </TouchableOpacity>
                     ) : (
-                        <TouchableOpacity style={[styles.addChildCard, { borderColor: colorScheme.border }]} onPress={() => router.push('/profile/children/add')}>
-                            <MaterialIcons name="add-circle-outline" size={32} color={colorScheme.primary} />
-                            <Text style={[styles.addChildText, { color: colorScheme.textSecondary }]}>Add a child to start tracking</Text>
-                        </TouchableOpacity>
+                        <View style={[styles.introContainer, { backgroundColor: colorScheme.surface }]}>
+                            <View style={styles.introIconContainer}>
+                                <Image source={require('../../../assets/images/beacon.jpg')} style={styles.introLogo} resizeMode="contain" />
+                            </View>
+                            <Text style={[styles.introTitle, { color: colorScheme.textPrimary }]}>
+                                Welcome to{'\n'}
+                                <Text style={{ color: colorScheme.primary }}>Beacon Children's Centre</Text>{'\n'}
+                                Digital Platform
+                            </Text>
+                            <Text style={[styles.introText, { color: colorScheme.textSecondary }]}>
+                                We are glad you are here. This platform is designed to support your parenting journey every step of the way and make it memorable!{'\n\n'}You can track your child's milestones, growth, vaccinations and get advice on daily care. Glad to walk with you and celebrate every milestone.
+                            </Text>
+                            <Text style={[styles.introPreButtonText, { color: colorScheme.textSecondary }]}>Add a child to get started</Text>
+                            <TouchableOpacity style={[styles.introAddButton, { backgroundColor: colorScheme.primary }]} onPress={() => router.push('/profile/children/add')} activeOpacity={0.8}>
+                                <MaterialIcons name="add-circle-outline" size={26} color="#FFF" />
+                                <Text style={styles.introAddButtonText}>Add a Child</Text>
+                            </TouchableOpacity>
+                        </View>
                     )}
                 </View>
 
                 {/* Milestone Concern Warning */}
                 {milestoneConcern && !milestoneAlertDismissed && selectedChild && (
-                    <View style={[styles.warningBanner, { backgroundColor: `${colorScheme.warning}15`, borderColor: colorScheme.warning }]}>
+                    <View style={[styles.warningBanner, { 
+                        backgroundColor: isDark ? `${colorScheme.warning}25` : `${colorScheme.warning}10`, 
+                        borderColor: isDark ? colorScheme.warning : '#FDE68A' // Light amber border for light mode
+                    }]}>
                         <View style={styles.warningRow}>
                             <MaterialIcons name="warning" size={22} color={colorScheme.warning} />
                             <View style={styles.warningTextWrap}>
@@ -420,13 +471,36 @@ export default function DashboardScreen() {
                     </View>
                 )}
 
+                {/* ASD Re-assessment Reminder */}
+                {isAsdDue && selectedChild && (
+                    <View style={[styles.warningBanner, { 
+                        backgroundColor: isDark ? `${colorScheme.primary}25` : `${colorScheme.primary}10`, 
+                        borderColor: colorScheme.primary
+                    }]}>
+                        <View style={styles.warningRow}>
+                            <MaterialIcons name="psychology" size={22} color={colorScheme.primary} />
+                            <View style={styles.warningTextWrap}>
+                                <Text style={[styles.warningTitle, { color: colorScheme.textPrimary }]}>ASD Screening Due</Text>
+                                <Text style={[styles.warningMsg, { color: colorScheme.textSecondary }]}>
+                                    It's been over a month since {selectedChild.first_name}'s last low-risk screening. It's time for a follow-up assessment.
+                                </Text>
+                            </View>
+                        </View>
+                        <View style={styles.warningButtons}>
+                            <TouchableOpacity style={[styles.warningBtn, { backgroundColor: colorScheme.primary }]} onPress={() => router.push('/(tabs)/asd-checklist')}>
+                                <Text style={styles.warningBtnText}>Take Assessment</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                )}
+
                 {/* 🌟 Insight Carousel — smooth crossfade */}
                 {insightSlides.length > 0 && selectedChild && (
                     <View style={styles.section}>
                         <SmoothCarousel
                             data={insightSlides}
                             autoScrollMs={7000}
-                            cardHeight={150}
+                            cardHeight={125}
                             renderCard={(item) => (
                                 <TouchableOpacity
                                     style={[styles.insightCard, { backgroundColor: item.bg }]}
@@ -472,107 +546,143 @@ export default function DashboardScreen() {
                                     <View style={[styles.statIcon, { backgroundColor: `${colorScheme.primary}15` }]}>
                                         <MaterialIcons name="add-circle" size={24} color={colorScheme.primary} />
                                     </View>
-                                    <Text style={[styles.statLabel, { color: colorScheme.textSecondary }]}>No Visits</Text>
-                                    <Text style={[styles.statSub, { color: colorScheme.primary }]}>Book one</Text>
+                                    <Text style={[styles.statDate, { color: colorScheme.primary }]} adjustsFontSizeToFit numberOfLines={1}>Book Appointment</Text>
+                                    <Text style={[styles.statSub, { color: colorScheme.textTertiary }]}>No upcoming visits</Text>
                                 </>
                             )}
                         </TouchableOpacity>
                     </View>
                 )}
 
-                {/* 🔍 Discover — smooth crossfade */}
-                <View style={styles.section}>
-                    <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>Discover</Text>
-                    <SmoothCarousel
-                        data={FEATURE_SLIDES}
-                        autoScrollMs={6000}
-                        cardHeight={160}
-                        renderCard={(item) => (
-                            <TouchableOpacity
-                                style={[styles.featureCard, { backgroundColor: colorScheme.surface }]}
-                                onPress={() => {
-                                    if (item.route.includes('appointment')) router.push(item.route);
-                                    else navigateTo(item.route);
-                                }}
-                                activeOpacity={0.7}
-                            >
-                                <View style={[styles.featureIcon, { backgroundColor: `${item.color}15` }]}>
-                                    <MaterialIcons name={item.icon} size={28} color={item.color} />
-                                </View>
-                                <Text style={[styles.featureTitle, { color: colorScheme.textPrimary }]}>{item.title}</Text>
-                                <Text style={[styles.featureDesc, { color: colorScheme.textSecondary }]} numberOfLines={2}>{item.desc}</Text>
-                                <View style={styles.featureCta}>
-                                    <Text style={[styles.featureCtaText, { color: item.color }]}>Open</Text>
-                                    <MaterialIcons name="arrow-forward" size={14} color={item.color} />
-                                </View>
-                            </TouchableOpacity>
-                        )}
-                    />
-                </View>
-
-                {/* ⚡ Quick Links (3 most vital) */}
+                {/* 📈 Let's Track Progress */}
                 {selectedChild && (
                     <View style={styles.section}>
-                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>Quick Links</Text>
-                        <View style={styles.quickLinksRow}>
-                            {[
-                                { icon: 'show-chart', label: 'Growth Chart', color: '#2196F3', route: '/dashboard/growth-chart', params: { childId: selectedChild?.id } },
-                                { icon: 'vaccines', label: 'Vaccinations', color: '#4CAF50', route: '/dashboard/vaccinations' },
-                                { icon: 'restaurant', label: 'Feeding', color: '#E91E63', route: '/dashboard/feeding' },
-                            ].map((link) => (
-                                <TouchableOpacity key={link.label} style={[styles.quickLink, { backgroundColor: colorScheme.surface }]} onPress={() => navigateTo(link.route, link.params)}>
-                                    <View style={[styles.quickLinkIcon, { backgroundColor: `${link.color}15` }]}>
-                                        <MaterialIcons name={link.icon} size={22} color={link.color} />
+                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, textTransform: 'none', letterSpacing: 0, fontSize: Typography.fontSize.md }]}>Let's track progress</Text>
+                        <View style={{ gap: 10 }}>
+                            {/* Milestone Tracker (Blue) */}
+                            <TouchableOpacity style={[styles.trackerRow, { backgroundColor: colorScheme.surface, borderBottomWidth: 0, borderRadius: 12 }]} onPress={() => navigateTo('/dashboard/milestone-checklist')}>
+                                <View style={styles.trackerLeft}>
+                                    <View style={[styles.trackerIcon, { backgroundColor: '#2196F320' }]}>
+                                        <MaterialIcons name="checklist" size={20} color="#2196F3" />
                                     </View>
-                                    <Text style={[styles.quickLinkLabel, { color: colorScheme.textPrimary }]}>{link.label}</Text>
-                                    <MaterialIcons name="chevron-right" size={18} color={colorScheme.textTertiary} />
-                                </TouchableOpacity>
-                            ))}
+                                    <Text style={[styles.trackerName, { color: colorScheme.textPrimary }]}>Milestone tracker</Text>
+                                </View>
+                                <Text style={[styles.trackerStatus, { color: colorScheme.primary, fontWeight: 'bold' }]}>
+                                    {milestoneProgress != null ? `${milestoneProgress}%` : '-'}
+                                </Text>
+                            </TouchableOpacity>
+
+                            {/* Vaccination Tracker (Mint) */}
+                            <TouchableOpacity style={[styles.trackerRow, { backgroundColor: colorScheme.surface, borderBottomWidth: 0, borderRadius: 12 }]} onPress={() => navigateTo('/dashboard/vaccinations')}>
+                                <View style={styles.trackerLeft}>
+                                    <View style={[styles.trackerIcon, { backgroundColor: '#00968820' }]}>
+                                        <MaterialIcons name="vaccines" size={20} color="#009688" />
+                                    </View>
+                                    <Text style={[styles.trackerName, { color: colorScheme.textPrimary }]}>Vaccination tracker</Text>
+                                </View>
+                                <Text style={[styles.trackerStatus, { color: vaccineActionNeeded ? '#FF9800' : colorScheme.primary, fontWeight: 'bold' }]}>
+                                    {vaccineActionNeeded ? 'Confirm Administration' : 'Up to date'}
+                                </Text>
+                            </TouchableOpacity>
+
+                            {/* Growth Tracker (Mint) */}
+                            <TouchableOpacity style={[styles.trackerRow, { backgroundColor: colorScheme.surface, borderBottomWidth: 0, borderRadius: 12 }]} onPress={() => navigateTo('/dashboard/growth-chart')}>
+                                <View style={styles.trackerLeft}>
+                                    <View style={[styles.trackerIcon, { backgroundColor: '#00968820' }]}>
+                                        <MaterialIcons name="show-chart" size={20} color="#009688" />
+                                    </View>
+                                    <Text style={[styles.trackerName, { color: colorScheme.textPrimary }]}>Growth Tracker</Text>
+                                </View>
+                                <Text style={[styles.trackerStatus, { color: colorScheme.textSecondary }]}>
+                                    View growth tracker
+                                </Text>
+                            </TouchableOpacity>
+
+                            {/* Teething Tracker (Orange) */}
+                            <TouchableOpacity style={[styles.trackerRow, { backgroundColor: colorScheme.surface, borderBottomWidth: 0, borderRadius: 12 }]} onPress={() => navigateTo('/dashboard/teething')}>
+                                <View style={styles.trackerLeft}>
+                                    <View style={[styles.trackerIcon, { backgroundColor: '#FF980020' }]}>
+                                        <MaterialIcons name="child-care" size={20} color="#FF9800" />
+                                    </View>
+                                    <Text style={[styles.trackerName, { color: colorScheme.textPrimary }]}>Teething tracker</Text>
+                                </View>
+                                <Text style={[styles.trackerStatus, { color: colorScheme.textSecondary }]}>
+                                    {trackerStats.teethingCount} {trackerStats.teethingCount === 1 ? 'tooth' : 'teeth'}
+                                </Text>
+                            </TouchableOpacity>
+
+                            {/* Sleeping Tracker (Blue) */}
+                            <TouchableOpacity style={[styles.trackerRow, { backgroundColor: colorScheme.surface, borderBottomWidth: 0, borderRadius: 12 }]} onPress={() => navigateTo('/dashboard/sleep')}>
+                                <View style={styles.trackerLeft}>
+                                    <View style={[styles.trackerIcon, { backgroundColor: '#2196F320' }]}>
+                                        <MaterialIcons name="bedtime" size={20} color="#2196F3" />
+                                    </View>
+                                    <Text style={[styles.trackerName, { color: colorScheme.textPrimary }]}>Sleeping tracker</Text>
+                                </View>
+                                <Text style={[styles.trackerStatus, { color: colorScheme.textSecondary }]}>
+                                    {trackerStats.sleepToday > 0 ? `${trackerStats.sleepToday} logs today` : 'No logs yet'}
+                                </Text>
+                            </TouchableOpacity>
+
+                            {/* Feeding Tracker (Mint) */}
+                            <TouchableOpacity style={[styles.trackerRow, { backgroundColor: colorScheme.surface, borderBottomWidth: 0, borderRadius: 12 }]} onPress={() => navigateTo('/dashboard/feeding')}>
+                                <View style={styles.trackerLeft}>
+                                    <View style={[styles.trackerIcon, { backgroundColor: '#00968820' }]}>
+                                        <MaterialIcons name="restaurant" size={20} color="#009688" />
+                                    </View>
+                                    <Text style={[styles.trackerName, { color: colorScheme.textPrimary }]}>Feeding tracker</Text>
+                                </View>
+                                <Text style={[styles.trackerStatus, { color: colorScheme.textSecondary }]}>
+                                    {trackerStats.feedingToday > 0 ? `${trackerStats.feedingToday} logs today` : 'No logs yet'}
+                                </Text>
+                            </TouchableOpacity>
                         </View>
                     </View>
                 )}
 
                 {/* 📋 Recent Activity */}
-                <View style={styles.section}>
-                    <View style={styles.headerRow}>
-                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, marginBottom: 0 }]}>Recent Activity</Text>
-                        {recentActivity.length > 0 && (
-                            <TouchableOpacity onPress={() => showAlert('Clear Activity', 'Are you sure you want to clear all recent activity?', [{ text: 'Cancel', style: 'cancel' }, { text: 'Clear', style: 'destructive', onPress: () => clearAll() }], 'warning')}>
-                                <Text style={{ color: colorScheme.error || '#FF5252', fontWeight: '600', fontSize: 12 }}>Clear</Text>
-                            </TouchableOpacity>
+                {selectedChild && (
+                    <View style={styles.section}>
+                        <View style={styles.headerRow}>
+                            <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, marginBottom: 0 }]}>Recent Activity</Text>
+                            {recentActivity.length > 0 && (
+                                <TouchableOpacity onPress={() => showAlert('Clear Activity', 'Are you sure you want to clear all recent activity?', [{ text: 'Cancel', style: 'cancel' }, { text: 'Clear', style: 'destructive', onPress: () => clearAll() }], 'warning')}>
+                                    <Text style={{ color: colorScheme.error || '#FF5252', fontWeight: '600', fontSize: 12 }}>Clear</Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                        {recentActivity.length > 0 ? (
+                            <View style={[styles.card, { backgroundColor: colorScheme.surface, padding: 0 }]}>
+                                {recentActivity.map((activity, index) => (
+                                    <TouchableOpacity
+                                        key={activity.id}
+                                        style={[styles.recentItem, index !== recentActivity.length - 1 && { borderBottomWidth: 1, borderBottomColor: isDark ? colorScheme.border : 'rgba(0,0,0,0.05)' }]}
+                                        onPress={() => router.push('/notifications')}
+                                    >
+                                        <View style={[styles.recentIcon, { backgroundColor: `${activity.category === 'appointments' ? colorScheme.appointmentScheduled : colorScheme.warning}15` }]}>
+                                            <MaterialIcons name={activity.category === 'appointments' ? 'event' : 'flag'} size={18} color={activity.category === 'appointments' ? colorScheme.appointmentScheduled : colorScheme.warning} />
+                                        </View>
+                                        <View style={styles.recentContent}>
+                                            <Text style={[styles.recentTitle, { color: colorScheme.textPrimary }]} numberOfLines={1}>{activity.title}</Text>
+                                            <Text style={[styles.recentTime, { color: colorScheme.textSecondary }]}>
+                                                {(() => { try { const d = new Date(activity.time); return !isNaN(d.getTime()) ? formatDistanceToNow(d, { addSuffix: true }) : 'Just now'; } catch { return 'Just now'; } })()}
+                                            </Text>
+                                        </View>
+                                        <MaterialIcons name="chevron-right" size={18} color={colorScheme.textTertiary} />
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        ) : (
+                            <View style={[styles.card, { backgroundColor: colorScheme.surface }]}>
+                                <View style={styles.emptyState}>
+                                    <MaterialIcons name="inbox" size={40} color={colorScheme.textTertiary} />
+                                    <Text style={[styles.emptyText, { color: colorScheme.textPrimary }]}>No recent activity</Text>
+                                    <Text style={[styles.emptySub, { color: colorScheme.textSecondary }]}>Milestones and appointments will appear here</Text>
+                                </View>
+                            </View>
                         )}
                     </View>
-                    {recentActivity.length > 0 ? (
-                        <View style={[styles.card, { backgroundColor: colorScheme.surface, padding: 0 }]}>
-                            {recentActivity.map((activity, index) => (
-                                <TouchableOpacity
-                                    key={activity.id}
-                                    style={[styles.recentItem, index !== recentActivity.length - 1 && { borderBottomWidth: 1, borderBottomColor: colorScheme.border }]}
-                                    onPress={() => router.push('/notifications')}
-                                >
-                                    <View style={[styles.recentIcon, { backgroundColor: `${activity.category === 'appointments' ? colorScheme.appointmentScheduled : '#FF9800'}15` }]}>
-                                        <MaterialIcons name={activity.category === 'appointments' ? 'event' : 'flag'} size={18} color={activity.category === 'appointments' ? colorScheme.appointmentScheduled : '#FF9800'} />
-                                    </View>
-                                    <View style={styles.recentContent}>
-                                        <Text style={[styles.recentTitle, { color: colorScheme.textPrimary }]} numberOfLines={1}>{activity.title}</Text>
-                                        <Text style={[styles.recentTime, { color: colorScheme.textSecondary }]}>
-                                            {(() => { try { const d = new Date(activity.time); return !isNaN(d.getTime()) ? formatDistanceToNow(d, { addSuffix: true }) : 'Just now'; } catch { return 'Just now'; } })()}
-                                        </Text>
-                                    </View>
-                                    <MaterialIcons name="chevron-right" size={18} color={colorScheme.textTertiary} />
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                    ) : (
-                        <View style={[styles.card, { backgroundColor: colorScheme.surface }]}>
-                            <View style={styles.emptyState}>
-                                <MaterialIcons name="inbox" size={40} color={colorScheme.textTertiary} />
-                                <Text style={[styles.emptyText, { color: colorScheme.textPrimary }]}>No recent activity</Text>
-                                <Text style={[styles.emptySub, { color: colorScheme.textSecondary }]}>Milestones and appointments will appear here</Text>
-                            </View>
-                        </View>
-                    )}
-                </View>
+                )}
             </ScrollView>
         </View>
     );
@@ -595,12 +705,21 @@ const styles = StyleSheet.create({
     childCard: { flexDirection: 'row', alignItems: 'center', padding: Spacing.md, borderRadius: BorderRadius.lg, ...Shadow.sm },
     addChildCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', padding: Spacing.lg, borderRadius: BorderRadius.lg, borderWidth: 1, gap: Spacing.md },
     addChildText: { fontSize: Typography.fontSize.md, fontWeight: Typography.fontWeight.medium },
+    // Intro Section
+    introContainer: { padding: Spacing.xxl, borderRadius: BorderRadius.xl, alignItems: 'center', ...Shadow.md, minHeight: 450, justifyContent: 'center', marginVertical: Spacing.xl },
+    introIconContainer: { alignItems: 'center', marginBottom: Spacing.lg },
+    introLogo: { width: 180, height: 120 },
+    introTitle: { fontSize: Typography.fontSize.xl, fontWeight: Typography.fontWeight.bold, textAlign: 'center', marginBottom: Spacing.md, lineHeight: 32 },
+    introText: { fontSize: Typography.fontSize.md, lineHeight: 24, textAlign: 'center', marginBottom: Spacing.xl, paddingHorizontal: Spacing.sm },
+    introPreButtonText: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.medium, textAlign: 'center', marginBottom: Spacing.md, letterSpacing: 0.2 },
+    introAddButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.md, paddingHorizontal: Spacing.xxl, borderRadius: BorderRadius.md, width: '80%', gap: Spacing.sm, ...Shadow.md, alignSelf: 'center' },
+    introAddButtonText: { color: '#FFF', fontSize: Typography.fontSize.md, fontWeight: Typography.fontWeight.bold, textTransform: 'uppercase', letterSpacing: 1 },
     avatarContainer: { width: 46, height: 46, borderRadius: 23, justifyContent: 'center', alignItems: 'center', marginRight: Spacing.md },
     childInfo: { flex: 1 },
     childName: { fontSize: Typography.fontSize.md, fontWeight: Typography.fontWeight.bold, marginBottom: 2 },
     childDetails: { fontSize: Typography.fontSize.sm },
     // Insight Card
-    insightCard: { borderRadius: BorderRadius.lg, padding: Spacing.lg, width: '100%' },
+    insightCard: { borderRadius: BorderRadius.lg, padding: Spacing.lg, paddingBottom: Spacing.md, width: '100%' },
     insightHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.sm, gap: Spacing.sm },
     insightEmoji: { fontSize: 28 },
     insightBadge: { backgroundColor: 'rgba(255,255,255,0.25)', paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: BorderRadius.md },
@@ -615,6 +734,12 @@ const styles = StyleSheet.create({
     statSub: { fontSize: 10, marginTop: 1 },
     statDate: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.bold },
     statIcon: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.xs },
+    // Tracker Table Section
+    trackerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.md, borderBottomWidth: 1 },
+    trackerLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+    trackerIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+    trackerName: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.medium },
+    trackerStatus: { fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.medium },
     // Feature Card
     featureCard: { borderRadius: BorderRadius.lg, padding: Spacing.lg, width: '100%' },
     featureIcon: { width: 48, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.sm },

@@ -22,43 +22,68 @@ const getMediaByRegistration = async (req, res) => {
 
         const childId = childResult.rows[0].id;
 
-        // Get all media for this child
+        // Get all media for this child, joined with staff to get uploader info
         const mediaResult = await externalQuery(`
             SELECT 
-                id,
-                uuid,
-                collection_name,
-                name,
-                file_name,
-                mime_type,
-                disk,
-                size,
-                custom_properties,
-                created_at
-            FROM media 
-            WHERE model_id = $1 
-              AND model_type LIKE '%Children%'
-            ORDER BY created_at DESC
+                m.id,
+                m.uuid,
+                m.collection_name,
+                m.name,
+                m.file_name,
+                m.mime_type,
+                m.disk,
+                m.size,
+                m.custom_properties,
+                m.created_at,
+                s.fullname as uploader_fullname
+            FROM media m
+            LEFT JOIN staff s ON CASE 
+                WHEN m.custom_properties->>'uploaded_by' IS NOT NULL 
+                THEN CAST(m.custom_properties->>'uploaded_by' AS INTEGER) 
+                ELSE NULL 
+            END = s.id
+            WHERE m.model_id = $1 
+              AND m.model_type LIKE '%Children%'
+            ORDER BY m.created_at DESC
         `, [childId]);
 
         // Format the response
         const laravelBaseUrl = process.env.LARAVEL_APP_URL || 'https://beaconchildrencenter-production.up.railway.app';
 
-        const mediaList = mediaResult.rows.map(m => ({
-            id: m.id,
-            uuid: m.uuid,
-            collection: m.collection_name,
-            name: m.name,
-            fileName: m.file_name,
-            mimeType: m.mime_type,
-            size: m.size,
-            sizeFormatted: formatFileSize(m.size),
-            description: m.custom_properties?.description || '',
-            uploadedAt: m.created_at,
-            // Provide both proxy and direct URLs
-            downloadUrl: `/api/media/download/${m.id}`,
-            directUrl: `${laravelBaseUrl}/media/${m.id}/preview`,
-        }));
+        const mediaList = mediaResult.rows.map(m => {
+            // Parse uploader name
+            let uploaderName = null;
+            if (m.uploader_fullname) {
+                const nameObj = typeof m.uploader_fullname === 'string' 
+                    ? JSON.parse(m.uploader_fullname) 
+                    : m.uploader_fullname;
+                
+                const parts = [
+                    nameObj.first_name,
+                    nameObj.middle_name,
+                    nameObj.last_name
+                ].filter(p => p && p !== 'null' && p !== 'undefined');
+                
+                uploaderName = parts.join(' ');
+            }
+
+            return {
+                id: m.id,
+                uuid: m.uuid,
+                collection: m.collection_name,
+                name: m.name,
+                fileName: m.file_name,
+                mimeType: m.mime_type,
+                size: m.size,
+                sizeFormatted: formatFileSize(m.size),
+                description: m.custom_properties?.description || '',
+                uploadedAt: m.created_at,
+                uploaderName: uploaderName,
+                // Provide both proxy and direct URLs
+                downloadUrl: `/api/media/download/${m.id}`,
+                directUrl: `${laravelBaseUrl}/media/${m.id}/preview`,
+            };
+        });
 
         res.json({
             success: true,

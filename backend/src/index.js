@@ -23,6 +23,8 @@ const mediaRoutes = require('./routes/media');
 const doctorRoutes = require('./routes/doctors');
 const syncRoutes = require('./routes/sync');
 const mpesaRoutes = require('./routes/mpesa');
+const publicRoutes = require('./routes/public');
+const asdRoutes = require('./routes/asdRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -79,6 +81,8 @@ app.use('/api/media', mediaRoutes);
 app.use('/api/doctors', doctorRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/mpesa', mpesaRoutes);
+app.use('/api/public', publicRoutes);
+app.use('/api/asd', asdRoutes);
 
 // 404 handler
 app.use((req, res) => {

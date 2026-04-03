@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     View,
     Text,
@@ -26,7 +26,9 @@ import {
     FOOD_REACTIONS,
     BOTTLE_VOLUMES,
     DURATION_OPTIONS,
+    FEEDING_FREQUENCIES,
 } from '@/constants/feedingTracker';
+import { FEEDING_GUIDELINES, GENERAL_TIPS, SOURCE_INFO } from '@/constants/feedingGuidelines';
 
 const STORAGE_KEY = 'feeding_logs';
 
@@ -38,6 +40,7 @@ export default function FeedingTrackerScreen() {
 
     const [logs, setLogs] = useState([]);
     const [showAddModal, setShowAddModal] = useState(false);
+    const [showAdviceModal, setShowAdviceModal] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [feedingType, setFeedingType] = useState('breast');
 
@@ -52,6 +55,7 @@ export default function FeedingTrackerScreen() {
     const [foodCategory, setFoodCategory] = useState('fruits');
     const [foodName, setFoodName] = useState('');
     const [reaction, setReaction] = useState('none');
+    const [feedingFrequency, setFeedingFrequency] = useState('demand');
 
     const childId = selectedChild?.id;
 
@@ -99,6 +103,8 @@ export default function FeedingTrackerScreen() {
             entry.reaction = reaction;
         }
 
+        entry.frequency = feedingFrequency;
+
         let updated;
         if (editingId) {
             updated = logs.map(l => l.id === editingId ? entry : l);
@@ -125,6 +131,7 @@ export default function FeedingTrackerScreen() {
             setFoodName(entry.foodName || '');
             setReaction(entry.reaction || 'none');
         }
+        setFeedingFrequency(entry.frequency || 'demand');
         setShowAddModal(true);
     };
 
@@ -156,6 +163,7 @@ export default function FeedingTrackerScreen() {
         setFoodCategory('fruits');
         setFoodName('');
         setReaction('none');
+        setFeedingFrequency('demand');
     };
 
     // Today's summary
@@ -173,6 +181,33 @@ export default function FeedingTrackerScreen() {
         return `${h % 12 || 12}:${m} ${ampm}`;
     };
 
+    const formatDate = (isoString) => {
+        const d = new Date(isoString);
+        const today = new Date();
+        const yesterday = new Date();
+        yesterday.setDate(today.getDate() - 1);
+
+        if (d.toDateString() === today.toDateString()) return 'Today';
+        if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+
+        return d.toLocaleDateString('en-US', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'short'
+        });
+    };
+
+    // Group logs by date
+    const groupedLogs = useMemo(() => {
+        const groups = {};
+        logs.forEach(log => {
+            const date = new Date(log.timestamp).toDateString();
+            if (!groups[date]) groups[date] = [];
+            groups[date].push(log);
+        });
+        return Object.entries(groups).sort((a, b) => new Date(b[0]) - new Date(a[0]));
+    }, [logs]);
+
     const getTypeInfo = (typeId) => FEEDING_TYPES.find(t => t.id === typeId) || FEEDING_TYPES[0];
 
     return (
@@ -181,17 +216,102 @@ export default function FeedingTrackerScreen() {
                 title="Feeding Tracker"
                 showBack={true}
                 rightComponent={
-                    <TouchableOpacity onPress={() => setShowAddModal(true)}>
-                        <MaterialIcons name="add" size={24} color={colorScheme.primary} />
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
+                        <TouchableOpacity onPress={() => setShowAdviceModal(true)}>
+                            <MaterialIcons name="info-outline" size={24} color="#FFFFFF" />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => setShowAddModal(true)}>
+                            <MaterialIcons name="add" size={24} color="#FFFFFF" />
+                        </TouchableOpacity>
+                    </View>
                 }
             />
+
+            {/* Feeding Recommendations Modal */}
+            <Modal
+                visible={showAdviceModal}
+                animationType="slide"
+                transparent={false}
+                onRequestClose={() => setShowAdviceModal(false)}
+            >
+                <View style={[styles.modalContainer, { backgroundColor: colorScheme.background }]}>
+                    <View style={[styles.modalHeader, { backgroundColor: colorScheme.primary, paddingTop: insets.top + Spacing.md }]}>
+                        <Text style={[styles.modalTitle, { color: '#FFFFFF' }]}>Feeding Recommendations</Text>
+                        <TouchableOpacity onPress={() => setShowAdviceModal(false)}>
+                            <MaterialIcons name="close" size={24} color="#FFFFFF" />
+                        </TouchableOpacity>
+                    </View>
+
+                    <ScrollView style={styles.modalContent} contentContainerStyle={{ paddingBottom: Spacing.xxxl }}>
+                        <Text style={[styles.adviceIntro, { color: colorScheme.textSecondary }]}>
+                            Nutrition guidelines to help your child grow healthy and strong.
+                        </Text>
+
+                        {FEEDING_GUIDELINES.map((item) => (
+                            <View key={item.id} style={[styles.adviceCard, { backgroundColor: colorScheme.surface }]}>
+                                <View style={[styles.adviceHeader, { borderLeftColor: item.color }]}>
+                                    <View style={[styles.adviceIcon, { backgroundColor: `${item.color}15` }]}>
+                                        <MaterialIcons name={item.icon} size={20} color={item.color} />
+                                    </View>
+                                    <View>
+                                        <Text style={[styles.adviceAge, { color: item.color }]}>{item.age}</Text>
+                                        <Text style={[styles.adviceTitle, { color: colorScheme.textPrimary }]}>{item.title}</Text>
+                                    </View>
+                                </View>
+                                <View style={styles.tipsList}>
+                                    {item.tips.map((tip, idx) => (
+                                        <View key={idx} style={styles.tipItem}>
+                                            <View style={[styles.tipDot, { backgroundColor: item.color }]} />
+                                            <Text style={[styles.tipText, { color: colorScheme.textSecondary }]}>{tip}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            </View>
+                        ))}
+
+                        <View style={[styles.generalSection, { backgroundColor: `${colorScheme.primary}05` }]}>
+                            <Text style={[styles.generalHeader, { color: colorScheme.textPrimary }]}>General Tips</Text>
+                            {GENERAL_TIPS.map((tip, idx) => (
+                                <View key={idx} style={styles.generalTip}>
+                                    <Text style={[styles.generalTipTitle, { color: colorScheme.primary }]}>{tip.title}</Text>
+                                    <Text style={[styles.generalTipText, { color: colorScheme.textSecondary }]}>{tip.text}</Text>
+                                </View>
+                            ))}
+                        </View>
+
+                        <Text style={[styles.sourceLabel, { color: colorScheme.textTertiary }]}>
+                            {SOURCE_INFO}
+                        </Text>
+                    </ScrollView>
+                </View>
+            </Modal>
 
             <ScrollView
                 style={styles.content}
                 contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl }}
                 showsVerticalScrollIndicator={false}
             >
+                <View style={[styles.logSection, { marginTop: Spacing.lg }]}>
+                    <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>Log Feeding</Text>
+                    <View style={styles.quickLogContainer}>
+                        {FEEDING_TYPES.map((type) => (
+                            <TouchableOpacity
+                                key={type.id}
+                                style={[styles.quickLogItem, { backgroundColor: colorScheme.surface }]}
+                                onPress={() => {
+                                    setFeedingType(type.id);
+                                    setShowAddModal(true);
+                                }}
+                            >
+                                <View style={[styles.quickLogIcon, { backgroundColor: `${type.color}15` }]}>
+                                    <MaterialIcons name={type.icon} size={24} color={type.color} />
+                                </View>
+                                <Text style={[styles.quickLogLabel, { color: colorScheme.textPrimary }]}>{type.label}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </View>
+                </View>
+
                 {/* Today's Summary */}
                 <View style={[styles.summaryCard, { backgroundColor: colorScheme.primary }]}>
                     <Text style={styles.summaryTitle}>Today's Summary</Text>
@@ -203,7 +323,7 @@ export default function FeedingTrackerScreen() {
                         <View style={[styles.summaryDivider, { backgroundColor: 'rgba(255,255,255,0.3)' }]} />
                         <View style={styles.summaryItem}>
                             <Text style={styles.summaryValue}>{bottleCount}</Text>
-                            <Text style={styles.summaryLabel}>Bottle</Text>
+                            <Text style={styles.summaryLabel}>Liquids</Text>
                         </View>
                         <View style={[styles.summaryDivider, { backgroundColor: 'rgba(255,255,255,0.3)' }]} />
                         <View style={styles.summaryItem}>
@@ -225,58 +345,72 @@ export default function FeedingTrackerScreen() {
                                 No feeding logs yet
                             </Text>
                             <Text style={[styles.emptySubtext, { color: colorScheme.textTertiary }]}>
-                                Tap + to log a feed
+                                Tap a category above to log a feed
                             </Text>
                         </View>
                     ) : (
-                        logs.slice(0, 20).map((entry) => {
-                            const typeInfo = getTypeInfo(entry.type);
-                            const reactionInfo = entry.type === 'solid' ? FOOD_REACTIONS.find(r => r.id === entry.reaction) : null;
-                            return (
-                                <View
-                                    key={entry.id}
-                                    style={[styles.logCard, { backgroundColor: colorScheme.surface }]}
-                                >
-                                    <View style={[styles.logIcon, { backgroundColor: `${typeInfo.color}15` }]}>
-                                        <MaterialIcons name={typeInfo.icon} size={24} color={typeInfo.color} />
-                                    </View>
-                                    <View style={styles.logInfo}>
-                                        <Text style={[styles.logTitle, { color: colorScheme.textPrimary }]}>
-                                            {typeInfo.label}
-                                        </Text>
-                                        <Text style={[styles.logDetail, { color: colorScheme.textSecondary }]}>
-                                            {entry.type === 'breast' && `${entry.side} side • ${entry.duration} min`}
-                                            {entry.type === 'bottle' && `${entry.volume} ml`}
-                                            {entry.type === 'solid' && (() => {
-                                                const cat = FOOD_CATEGORIES.find(c => c.id === entry.foodCategory);
-                                                return `${cat?.icon || ''} ${cat?.label || entry.foodCategory}${entry.foodName ? `: ${entry.foodName}` : ''}`;
-                                            })()}
-                                        </Text>
-                                        {reactionInfo && (
-                                            <View style={styles.reactionRow}>
-                                                <MaterialIcons name={reactionInfo.icon} size={14} color={reactionInfo.color} />
-                                                <Text style={[styles.reactionText, { color: reactionInfo.color }]}>
-                                                    {reactionInfo.label}
-                                                </Text>
+                        groupedLogs.map(([date, dateLogs]) => (
+                            <View key={date} style={{ marginBottom: Spacing.lg }}>
+                                <Text style={[styles.dateHeader, { color: colorScheme.textTertiary }]}>{formatDate(date)}</Text>
+                                {dateLogs.map((entry) => {
+                                    const typeInfo = getTypeInfo(entry.type);
+                                    const reactionInfo = entry.type === 'solid' ? FOOD_REACTIONS.find(r => r.id === entry.reaction) : null;
+                                    return (
+                                        <View
+                                            key={entry.id}
+                                            style={[styles.logCard, { backgroundColor: colorScheme.surface }]}
+                                        >
+                                            <View style={[styles.logIcon, { backgroundColor: `${typeInfo.color}15` }]}>
+                                                <MaterialIcons name={typeInfo.icon} size={24} color={typeInfo.color} />
                                             </View>
-                                        )}
-                                    </View>
-                                    <View style={styles.logActions}>
-                                        <Text style={[styles.logTime, { color: colorScheme.textTertiary, marginBottom: 4 }]}>
-                                            {formatTime(entry.timestamp)}
-                                        </Text>
-                                        <View style={styles.actionButtons}>
-                                            <TouchableOpacity onPress={() => handleEditEntry(entry)} style={styles.actionBtn}>
-                                                <MaterialIcons name="edit" size={18} color={colorScheme.primary} />
-                                            </TouchableOpacity>
-                                            <TouchableOpacity onPress={() => handleDeleteEntry(entry.id)} style={styles.actionBtn}>
-                                                <MaterialIcons name="delete-outline" size={18} color={colorScheme.error || '#FF5252'} />
-                                            </TouchableOpacity>
+                                            <View style={styles.logInfo}>
+                                                <Text style={[styles.logTitle, { color: colorScheme.textPrimary }]}>
+                                                    {typeInfo.label}
+                                                </Text>
+                                                <Text style={[styles.logDetail, { color: colorScheme.textSecondary }]}>
+                                                    {entry.type === 'breast' && `${entry.side} side • ${entry.duration} min`}
+                                                    {entry.type === 'bottle' && `${entry.volume} ml`}
+                                                    {entry.type === 'solid' && (() => {
+                                                        const cat = FOOD_CATEGORIES.find(c => c.id === entry.foodCategory);
+                                                        return `${cat?.icon || ''} ${cat?.label || entry.foodCategory}${entry.foodName ? `: ${entry.foodName}` : ''}`;
+                                                    })()}
+                                                </Text>
+                                                {reactionInfo && (
+                                                    <View style={styles.reactionRow}>
+                                                        <MaterialIcons name={reactionInfo.icon} size={14} color={reactionInfo.color} />
+                                                        <Text style={[styles.reactionText, { color: reactionInfo.color }]}>
+                                                            {reactionInfo.label}
+                                                        </Text>
+                                                    </View>
+                                                )}
+                                            </View>
+                                            <View style={styles.logActions}>
+                                                <View style={styles.logTimeRow}>
+                                                    {entry.frequency && (
+                                                        <View style={[styles.freqBadge, { backgroundColor: `${colorScheme.primary}10` }]}>
+                                                            <Text style={[styles.freqBadgeText, { color: colorScheme.primary }]}>
+                                                                {FEEDING_FREQUENCIES.find(f => f.id === entry.frequency)?.label}
+                                                            </Text>
+                                                        </View>
+                                                    )}
+                                                    <Text style={[styles.logTime, { color: colorScheme.textTertiary }]}>
+                                                        {formatTime(entry.timestamp)}
+                                                    </Text>
+                                                </View>
+                                                <View style={styles.actionButtons}>
+                                                    <TouchableOpacity onPress={() => handleEditEntry(entry)} style={styles.actionBtn}>
+                                                        <MaterialIcons name="edit" size={18} color={colorScheme.primary} />
+                                                    </TouchableOpacity>
+                                                    <TouchableOpacity onPress={() => handleDeleteEntry(entry.id)} style={styles.actionBtn}>
+                                                        <MaterialIcons name="delete-outline" size={18} color={colorScheme.error || '#FF5252'} />
+                                                    </TouchableOpacity>
+                                                </View>
+                                            </View>
                                         </View>
-                                    </View>
-                                </View>
-                            );
-                        })
+                                    );
+                                })}
+                            </View>
+                        ))
                     )}
                 </View>
             </ScrollView>
@@ -395,7 +529,7 @@ export default function FeedingTrackerScreen() {
                                 </>
                             )}
 
-                            {/* Bottle Fields */}
+                            {/* Liquid Fields */}
                             {feedingType === 'bottle' && (
                                 <>
                                     <Text style={[styles.fieldLabel, { color: colorScheme.textPrimary }]}>
@@ -498,6 +632,31 @@ export default function FeedingTrackerScreen() {
                                 </>
                             )}
 
+                            {/* Frequency Section */}
+                            <Text style={[styles.fieldLabel, { color: colorScheme.textPrimary }]}>Feeding Frequency</Text>
+                            <View style={styles.durationRow}>
+                                {FEEDING_FREQUENCIES.map((f) => (
+                                    <TouchableOpacity
+                                        key={f.id}
+                                        style={[
+                                            styles.durationChip,
+                                            {
+                                                backgroundColor: feedingFrequency === f.id ? colorScheme.primary : colorScheme.surface,
+                                                borderColor: feedingFrequency === f.id ? colorScheme.primary : colorScheme.border,
+                                            }
+                                        ]}
+                                        onPress={() => setFeedingFrequency(f.id)}
+                                    >
+                                        <Text style={{
+                                            color: feedingFrequency === f.id ? '#FFFFFF' : colorScheme.textPrimary,
+                                            fontSize: Typography.fontSize.xs,
+                                        }}>
+                                            {f.label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
                             {/* Save Button */}
                             <TouchableOpacity
                                 style={[styles.saveButton, { backgroundColor: colorScheme.primary }]}
@@ -552,6 +711,31 @@ const styles = StyleSheet.create({
         fontWeight: Typography.fontWeight.semibold,
         marginBottom: Spacing.md,
     },
+    quickLogContainer: {
+        flexDirection: 'row',
+        gap: Spacing.md,
+        marginBottom: Spacing.lg,
+    },
+    quickLogItem: {
+        flex: 1,
+        alignItems: 'center',
+        padding: Spacing.md,
+        borderRadius: BorderRadius.lg,
+        ...Shadow.sm,
+    },
+    quickLogIcon: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: Spacing.xs,
+    },
+    quickLogLabel: {
+        fontSize: Typography.fontSize.xs,
+        fontWeight: Typography.fontWeight.medium,
+        textAlign: 'center',
+    },
     emptyState: {
         alignItems: 'center',
         padding: Spacing.xxxl,
@@ -594,6 +778,29 @@ const styles = StyleSheet.create({
     },
     logTime: {
         fontSize: Typography.fontSize.xs,
+    },
+    logTimeRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 4,
+    },
+    freqBadge: {
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    freqBadgeText: {
+        fontSize: 9,
+        fontWeight: 'bold',
+    },
+    dateHeader: {
+        fontSize: Typography.fontSize.xs,
+        fontWeight: Typography.fontWeight.bold,
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+        marginBottom: Spacing.sm,
+        marginTop: Spacing.md,
     },
     // Modal styles
     modalContainer: { flex: 1 },
@@ -711,5 +918,90 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: Typography.fontSize.md,
         fontWeight: Typography.fontWeight.semibold,
+    },
+    // Advice Modal Styles
+    adviceIntro: {
+        fontSize: Typography.fontSize.sm,
+        lineHeight: 20,
+        marginBottom: Spacing.lg,
+    },
+    adviceCard: {
+        borderRadius: BorderRadius.lg,
+        padding: Spacing.lg,
+        marginBottom: Spacing.lg,
+        ...Shadow.sm,
+    },
+    adviceHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.md,
+        borderLeftWidth: 4,
+        paddingLeft: Spacing.md,
+        marginBottom: Spacing.md,
+    },
+    adviceIcon: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    adviceAge: {
+        fontSize: 10,
+        fontWeight: 'bold',
+        textTransform: 'uppercase',
+    },
+    adviceTitle: {
+        fontSize: Typography.fontSize.md,
+        fontWeight: 'bold',
+    },
+    tipsList: {
+        gap: Spacing.sm,
+    },
+    tipItem: {
+        flexDirection: 'row',
+        gap: Spacing.sm,
+    },
+    tipDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        marginTop: 6,
+    },
+    tipText: {
+        flex: 1,
+        fontSize: 13,
+        lineHeight: 18,
+    },
+    generalSection: {
+        marginTop: Spacing.md,
+        padding: Spacing.lg,
+        borderRadius: BorderRadius.lg,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
+    },
+    generalHeader: {
+        fontSize: Typography.fontSize.md,
+        fontWeight: 'bold',
+        marginBottom: Spacing.md,
+    },
+    generalTip: {
+        marginBottom: Spacing.md,
+    },
+    generalTipTitle: {
+        fontSize: 13,
+        fontWeight: 'bold',
+        marginBottom: 2,
+    },
+    generalTipText: {
+        fontSize: 12,
+        lineHeight: 16,
+    },
+    sourceLabel: {
+        fontSize: 10,
+        textAlign: 'center',
+        marginTop: Spacing.xl,
+        fontStyle: 'italic',
+        paddingHorizontal: Spacing.lg,
     },
 });

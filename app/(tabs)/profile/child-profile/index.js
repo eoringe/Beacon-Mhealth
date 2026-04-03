@@ -7,7 +7,8 @@ import {
     TouchableOpacity,
     Image,
     Alert,
-    RefreshControl
+    RefreshControl,
+    ActivityIndicator
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -19,17 +20,36 @@ import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import patientService from '@/services/patientService';
 
 import { useChild } from '@/contexts/ChildContext';
+// Safe import to prevent crashes without native module
+let ImagePicker;
+try {
+    ImagePicker = require('expo-image-picker');
+} catch (e) {
+    ImagePicker = {
+        MediaTypeOptions: { Images: 'Images' },
+        launchImageLibraryAsync: async () => {
+            alert("Image Picker requires a native rebuild.");
+            return { canceled: true, assets: [] };
+        }
+    };
+}
+import { storageService } from '@/services/storageService';
+import { useAlert } from '@/contexts/AlertContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function ChildProfileScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { colorScheme } = useTheme();
-    const { selectedChild, refreshChildren } = useChild();
+    const { selectedChild, refreshChildren, updateChild } = useChild();
+    const { user } = useAuth();
+    const { showAlert } = useAlert();
     const [clinicalData, setClinicalData] = useState(null);
     const [loadingClinical, setLoadingClinical] = useState(false);
     const [mediaList, setMediaList] = useState([]);
     const [loadingMedia, setLoadingMedia] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
+    const [uploading, setUploading] = useState(false);
 
     // Placeholder data for sections not yet connected to backend
     const childData = {
@@ -137,6 +157,39 @@ export default function ChildProfileScreen() {
         );
     }
 
+    const pickImage = async () => {
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.7,
+            });
+
+            if (!result.canceled) {
+                const selectedUri = result.assets[0].uri;
+                setUploading(true);
+                
+                // Upload to Firebase Storage
+                const path = `children/${selectedChild.id}/profile_${Date.now()}.jpg`;
+                const downloadUrl = await storageService.uploadImage(selectedUri, path);
+                
+                // Update in Backend via ChildContext
+                await updateChild(selectedChild.id, {
+                    ...selectedChild,
+                    photoUrl: downloadUrl
+                });
+                
+                showAlert('Success', 'Profile photo updated!', [], 'success');
+            }
+        } catch (error) {
+            console.error('Error picking/uploading image:', error);
+            showAlert('Error', 'Failed to update photo', [], 'error');
+        } finally {
+            setUploading(false);
+        }
+    };
+
     const calculateAge = (dob) => {
         if (!dob) return 'Age unknown';
         const birthDate = new Date(dob);
@@ -214,10 +267,22 @@ export default function ChildProfileScreen() {
                 <View style={[styles.headerSection, { backgroundColor: colorScheme.surface }]}>
                     <View style={styles.photoContainer}>
                         <View style={[styles.profilePhotoPlaceholder, { backgroundColor: `${colorScheme.primary}20`, borderColor: colorScheme.surface }]}>
-                            <MaterialIcons name="person" size={60} color={colorScheme.primary} />
+                            {selectedChild.photo_url ? (
+                                <Image source={{ uri: selectedChild.photo_url }} style={styles.profileImage} />
+                            ) : (
+                                <MaterialIcons name="person" size={60} color={colorScheme.primary} />
+                            )}
                         </View>
-                        <TouchableOpacity style={[styles.editPhotoButton, { backgroundColor: colorScheme.primary, borderColor: colorScheme.surface }]}>
-                            <MaterialIcons name="camera-alt" size={20} color="#FFFFFF" />
+                        <TouchableOpacity 
+                            style={[styles.editPhotoButton, { backgroundColor: colorScheme.primary, borderColor: colorScheme.surface }]}
+                            onPress={pickImage}
+                            disabled={uploading}
+                        >
+                            {uploading ? (
+                                <ActivityIndicator size="small" color="#FFF" />
+                            ) : (
+                                <MaterialIcons name="camera-alt" size={20} color="#FFFFFF" />
+                            )}
                         </TouchableOpacity>
                     </View>
 
@@ -375,7 +440,7 @@ export default function ChildProfileScreen() {
                     <View style={styles.section}>
                         <View style={styles.sectionHeader}>
                             <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
-                                Medical Reports
+                                Beacon Medical Records
                             </Text>
                         </View>
 
@@ -418,7 +483,7 @@ export default function ChildProfileScreen() {
                             </View>
                         ) : (
                             <Text style={{ color: colorScheme.textSecondary, fontStyle: 'italic', textAlign: 'center' }}>
-                                No medical reports available.
+                                No medical/developmental care plan records available.
                             </Text>
                         )}
                     </View>
@@ -482,6 +547,11 @@ const styles = StyleSheet.create({
         borderWidth: 4,
         justifyContent: 'center',
         alignItems: 'center',
+        overflow: 'hidden',
+    },
+    profileImage: {
+        width: '100%',
+        height: '100%',
     },
     editPhotoButton: {
         position: 'absolute',

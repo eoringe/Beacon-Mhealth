@@ -88,10 +88,10 @@ export default function AddMeasurementScreen() {
                 rightComponent={
                     <TouchableOpacity onPress={handleSave} disabled={loading}>
                         {loading ? (
-                            <CustomLoading size={20} />
+                            <CustomLoading size={20} color="#FFFFFF" />
                         ) : (
                             <Text
-                                style={[styles.saveButton, { color: colorScheme.primary }]}
+                                style={[styles.saveButton, { color: '#FFFFFF' }]}
                                 numberOfLines={1}
                                 adjustsFontSizeToFit
                             >

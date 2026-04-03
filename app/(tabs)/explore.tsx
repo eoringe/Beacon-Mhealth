@@ -12,8 +12,8 @@ import { useDrawer } from '@/contexts/DrawerContext';
 export default function MilestonesTab() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colorScheme } = useTheme();
-  const { selectedChild } = useChild();
+  const { colorScheme, isDark } = useTheme();
+  const { selectedChild } = useChild() as { selectedChild: any };
   const { openDrawer } = useDrawer();
 
   const selectedAge = selectedChild?.date_of_birth
@@ -25,14 +25,14 @@ export default function MilestonesTab() {
       {/* Header */}
       <View style={[styles.header, {
         paddingTop: insets.top + Spacing.lg,
-        backgroundColor: colorScheme.surface,
-        borderBottomColor: colorScheme.border,
+        backgroundColor: isDark ? colorScheme.surface : colorScheme.primary,
+        borderBottomColor: isDark ? colorScheme.border : colorScheme.primary,
       }]}>
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={openDrawer} style={{ padding: Spacing.xs }}>
-            <MaterialIcons name="menu" size={26} color={colorScheme.textPrimary} />
+            <MaterialIcons name="menu" size={26} color="#FFFFFF" />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colorScheme.textPrimary }]}>
+          <Text style={[styles.headerTitle, { color: '#FFFFFF' }]}>
             Milestones Overview
           </Text>
           <View style={{ width: 34 }} />
@@ -44,14 +44,14 @@ export default function MilestonesTab() {
         contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.lg }}
       >
         {selectedChild ? (
-          <View style={[styles.ageSelector, { backgroundColor: colorScheme.primaryLight }]}>
-            <Text style={[styles.ageLabel, { color: colorScheme.primary }]}>
+          <View style={[styles.ageSelector, { backgroundColor: isDark ? colorScheme.surface : colorScheme.primaryLight }]}>
+            <Text style={[styles.ageLabel, { color: isDark ? colorScheme.textPrimary : colorScheme.primary }]}>
               {selectedChild.first_name}'s Age: {selectedAge} months
             </Text>
           </View>
         ) : (
-          <View style={[styles.ageSelector, { backgroundColor: colorScheme.primaryLight }]}>
-            <Text style={[styles.ageLabel, { color: colorScheme.primary }]}>
+          <View style={[styles.ageSelector, { backgroundColor: isDark ? colorScheme.surface : colorScheme.primaryLight }]}>
+            <Text style={[styles.ageLabel, { color: isDark ? colorScheme.textPrimary : colorScheme.primary }]}>
               Select a child to view personalized milestones
             </Text>
           </View>
@@ -59,22 +59,25 @@ export default function MilestonesTab() {
 
         {/* CDC Attribution */}
         <TouchableOpacity
-          style={[styles.whoCard, { backgroundColor: '#E3F2FD' }]}
+          style={[styles.whoCard, { 
+            backgroundColor: isDark ? colorScheme.surface : '#E3F2FD',
+            borderColor: isDark ? colorScheme.border : '#BBDEFB'
+          }]}
           onPress={() => Linking.openURL(CDC_SOURCE_URL)}
         >
-          <MaterialIcons name="info" size={24} color="#1976D2" />
+          <MaterialIcons name="info" size={24} color={isDark ? colorScheme.primary : '#1976D2'} />
           <View style={styles.whoTextContainer}>
-            <Text style={[styles.whoTitle, { color: '#1976D2' }]}>
+            <Text style={[styles.whoTitle, { color: isDark ? colorScheme.textPrimary : '#1976D2' }]}>
               Source of Milestone Data
             </Text>
-            <Text style={[styles.whoText, { color: '#1976D2' }]}>
+            <Text style={[styles.whoText, { color: isDark ? colorScheme.textSecondary : '#1976D2' }]}>
               These milestones are based on the CDC's "Learn the Signs. Act Early." program (2022).
             </Text>
-            <Text style={[styles.whoUrl, { color: '#1565C0', textDecorationLine: 'underline' }]}>
+            <Text style={[styles.whoUrl, { color: isDark ? colorScheme.primary : '#1565C0', textDecorationLine: 'underline' }]}>
               cdc.gov/act-early/milestones
             </Text>
           </View>
-          <MaterialIcons name="open-in-new" size={20} color="#1976D2" />
+          <MaterialIcons name="open-in-new" size={20} color={isDark ? colorScheme.textTertiary : '#1976D2'} />
         </TouchableOpacity>
 
         {MILESTONE_CATEGORIES.map((category) => (

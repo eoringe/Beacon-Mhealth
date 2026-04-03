@@ -5,7 +5,7 @@
 
 export const FEEDING_TYPES = [
     { id: 'breast', label: 'Breastfeed', icon: 'child-care', color: '#E91E63' },
-    { id: 'bottle', label: 'Bottle', icon: 'local-drink', color: '#2196F3' },
+    { id: 'bottle', label: 'Liquids', icon: 'local-drink', color: '#2196F3' },
     { id: 'solid', label: 'Solid Food', icon: 'restaurant', color: '#4CAF50' },
 ];
 
@@ -42,4 +42,12 @@ export const BOTTLE_VOLUMES = [
 
 export const DURATION_OPTIONS = [
     5, 10, 15, 20, 25, 30, 35, 40, 45,
+];
+
+export const FEEDING_FREQUENCIES = [
+    { id: '1hr', label: '1 hrly' },
+    { id: '2hr', label: '2 hrly' },
+    { id: '3hr', label: '3 hrly' },
+    { id: '4hr', label: '4 hrly' },
+    { id: 'demand', label: 'On Demand' },
 ];

@@ -6,6 +6,7 @@ import {
     ScrollView,
     TouchableOpacity,
     Linking,
+    Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -180,8 +181,12 @@ export default function ProfileScreen() {
             >
                 {/* Profile Header */}
                 <View style={[styles.profileHeader, { backgroundColor: colorScheme.surface }]}>
-                    <View style={[styles.avatarContainer, { backgroundColor: colorScheme.primaryLight }]}>
-                        <MaterialIcons name="person" size={48} color={colorScheme.primary} />
+                    <View style={[styles.avatarContainer, { backgroundColor: colorScheme.primaryLight, overflow: 'hidden' }]}>
+                        {user?.photoURL ? (
+                            <Image source={{ uri: user.photoURL }} style={{ width: '100%', height: '100%' }} />
+                        ) : (
+                            <MaterialIcons name="person" size={48} color={colorScheme.primary} />
+                        )}
                     </View>
                     <Text style={[styles.userName, { color: colorScheme.textPrimary }]}>
                         {user?.displayName || 'User'}

@@ -19,6 +19,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { verifyPatient } from '@/services/patientService';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { SafeHeader } from '@/components/SafeHeader';
 export default function PatientLookupScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
@@ -99,19 +100,7 @@ export default function PatientLookupScreen() {
     return (
         <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
             {/* Header */}
-            <View style={[styles.header, {
-                paddingTop: insets.top + Spacing.md,
-                backgroundColor: colorScheme.surface,
-                borderBottomColor: colorScheme.border
-            }]}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <MaterialIcons name="arrow-back" size={24} color={colorScheme.textPrimary} />
-                </TouchableOpacity>
-                <Text style={[styles.headerTitle, { color: colorScheme.textPrimary }]}>
-                    Find Patient
-                </Text>
-                <View style={{ width: 24 }} />
-            </View>
+            <SafeHeader title="Find Patient" showBack />
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

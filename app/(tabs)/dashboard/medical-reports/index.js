@@ -5,7 +5,8 @@ import {
     StyleSheet,
     ScrollView,
     TouchableOpacity,
-    Linking
+    Linking,
+    RefreshControl
 } from 'react-native';
 import { LoadingSection } from '@/components/LoadingComponents';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,6 +27,7 @@ export default function MedicalReportsScreen() {
     const router = useRouter();
     const [mediaList, setMediaList] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState(null);
 
     // Load media when child changes
@@ -39,9 +41,13 @@ export default function MedicalReportsScreen() {
         }
     }, [selectedChild]);
 
-    const fetchMedia = async () => {
+    const fetchMedia = async (isRefreshing = false) => {
         try {
-            setLoading(true);
+            if (isRefreshing) {
+                setRefreshing(true);
+            } else {
+                setLoading(true);
+            }
             setError(null);
             const data = await patientService.getMediaList(selectedChild.registration_number);
             setMediaList(data);
@@ -50,7 +56,13 @@ export default function MedicalReportsScreen() {
             setError('Could not load medical reports');
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
+    };
+
+    const onRefresh = () => {
+        if (!selectedChild?.registration_number) return;
+        fetchMedia(true);
     };
 
     const handleOpenReport = async (media) => {
@@ -93,18 +105,26 @@ export default function MedicalReportsScreen() {
 
     return (
         <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
-            <SafeHeader title="Medical Reports" showBack={true} />
+            <SafeHeader title="Beacon Medical Records" showBack={true} />
 
             <ScrollView
                 style={styles.content}
                 contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl }}
                 showsVerticalScrollIndicator={false}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        colors={[colorScheme.primary]}
+                        tintColor={colorScheme.primary}
+                    />
+                }
             >
                 {/* Header Info */}
                 <View style={[styles.headerCard, { backgroundColor: colorScheme.surface }]}>
                     <MaterialIcons name="folder-open" size={40} color={colorScheme.primary} />
                     <Text style={[styles.headerTitle, { color: colorScheme.textPrimary }]}>
-                        {childName}'s Medical Reports
+                        Beacon Medical Records
                     </Text>
                     {selectedChild?.registration_number && (
                         <Text style={[styles.headerSubtitle, { color: colorScheme.textSecondary }]}>
@@ -137,57 +157,70 @@ export default function MedicalReportsScreen() {
                 {/* Empty State / Missing Reg Number Instructions */}
                 {!loading && !error && mediaList.length === 0 && (
                     <View style={styles.centerContent}>
-                        {selectedChild?.registration_number ? (
-                            <>
-                                <MaterialIcons name="folder-off" size={48} color={colorScheme.textTertiary} />
-                                <Text style={[styles.statusText, { color: colorScheme.textSecondary }]}>
-                                    No medical reports found
-                                </Text>
-                            </>
-                        ) : (
-                            <View style={styles.instructionsContainer}>
-                                <View style={[styles.instructionIconCircle, { backgroundColor: `${colorScheme.primary}15` }]}>
-                                    <MaterialIcons name="info-outline" size={32} color={colorScheme.primary} />
-                                </View>
-                                <Text style={[styles.instructionTitle, { color: colorScheme.textPrimary }]}>
-                                    How to get Medical Reports
-                                </Text>
-                                <View style={styles.instructionSteps}>
-                                    <View style={styles.instructionStep}>
-                                        <View style={[styles.stepNumber, { backgroundColor: colorScheme.primary }]}>
-                                            <Text style={styles.stepNumberText}>1</Text>
-                                        </View>
-                                        <Text style={[styles.instructionText, { color: colorScheme.textSecondary }]}>
-                                            Ensure your child is registered at Beacon Children's Centre.
-                                        </Text>
+                        <View style={styles.instructionsContainer}>
+                            <Text style={[styles.instructionTitle, { color: colorScheme.textPrimary, marginTop: 5 }]}>
+                                Do you need a developmental report?
+                            </Text>
+                            <Text style={[styles.statusText, { color: colorScheme.textSecondary, textAlign: 'center', paddingHorizontal: 20, marginBottom: 20 }]}>
+                                This is an individualized report that highlights the child's strengths, weakness, needs and care plan.
+                            </Text>
+
+                            <Text style={[styles.subHeader, { color: colorScheme.textPrimary, marginBottom: Spacing.md }]}>
+                                How to obtain a report
+                            </Text>
+
+
+                            <View style={styles.instructionSteps}>
+                                <View style={styles.instructionStep}>
+                                    <View style={[styles.stepNumber, { backgroundColor: colorScheme.primary }]}>
+                                        <Text style={styles.stepNumberText}>1</Text>
                                     </View>
-                                    <View style={styles.instructionStep}>
-                                        <View style={[styles.stepNumber, { backgroundColor: colorScheme.primary }]}>
-                                            <Text style={styles.stepNumberText}>2</Text>
-                                        </View>
-                                        <Text style={[styles.instructionText, { color: colorScheme.textSecondary }]}>
-                                            Book an appointment to Beacon Children's Centre through the app.
-                                        </Text>
-                                    </View>
-                                    <View style={styles.instructionStep}>
-                                        <View style={[styles.stepNumber, { backgroundColor: colorScheme.primary }]}>
-                                            <Text style={styles.stepNumberText}>3</Text>
-                                        </View>
-                                        <Text style={[styles.instructionText, { color: colorScheme.textSecondary }]}>
-                                            A registration number will automatically be assigned for the child after the first physical visit.
-                                        </Text>
-                                    </View>
-                                </View>
-                                <TouchableOpacity 
-                                    style={[styles.updateProfileButton, { borderColor: colorScheme.primary }]}
-                                    onPress={() => router.push('/profile/child-profile')}
-                                >
-                                    <Text style={[styles.updateProfileButtonText, { color: colorScheme.primary }]}>
-                                        Go to Child Profile
+                                    <Text style={[styles.instructionText, { color: colorScheme.textSecondary }]}>
+                                        Clients shall be assigned a registration number after booking a consultation.
                                     </Text>
-                                </TouchableOpacity>
+                                </View>
+                                <View style={styles.instructionStep}>
+                                    <View style={[styles.stepNumber, { backgroundColor: colorScheme.primary }]}>
+                                        <Text style={styles.stepNumberText}>2</Text>
+                                    </View>
+                                    <Text style={[styles.instructionText, { color: colorScheme.textSecondary }]}>
+                                        Records of all consultation shall be stored in the Beacon database.
+                                    </Text>
+                                </View>
+                                <View style={styles.instructionStep}>
+                                    <View style={[styles.stepNumber, { backgroundColor: colorScheme.primary }]}>
+                                        <Text style={styles.stepNumberText}>3</Text>
+                                    </View>
+                                    <Text style={[styles.instructionText, { color: colorScheme.textSecondary }]}>
+                                        Comprehensive developmental reports will only be available for clients seen physically.
+                                    </Text>
+                                </View>
+                                <View style={styles.instructionStep}>
+                                    <View style={[styles.stepNumber, { backgroundColor: colorScheme.primary }]}>
+                                        <Text style={styles.stepNumberText}>4</Text>
+                                    </View>
+                                    <Text style={[styles.instructionText, { color: colorScheme.textSecondary }]}>
+                                        Reports shall be charged based on specialist seen.
+                                    </Text>
+                                </View>
+                                <View style={styles.instructionStep}>
+                                    <View style={[styles.stepNumber, { backgroundColor: colorScheme.primary }]}>
+                                        <Text style={styles.stepNumberText}>5</Text>
+                                    </View>
+                                    <Text style={[styles.instructionText, { color: colorScheme.textSecondary }]}>
+                                        You can book for assessment and report on this app or call +254115188415.
+                                    </Text>
+                                </View>
+                                <View style={styles.instructionStep}>
+                                    <View style={[styles.stepNumber, { backgroundColor: colorScheme.primary }]}>
+                                        <Text style={styles.stepNumberText}>6</Text>
+                                    </View>
+                                    <Text style={[styles.instructionText, { color: colorScheme.textSecondary }]}>
+                                        All previous reports for your child will be accessible to you on the app.
+                                    </Text>
+                                </View>
                             </View>
-                        )}
+                        </View>
                     </View>
                 )}
 
@@ -228,6 +261,11 @@ export default function MedicalReportsScreen() {
                                         <Text style={[styles.dateText, { color: colorScheme.textTertiary }]}>
                                             Uploaded: {formatDate(media.uploadedAt)}
                                         </Text>
+                                        {media.uploaderName && (
+                                            <Text style={[styles.uploaderText, { color: colorScheme.textTertiary }]}>
+                                                By: {media.uploaderName}
+                                            </Text>
+                                        )}
                                     </View>
                                     <MaterialIcons name="open-in-new" size={20} color={colorScheme.textTertiary} />
                                 </View>
@@ -332,6 +370,11 @@ const styles = StyleSheet.create({
     },
     dateText: {
         fontSize: Typography.fontSize.xs,
+        marginBottom: 2,
+    },
+    uploaderText: {
+        fontSize: Typography.fontSize.xs,
+        fontStyle: 'italic',
     },
     instructionsContainer: {
         paddingHorizontal: Spacing.xl,
@@ -347,10 +390,15 @@ const styles = StyleSheet.create({
         marginBottom: Spacing.lg,
     },
     instructionTitle: {
-        fontSize: Typography.fontSize.lg,
+        fontSize: Typography.fontSize.lg + 2,
         fontWeight: Typography.fontWeight.bold,
-        marginBottom: Spacing.xl,
+        marginBottom: Spacing.sm,
         textAlign: 'center',
+    },
+    subHeader: {
+        fontSize: Typography.fontSize.md,
+        fontWeight: Typography.fontWeight.bold,
+        textDecorationLine: 'underline',
     },
     instructionSteps: {
         width: '100%',
@@ -379,17 +427,5 @@ const styles = StyleSheet.create({
         flex: 1,
         fontSize: Typography.fontSize.md,
         lineHeight: 22,
-    },
-    updateProfileButton: {
-        borderWidth: 1,
-        paddingHorizontal: Spacing.xl,
-        paddingVertical: Spacing.md,
-        borderRadius: BorderRadius.md,
-        width: '100%',
-        alignItems: 'center',
-    },
-    updateProfileButtonText: {
-        fontWeight: Typography.fontWeight.semibold,
-        fontSize: Typography.fontSize.md,
     },
 });

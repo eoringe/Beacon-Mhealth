@@ -10,6 +10,7 @@ import {
     Pressable,
     BackHandler,
     Platform,
+    Image,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -141,7 +142,11 @@ export default function NavigationDrawer({ visible, onClose }) {
                 {/* User Profile Header */}
                 <View style={[styles.profileSection, { backgroundColor: colorScheme.primary }]}>
                     <View style={styles.profileAvatar}>
-                        <MaterialIcons name="account-circle" size={52} color="rgba(255,255,255,0.9)" />
+                        {user?.photoURL ? (
+                            <Image source={{ uri: user.photoURL }} style={styles.avatarImage} />
+                        ) : (
+                            <MaterialIcons name="account-circle" size={64} color="rgba(255,255,255,0.9)" />
+                        )}
                     </View>
                     <Text style={styles.profileName} numberOfLines={1}>
                         {user?.displayName || 'Parent'}
@@ -151,7 +156,11 @@ export default function NavigationDrawer({ visible, onClose }) {
                     </Text>
                     {selectedChild && (
                         <View style={styles.childBadge}>
-                            <MaterialIcons name="face" size={16} color="#FFFFFF" />
+                            {selectedChild.photo_url ? (
+                                <Image source={{ uri: selectedChild.photo_url }} style={styles.childBadgeImage} />
+                            ) : (
+                                <MaterialIcons name="face" size={16} color="#FFFFFF" />
+                            )}
                             <Text style={styles.childBadgeText}>
                                 {selectedChild.first_name} {selectedChild.last_name}
                             </Text>
@@ -258,6 +267,19 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: Typography.fontSize.xs,
         fontWeight: Typography.fontWeight.medium,
+    },
+    avatarImage: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        borderWidth: 2,
+        borderColor: 'rgba(255,255,255,0.3)',
+    },
+    childBadgeImage: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: 'rgba(255,255,255,0.2)',
     },
     navContent: {
         flex: 1,

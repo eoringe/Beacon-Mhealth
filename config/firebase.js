@@ -17,6 +17,8 @@ const firebaseConfig = {
     measurementId: "G-XKPCZG7QJ6"
 };
 
+import { getStorage } from 'firebase/storage';
+
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
@@ -25,4 +27,7 @@ const auth = initializeAuth(app, {
     persistence: getReactNativePersistence(AsyncStorage)
 });
 
-export { auth, app };
+// Initialize Storage
+const storage = getStorage(app);
+
+export { auth, app, storage };

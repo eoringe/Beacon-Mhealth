@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { Tabs, useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Platform, AppState, AppStateStatus, View } from 'react-native';
+import { Platform, AppState, AppStateStatus, View, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useChild } from '@/contexts/ChildContext';
@@ -19,7 +19,7 @@ export default function TabLayout() {
 
 function TabLayoutInner() {
   const insets = useSafeAreaInsets();
-  const { colorScheme } = useTheme();
+  const { colorScheme, isDark } = useTheme();
   const router = useRouter();
   const { selectedChild } = useChild() as { selectedChild: any };
   const { showAlert } = useAlert();
@@ -58,19 +58,20 @@ function TabLayoutInner() {
         key={key}
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: colorScheme.primary,
-          tabBarInactiveTintColor: colorScheme.textTertiary,
+          tabBarActiveTintColor: '#FFFFFF',
+          tabBarInactiveTintColor: 'rgba(255, 255, 255, 0.6)',
           tabBarStyle: {
-            backgroundColor: colorScheme.surface,
+            backgroundColor: isDark ? colorScheme.surface : colorScheme.primary,
             borderTopWidth: 1,
-            borderTopColor: colorScheme.border,
+            borderTopColor: isDark ? colorScheme.border : colorScheme.primary,
             paddingBottom: bottomPadding,
             paddingTop: 8,
             height: tabBarHeight,
           },
           tabBarLabelStyle: {
-            fontSize: 12,
+            fontSize: 10, // Reduced from 12 to prevent truncation
             fontWeight: '500',
+            textAlign: 'center',
           },
           sceneStyle: {
             backgroundColor: colorScheme.background,
@@ -125,7 +126,7 @@ function TabLayoutInner() {
         <Tabs.Screen
           name="explore"
           options={{
-            title: 'Milestone Overview',
+            title: 'Milestones',
             tabBarIcon: ({ color, size }) => (
               <MaterialIcons name="flag" size={size} color={color} />
             ),
@@ -134,18 +135,18 @@ function TabLayoutInner() {
         <Tabs.Screen
           name="appointments"
           options={{
-            title: 'Visits',
+            title: 'Consults',
             tabBarIcon: ({ color, size }) => (
               <MaterialIcons name="calendar-today" size={size} color={color} />
             ),
           }}
         />
         <Tabs.Screen
-          name="notifications"
+          name="asd-checklist"
           options={{
-            title: 'Alerts',
+            title: 'ASD Screener',
             tabBarIcon: ({ color, size }) => (
-              <MaterialIcons name="notifications" size={size} color={color} />
+              <MaterialIcons name="psychology" size={size} color={color} />
             ),
           }}
         />
