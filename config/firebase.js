@@ -22,10 +22,15 @@ import { getStorage } from 'firebase/storage';
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
-// Initialize Auth with AsyncStorage persistence
-const auth = initializeAuth(app, {
-    persistence: getReactNativePersistence(AsyncStorage)
-});
+// Initialize Auth with AsyncStorage persistence (SSR-safe)
+let auth;
+if (Constants.appOwnership === 'expo' || Platform.OS !== 'web') {
+    auth = initializeAuth(app, {
+        persistence: getReactNativePersistence(AsyncStorage)
+    });
+} else {
+    auth = getAuth(app);
+}
 
 // Initialize Storage
 const storage = getStorage(app);

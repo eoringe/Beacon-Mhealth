@@ -2,7 +2,7 @@
   "expo": {
     "name": "Beacon Children's Centre",
     "slug": "beacon-children-center",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "orientation": "default",
     "icon": "./assets/images/beacon_30.png",
     "scheme": "myapp",
@@ -20,10 +20,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.beaconchildrencenter.app",
+      "buildNumber": "1.2.0",
       "infoPlist": {}
     },
     "android": {
       "package": "com.beaconchildrencenter.app",
+      "versionCode": 2,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/beacon_30.png",
