@@ -44,7 +44,7 @@ export default function MilestoneChecklist() {
   return (
     <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
       <SafeHeader
-        title="Milestone Checker"
+        title="Milestones Checker"
         showBack={true}
       />
       <ScrollView
@@ -63,7 +63,7 @@ export default function MilestoneChecklist() {
           <MaterialIcons name="info" size={24} color="#1976D2" />
           <View style={styles.whoTextContainer}>
             <Text style={[styles.whoTitle, { color: '#1976D2' }]}>
-              Source of Milestone Data
+              Source of Milestones Data
             </Text>
             <Text style={[styles.whoText, { color: '#1976D2' }]}>
               These milestones are based on the CDC's "Learn the Signs. Act Early." program (2022).

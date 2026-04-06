@@ -166,7 +166,7 @@ export default function AddChildScreen() {
                         <Text style={[styles.label, { color: colorScheme.textPrimary, marginBottom: 0 }]}>Important Notice</Text>
                     </View>
                     <Text style={[styles.searchSubtitle, { color: colorScheme.textSecondary, marginBottom: 0 }]}>
-                        Manual entry should only be used if your child has never visited Beacon Children's Centre. If your child has a previous record, please use the <Text style={{ fontWeight: 'bold' }}>Clinic Search</Text> tab to link their existing profile.
+                        This option should only be used if your child has never visited Beacon Children's Centre. If your child has a previous record, please use the <Text style={{ fontWeight: 'bold' }}>Existing Client</Text> tab to link their profile.
                     </Text>
                 </View>
 
@@ -266,7 +266,7 @@ export default function AddChildScreen() {
                     {loading ? (
                         <CustomLoading size={20} color="#FFFFFF" />
                     ) : (
-                        <Text style={styles.saveButtonText}>Save Child Profile</Text>
+                        <Text style={[styles.saveButtonText, { color: '#FFFFFF' }]}>Save Child Profile</Text>
                     )}
                 </TouchableOpacity>
             </View>
@@ -284,12 +284,20 @@ export default function AddChildScreen() {
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm }}>
                         <MaterialIcons name="security" size={24} color={colorScheme.primary} />
                         <Text style={[styles.searchTitle, { color: colorScheme.textPrimary, marginBottom: 0 }]}>
-                            Patient Identity Verification
+                            Client Identity Verification
                         </Text>
                     </View>
-                    <Text style={[styles.searchSubtitle, { color: colorScheme.textSecondary }]}>
-                        Please provide your child's registration number and date of birth. This information will be cross-referenced with the Beacon Children's Centre clinical database to securely verify and confirm the patient's identity.
+                    <Text style={[styles.searchSubtitle, { color: colorScheme.textSecondary, marginBottom: Spacing.md }]}>
+                        Please provide your child's registration number and date of birth. This information will be cross-referenced with the Beacon Children's Centre clinical database to securely verify and confirm their identity.
                     </Text>
+
+                    {/* Help Note for Registration Number */}
+                    <View style={{ backgroundColor: isDark ? `${colorScheme.primary}20` : '#F0F7FF', padding: Spacing.sm, borderRadius: BorderRadius.sm, marginBottom: Spacing.md, flexDirection: 'row', gap: Spacing.xs, alignItems: 'center' }}>
+                        <MaterialIcons name="help-outline" size={16} color={colorScheme.primary} />
+                        <Text style={{ fontSize: 12, color: colorScheme.textSecondary, flex: 1 }}>
+                            If you don't remember the registration number, please call Beacon on <Text style={{ color: colorScheme.primary, fontWeight: 'bold' }}>+254 115 188 415 / +254 780 626 990</Text>
+                        </Text>
+                    </View>
 
                     {/* Registration Number Field with Auto-Formatting */}
                     <View style={styles.inputGroup}>
@@ -357,7 +365,7 @@ export default function AddChildScreen() {
                         ) : (
                             <>
                                 <MaterialIcons name="verified-user" size={20} color="#FFFFFF" />
-                                <Text style={styles.addButtonText}>Verify & Link Child</Text>
+                                <Text style={[styles.addButtonText, { color: '#FFFFFF' }]}>Verify & Link Child</Text>
                             </>
                         )}
                     </TouchableOpacity>
@@ -372,6 +380,11 @@ export default function AddChildScreen() {
             <SafeHeader title="Add Child" showBack />
 
             <View style={[styles.content, { paddingBottom: 0 }]}>
+                {/* Instruction at the top */}
+                <Text style={[styles.topInstruction, { color: colorScheme.textSecondary }]}>
+                    How would you like to add your child?
+                </Text>
+
                 {/* Toggle Switch */}
                 <View style={[styles.toggleContainer, { backgroundColor: colorScheme.surface, borderColor: colorScheme.border }]}>
                     <TouchableOpacity
@@ -385,7 +398,7 @@ export default function AddChildScreen() {
                             styles.toggleText,
                             { color: colorScheme.textSecondary },
                             mode === 'manual' && { color: '#FFFFFF', fontWeight: 'bold' }
-                        ]}>Manual Entry</Text>
+                        ]}>New Client</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[
@@ -398,7 +411,7 @@ export default function AddChildScreen() {
                             styles.toggleText,
                             { color: colorScheme.textSecondary },
                             mode === 'lookup' && { color: '#FFFFFF', fontWeight: 'bold' }
-                        ]}>Clinic Search</Text>
+                        ]}>Existing Client</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -436,6 +449,12 @@ const styles = StyleSheet.create({
     content: {
         flex: 1,
         padding: Spacing.lg,
+    },
+    topInstruction: {
+        fontSize: Typography.fontSize.sm,
+        textAlign: 'center',
+        marginBottom: Spacing.md,
+        fontWeight: '500',
     },
     toggleContainer: {
         flexDirection: 'row',

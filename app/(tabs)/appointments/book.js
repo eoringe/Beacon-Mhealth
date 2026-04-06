@@ -137,47 +137,54 @@ export default function BookAppointmentScreen() {
                             key={spec.id}
                             entering={FadeInDown.delay(index * 80).duration(400)}
                         >
-                            <TouchableOpacity
-                                style={[
-                                    styles.specCard,
-                                    {
-                                        backgroundColor: colorScheme.surface,
-                                        borderColor: colorScheme.border,
-                                    },
-                                ]}
-                                onPress={() => handleSpecializationSelect(spec)}
-                                activeOpacity={0.7}
-                            >
-                                <View style={[styles.iconContainer, { backgroundColor: colorScheme.primaryLight }]}>
-                                    <MaterialIcons
-                                        name={getSpecializationIcon(spec.name)}
-                                        size={28}
-                                        color={colorScheme.primary}
-                                    />
-                                </View>
-                                <View style={styles.specInfo}>
-                                    <View style={styles.specTitleRow}>
-                                        <Text style={[styles.specName, { color: colorScheme.textPrimary }]}>
-                                            {spec.name}
+                                <TouchableOpacity
+                                    style={[
+                                        styles.specCard,
+                                        {
+                                            backgroundColor: colorScheme.surface,
+                                            borderColor: colorScheme.border,
+                                            opacity: spec.doctorCount === 0 ? 0.5 : 1,
+                                        },
+                                    ]}
+                                    onPress={() => spec.doctorCount > 0 && handleSpecializationSelect(spec)}
+                                    activeOpacity={spec.doctorCount === 0 ? 1 : 0.7}
+                                    disabled={spec.doctorCount === 0}
+                                >
+                                    <View style={[styles.iconContainer, { backgroundColor: spec.doctorCount === 0 ? colorScheme.border : colorScheme.primaryLight }]}>
+                                        <MaterialIcons
+                                            name={getSpecializationIcon(spec.name)}
+                                            size={28}
+                                            color={spec.doctorCount === 0 ? colorScheme.textTertiary : colorScheme.primary}
+                                        />
+                                    </View>
+                                    <View style={styles.specInfo}>
+                                        <View style={styles.specTitleRow}>
+                                            <Text style={[styles.specName, { color: spec.doctorCount === 0 ? colorScheme.textSecondary : colorScheme.textPrimary }]}>
+                                                {spec.name}
+                                            </Text>
+                                            {spec.doctorCount === 0 && (
+                                                <View style={[styles.unavailableBadge, { backgroundColor: colorScheme.error + '20' }]}>
+                                                    <Text style={[styles.unavailableText, { color: colorScheme.error }]}>Unavailable</Text>
+                                                </View>
+                                            )}
+                                        </View>
+
+                                        <Text style={[styles.serviceTypes, { color: colorScheme.textSecondary }]}>
+                                            In-person{spec.hasTeleconsult ? ' • Teleconsultation' : ''}
+                                        </Text>
+
+                                        <Text style={[styles.doctorCount, { color: spec.doctorCount === 0 ? colorScheme.error : colorScheme.textTertiary }]}>
+                                            {spec.doctorCount > 0 ? `${spec.doctorCount} ${spec.doctorCount === 1 ? 'doctor' : 'doctors'} available` : 'No doctors available'}
                                         </Text>
                                     </View>
-
-                                    <Text style={[styles.serviceTypes, { color: colorScheme.textSecondary }]}>
-                                        In-person{spec.hasTeleconsult ? ' • Teleconsultation' : ''}
-                                    </Text>
-
                                     {spec.doctorCount > 0 && (
-                                        <Text style={[styles.doctorCount, { color: colorScheme.textTertiary }]}>
-                                            {spec.doctorCount} {spec.doctorCount === 1 ? 'doctor' : 'doctors'} available
-                                        </Text>
+                                        <MaterialIcons
+                                            name="chevron-right"
+                                            size={24}
+                                            color={colorScheme.textTertiary}
+                                        />
                                     )}
-                                </View>
-                                <MaterialIcons
-                                    name="chevron-right"
-                                    size={24}
-                                    color={colorScheme.textTertiary}
-                                />
-                            </TouchableOpacity>
+                                </TouchableOpacity>
                         </Animated.View>
                     ))
                 )}
@@ -266,5 +273,15 @@ const styles = StyleSheet.create({
         fontSize: Typography.fontSize.xs,
         marginBottom: 2,
         fontWeight: Typography.fontWeight.medium,
+    },
+    unavailableBadge: {
+        paddingHorizontal: Spacing.xs,
+        paddingVertical: 2,
+        borderRadius: BorderRadius.sm,
+    },
+    unavailableText: {
+        fontSize: 10,
+        fontWeight: 'bold',
+        textTransform: 'uppercase',
     },
 });

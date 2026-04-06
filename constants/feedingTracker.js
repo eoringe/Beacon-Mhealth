@@ -24,13 +24,6 @@ export const FOOD_CATEGORIES = [
     { id: 'other', label: 'Other', icon: '🍽️', examples: 'Mixed meals, Snacks' },
 ];
 
-export const FOOD_REACTIONS = [
-    { id: 'none', label: 'No Reaction', icon: 'check-circle', color: '#4CAF50' },
-    { id: 'liked', label: 'Liked It', icon: 'thumb-up', color: '#2196F3' },
-    { id: 'disliked', label: 'Refused', icon: 'thumb-down', color: '#FF9800' },
-    { id: 'allergic', label: 'Possible Allergy', icon: 'warning', color: '#F44336' },
-];
-
 export const COMMON_ALLERGENS = [
     'Milk', 'Eggs', 'Peanuts', 'Tree Nuts', 'Wheat',
     'Soy', 'Fish', 'Shellfish', 'Sesame',

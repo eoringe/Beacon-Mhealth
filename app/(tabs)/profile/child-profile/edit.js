@@ -28,6 +28,7 @@ import { ActivityIndicator } from 'react-native';
 
 import { useTheme } from '@/contexts/ThemeContext';
 import { useChild } from '@/contexts/ChildContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useAlert } from '@/contexts/AlertContext';
 import { storageService } from '@/services/storageService';
 import { SafeHeader } from '@/components/SafeHeader';
@@ -38,6 +39,7 @@ export default function EditProfileScreen() {
     const router = useRouter();
     const { colorScheme } = useTheme();
     const { selectedChild, updateChild } = useChild();
+    const { user } = useAuth();
     const { showAlert } = useAlert();
 
     if (!selectedChild) {
@@ -70,7 +72,7 @@ export default function EditProfileScreen() {
                 setUploading(true);
                 
                 // Upload to Firebase Storage
-                const path = `children/${selectedChild.id}/profile_${Date.now()}.jpg`;
+                const path = `profiles/${user.uid}/children/${selectedChild.id}/profile_${Date.now()}.jpg`;
                 const downloadUrl = await storageService.uploadImage(selectedUri, path);
                 
                 setFormData({ ...formData, photoUrl: downloadUrl });

@@ -23,6 +23,7 @@ export const MILESTONE_AGES = [
   { label: '3 Years',   value: 36, range: '33–42 months' },
   { label: '4 Years',   value: 48, range: '42–54 months' },
   { label: '5 Years',   value: 60, range: '54–66 months' },
+  { label: '6 Years',   value: 72, range: '66–78 months' },
 ];
 
 export const MILESTONE_CATEGORIES = [
@@ -369,6 +370,25 @@ export const CDC_MILESTONES = {
     movement: [
       { milestone: 'Buttons some buttons', key: true },
       { milestone: 'Hops on one foot', key: true },
+    ],
+  },
+  // ── 72 Months (6 Years) ─────────────────────────────────────────────────────
+  72: {
+    ageLabel: '6 Years',
+    socialEmotional: [
+      { milestone: 'Plays with same gender peers', key: true },
+      { milestone: 'Grooms, dresses and toilets independently', key: true },
+    ],
+    language: [
+      { milestone: 'Uses complex sentences in conversation', key: true },
+      { milestone: 'Understands concepts like time, imaginative stories and role playing', key: true },
+    ],
+    cognitive: [
+      { milestone: 'Reads and writes 3 letter words', key: true },
+      { milestone: 'Understands numbers and shapes', key: true },
+    ],
+    movement: [
+      { milestone: 'run, jump, catch a ball and skip a rope', key: true },
     ],
   },
 };

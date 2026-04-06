@@ -171,7 +171,7 @@ export default function ChildProfileScreen() {
                 setUploading(true);
                 
                 // Upload to Firebase Storage
-                const path = `children/${selectedChild.id}/profile_${Date.now()}.jpg`;
+                const path = `profiles/${user.uid}/children/${selectedChild.id}/profile_${Date.now()}.jpg`;
                 const downloadUrl = await storageService.uploadImage(selectedUri, path);
                 
                 // Update in Backend via ChildContext
@@ -215,7 +215,7 @@ export default function ChildProfileScreen() {
     };
 
     const handleViewChart = () => {
-        router.push({ pathname: '/dashboard/growth-chart', params: { childId: selectedChild.id } });
+        router.push('/dashboard/growth-chart');
     };
 
     const getActivityIcon = (type) => {
@@ -263,6 +263,14 @@ export default function ChildProfileScreen() {
                     />
                 }
             >
+                {uploading && (
+                    <View style={styles.screenLevelOverlay}>
+                        <View style={styles.loadingBox}>
+                            <ActivityIndicator size="large" color="#FFF" />
+                            <Text style={styles.uploadingText}>Uploading Photo...</Text>
+                        </View>
+                    </View>
+                )}
                 {/* Profile Header */}
                 <View style={[styles.headerSection, { backgroundColor: colorScheme.surface }]}>
                     <View style={styles.photoContainer}>
@@ -696,4 +704,23 @@ const styles = StyleSheet.create({
         fontSize: Typography.fontSize.md,
         fontWeight: '700',
     },
+    screenLevelOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.7)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 9999,
+        elevation: 10,
+    },
+    loadingBox: {
+        padding: Spacing.xl,
+        borderRadius: BorderRadius.lg,
+        alignItems: 'center',
+        gap: Spacing.sm,
+    },
+    uploadingText: {
+        color: '#FFF',
+        fontSize: Typography.fontSize.md,
+        fontWeight: '600',
+    }
 });

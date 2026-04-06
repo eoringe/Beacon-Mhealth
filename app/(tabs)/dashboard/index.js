@@ -34,13 +34,23 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - Spacing.lg * 2;
 
 // ─── Feature Discovery Slides ───
+const SLIDING_CARD_COLORS = [
+    '#80c0d8',
+    '#FFE082', // Soft Yellow for Teething
+    '#e9b7e3',
+    '#e3a5b5',
+    '#a5e3b7',
+    '#c2d880',
+    '#d8af80'
+];
+
 const FEATURE_SLIDES = [
-    { id: 'track', icon: 'show-chart', title: 'Track Growth', desc: 'Monitor height & weight charts', color: '#2196F3', route: '/dashboard/growth-chart' },
-    { id: 'vaccine', icon: 'vaccines', title: 'Vaccination Schedule', desc: 'Never miss an immunization date', color: '#4CAF50', route: '/dashboard/vaccinations' },
-    { id: 'appt', icon: 'calendar-today', title: 'Book Appointments', desc: 'Schedule doctor visits in seconds', color: '#FF9800', route: '/(tabs)/appointments' },
-    { id: 'miles', icon: 'checklist', title: 'Milestone Checker', desc: 'Track developmental milestones by age', color: '#9C27B0', route: '/dashboard/milestone-checklist' },
-    { id: 'feed', icon: 'restaurant', title: 'Feeding Tracker', desc: 'Log breastfeeding, bottles & solids', color: '#E91E63', route: '/dashboard/feeding' },
-    { id: 'sleep', icon: 'bedtime', title: 'Sleep Tracker', desc: 'Track naps and nighttime sleep', color: '#5C6BC0', route: '/dashboard/sleep' },
+    { id: 'track', icon: 'show-chart', title: 'Track Growth', desc: 'Monitor height & weight charts', color: SLIDING_CARD_COLORS[0], route: '/dashboard/growth-chart' },
+    { id: 'vaccine', icon: 'vaccines', title: 'Vaccination Schedule', desc: 'Never miss an immunization date', color: SLIDING_CARD_COLORS[1], route: '/dashboard/vaccinations' },
+    { id: 'appt', icon: 'calendar-today', title: 'Book Appointments', desc: 'Schedule doctor visits in seconds', color: SLIDING_CARD_COLORS[2], route: '/(tabs)/appointments' },
+    { id: 'miles', icon: 'checklist', title: 'Milestones Checker', desc: 'Track developmental milestones by age', color: SLIDING_CARD_COLORS[3], route: '/dashboard/milestone-checklist' },
+    { id: 'feed', icon: 'restaurant', title: 'Feeding Tracker', desc: 'Log breastfeeding, bottles & solids', color: SLIDING_CARD_COLORS[4], route: '/dashboard/feeding' },
+    { id: 'sleep', icon: 'bedtime', title: 'Sleep Tracker', desc: 'Track naps and nighttime sleep', color: SLIDING_CARD_COLORS[5], route: '/dashboard/sleep' },
 ];
 
 // ─── Smooth Crossfade Carousel Component ───
@@ -77,13 +87,6 @@ function SmoothCarousel({ data, renderCard, autoScrollMs = 15000, cardHeight = 1
             <Animated.View style={{ opacity: fadeAnim, transform: [{ translateX: slideAnim }], minHeight: cardHeight, width: '100%' }}>
                 {renderCard(data[activeIndex], activeIndex)}
             </Animated.View>
-            {data.length > 1 && (
-                <View style={carouselStyles.dotsRow}>
-                    {data.map((_, i) => (
-                        <View key={i} style={[carouselStyles.dot, { backgroundColor: isDark ? 'rgba(255,255,255,0.3)' : '#D1D5DB' }, i === activeIndex && [carouselStyles.dotActive, { backgroundColor: colorScheme.primary }]]} />
-                    ))}
-                </View>
-            )}
         </View>
     );
 }
@@ -103,6 +106,17 @@ export default function DashboardScreen() {
     const { selectedChild, asdScreenings } = useChild();
     const { notifications, clearAll } = useNotifications();
     const { openDrawer } = useDrawer();
+
+    // AI FAB pulse animation
+    const fabPulse = useRef(new Animated.Value(1)).current;
+    useEffect(() => {
+        Animated.loop(
+            Animated.sequence([
+                Animated.timing(fabPulse, { toValue: 1.12, duration: 900, easing: Easing.ease, useNativeDriver: true }),
+                Animated.timing(fabPulse, { toValue: 1, duration: 900, easing: Easing.ease, useNativeDriver: true }),
+            ])
+        ).start();
+    }, []);
 
     // State
     const [milestoneConcern, setMilestoneConcern] = useState(false);
@@ -167,56 +181,56 @@ export default function DashboardScreen() {
 
         // 1. Age-based development tip
         const ageTips = [
-            { max: 3, icon: '👶', title: 'Newborn Phase', tip: `${name} is discovering the world! Lots of tummy time helps build neck strength.`, bg: '#6C63FF' },
-            { max: 6, icon: '🍼', title: 'Growing Fast', tip: `${name} may start reaching for toys and rolling over soon.`, bg: '#2196F3' },
-            { max: 9, icon: '🧸', title: 'Explorer Mode', tip: `${name} might be sitting up and babbling. Read together!`, bg: '#00897B' },
-            { max: 12, icon: '🎉', title: 'Almost One!', tip: `${name} may start standing or saying first words!`, bg: '#F4511E' },
-            { max: 18, icon: '🚶', title: 'On the Move', tip: `${name} is becoming more independent every day.`, bg: '#6D4C41' },
-            { max: 24, icon: '🗣️', title: 'Talking Time', tip: `${name}'s vocabulary is growing. Name everything!`, bg: '#5C6BC0' },
-            { max: 36, icon: '🎨', title: 'Creative Play', tip: `${name} loves pretend play and following instructions.`, bg: '#AB47BC' },
-            { max: 999, icon: '⭐', title: 'Growing Up', tip: `${name} is developing wonderfully!`, bg: '#FF7043' },
+            { max: 3, icon: '👶', title: 'Newborn Phase', tip: `${name} is discovering the world! Lots of tummy time helps build neck strength.`, bg: SLIDING_CARD_COLORS[0] },
+            { max: 6, icon: '🍼', title: 'Growing Fast', tip: `${name} may start reaching for toys and rolling over soon.`, bg: SLIDING_CARD_COLORS[1] },
+            { max: 9, icon: '🧸', title: 'Explorer Mode', tip: `${name} might be sitting up and babbling. Read together!`, bg: SLIDING_CARD_COLORS[2] },
+            { max: 12, icon: '🎉', title: 'Almost One!', tip: `${name} may start standing or saying first words!`, bg: SLIDING_CARD_COLORS[3] },
+            { max: 18, icon: '🚶', title: 'On the Move', tip: `${name} is becoming more independent every day.`, bg: SLIDING_CARD_COLORS[4] },
+            { max: 24, icon: '🗣️', title: 'Talking Time', tip: `${name}'s vocabulary is growing. Name everything!`, bg: SLIDING_CARD_COLORS[5] },
+            { max: 36, icon: '🎨', title: 'Creative Play', tip: `${name} loves pretend play and following instructions.`, bg: SLIDING_CARD_COLORS[6] },
+            { max: 999, icon: '⭐', title: 'Growing Up', tip: `${name} is developing wonderfully!`, bg: SLIDING_CARD_COLORS[0] },
         ];
         slides.push(ageTips.find(i => ageInMonths <= i.max) || ageTips[ageTips.length - 1]);
 
         // 2. Today's Activity
         const dailyActivity = getDailyPick(ageInMonths);
         if (dailyActivity) {
-            slides.push({ icon: '🎯', title: "Today's Activity", tip: `Try: ${dailyActivity.title} — ${dailyActivity.description}`, bg: '#009688', route: '/dashboard/activities' });
+            slides.push({ icon: '🎯', title: "Today's Activity", tip: `Try: ${dailyActivity.title} — ${dailyActivity.description}`, bg: SLIDING_CARD_COLORS[2], route: '/dashboard/activities' });
         }
 
         // 3. Milestone Progress
         if (milestoneProgress != null) {
-            slides.push({ icon: '📊', title: 'Milestones', tip: `${name} has achieved ${milestoneProgress}% of tracked milestones.${milestoneProgress > 0 ? ' Excellent progress!' : ''}`, bg: '#7B1FA2', route: '/dashboard/milestone-checklist' });
+            slides.push({ icon: '📊', title: 'Milestones', tip: `${name} has achieved ${milestoneProgress}% of tracked milestones.${milestoneProgress > 0 ? ' Excellent progress!' : ''}`, bg: SLIDING_CARD_COLORS[3], route: '/dashboard/milestone-checklist' });
         } else {
-            slides.push({ icon: '📋', title: 'Development', tip: `Start tracking ${name}'s milestones to get personalized developmental insights.`, bg: '#455A64', route: '/dashboard/milestone-checklist' });
+            slides.push({ icon: '📋', title: 'Development', tip: `Start tracking ${name}'s milestones to get personalized developmental insights.`, bg: SLIDING_CARD_COLORS[3], route: '/dashboard/milestone-checklist' });
         }
 
         // 4. Baby's Firsts
         if (trackerStats.firstsCount > 0) {
-            slides.push({ icon: '🌟', title: "Baby's Firsts", tip: `You've captured ${trackerStats.firstsCount} special moments! Keep making beautiful memories.`, bg: '#FF9800', route: '/dashboard/firsts' });
+            slides.push({ icon: '🌟', title: "Baby's Firsts", tip: `You've captured ${trackerStats.firstsCount} special moments! Keep making beautiful memories.`, bg: SLIDING_CARD_COLORS[4], route: '/dashboard/firsts' });
         } else {
-            slides.push({ icon: '⭐', title: "First Moments", tip: `Capture ${name}'s first smile or word in the Firsts Journal.`, bg: '#FFB74D', route: '/dashboard/firsts' });
+            slides.push({ icon: '⭐', title: "First Moments", tip: `Capture ${name}'s first smile or word in the Firsts Journal.`, bg: SLIDING_CARD_COLORS[4], route: '/dashboard/firsts' });
         }
 
         // 5. Feeding
         if (trackerStats.feedingToday > 0) {
-            slides.push({ icon: '🍼', title: 'Feeding Today', tip: `Well-fed and happy! You've logged ${trackerStats.feedingToday} feedings for ${name} today.`, bg: '#E91E63', route: '/dashboard/feeding' });
+            slides.push({ icon: '🍼', title: 'Feeding Today', tip: `Well-fed and happy! You've logged ${trackerStats.feedingToday} feedings for ${name} today.`, bg: SLIDING_CARD_COLORS[5], route: '/dashboard/feeding' });
         } else {
-            slides.push({ icon: '🍽️', title: 'Feeding Tracker', tip: `Log ${name}'s breastfeeding, bottles or solids to monitor nutrition.`, bg: '#F06292', route: '/dashboard/feeding' });
+            slides.push({ icon: '🍽️', title: 'Feeding Tracker', tip: `Log ${name}'s breastfeeding, bottles or solids to monitor nutrition.`, bg: SLIDING_CARD_COLORS[5], route: '/dashboard/feeding' });
         }
 
         // 6. Sleep
         if (trackerStats.sleepToday > 0) {
-            slides.push({ icon: '😴', title: 'Sleep Status', tip: `Sweet dreams! ${name} has logged some restful sleep today. Growth happens during rest!`, bg: '#512DA8', route: '/dashboard/sleep' });
+            slides.push({ icon: '😴', title: 'Sleep Status', tip: `Sweet dreams! ${name} has logged some restful sleep today. Growth happens during rest!`, bg: SLIDING_CARD_COLORS[6], route: '/dashboard/sleep' });
         } else {
-            slides.push({ icon: '🌙', title: 'Sleep Tracker', tip: `Track naps and nighttime sleep to understand ${name}'s daily patterns.`, bg: '#7986CB', route: '/dashboard/sleep' });
+            slides.push({ icon: '🌙', title: 'Sleep Tracker', tip: `Track naps and nighttime sleep to understand ${name}'s daily patterns.`, bg: SLIDING_CARD_COLORS[6], route: '/dashboard/sleep' });
         }
 
         // 7. Teething
         if (trackerStats.teethingCount > 0) {
-            slides.push({ icon: '🦷', title: 'Teething Progress', tip: `That growing smile! You've tracked ${trackerStats.teethingCount} teeth for ${name} so far.`, bg: '#4CAF50', route: '/dashboard/teething' });
+            slides.push({ icon: '🦷', title: 'Teething Progress', tip: `${name} has tracked ${trackerStats.teethingCount} teeth!`, bg: SLIDING_CARD_COLORS[1], route: '/dashboard/teething' });
         } else {
-            slides.push({ icon: '👶', title: 'Teething Chart', tip: `Track when ${name}'s teeth erupt and manage those gummy smiles.`, bg: '#81C784', route: '/dashboard/teething' });
+            slides.push({ icon: '👶', title: 'Teething Chart', tip: `Track when ${name}'s teeth erupt and manage those gummy smiles.`, bg: SLIDING_CARD_COLORS[1], route: '/dashboard/teething' });
         }
 
         return slides;
@@ -395,7 +409,7 @@ export default function DashboardScreen() {
                     <TouchableOpacity style={styles.menuButton} onPress={openDrawer}>
                         <MaterialIcons name="menu" size={26} color="#FFFFFF" />
                     </TouchableOpacity>
-                    <View>
+                    <View style={styles.headerInfo}>
                         <Text style={[styles.greeting, { color: 'rgba(255, 255, 255, 0.8)' }]}>{getGreeting()},</Text>
                         <Text style={[styles.userName, { color: '#FFFFFF' }]}>{user?.displayName || 'Parent'}</Text>
                     </View>
@@ -408,6 +422,11 @@ export default function DashboardScreen() {
             <ScrollView style={styles.content} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + Spacing.xxl }]} showsVerticalScrollIndicator={false}>
                 {/* Child Selector */}
                 <View style={styles.section}>
+                    {selectedChild && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.xs }}>
+                            <Text style={[styles.sectionTitle, { color: colorScheme.textTertiary, marginBottom: 0 }]}>Switch/add child</Text>
+                        </View>
+                    )}
                     {selectedChild ? (
                         <TouchableOpacity style={[styles.childCard, { backgroundColor: isDark ? colorScheme.surface : '#FFFFFF' }]} onPress={() => router.push('/profile/children')}>
                             <View style={[styles.avatarContainer, { backgroundColor: isDark ? `${colorScheme.primary}25` : `${colorScheme.primary}10`, overflow: 'hidden' }]}>
@@ -524,17 +543,17 @@ export default function DashboardScreen() {
                 {selectedChild && (
                     <View style={styles.statsRow}>
                         <TouchableOpacity style={[styles.statCard, { backgroundColor: colorScheme.surface }]} onPress={() => navigateTo('/dashboard/milestone-checklist')}>
-                            <View style={[styles.progressRing, { borderColor: milestoneProgress != null ? colorScheme.primary : colorScheme.border }]}>
-                                <Text style={[styles.progressText, { color: colorScheme.primary }]} adjustsFontSizeToFit numberOfLines={1}>{milestoneProgress != null ? `${milestoneProgress}%` : '—'}</Text>
+                            <View style={[styles.progressRing, { borderColor: milestoneProgress != null ? colorScheme.primary : colorScheme.border, width: 56, height: 56, borderRadius: 28 }]}>
+                                <Text style={[styles.progressText, { color: colorScheme.primary, fontSize: 16 }]} adjustsFontSizeToFit numberOfLines={1}>{milestoneProgress != null ? `${milestoneProgress}%` : '—'}</Text>
                             </View>
-                            <Text style={[styles.statLabel, { color: colorScheme.textSecondary }]}>Milestones</Text>
-                            <Text style={[styles.statSub, { color: colorScheme.textTertiary }]}>{milestoneProgress != null ? 'achieved' : 'not started'}</Text>
+                            <Text style={[styles.statLabel, { color: colorScheme.primary }]}>Milestones</Text>
+                            <Text style={[styles.statSub, { color: colorScheme.textTertiary }]}>{milestoneProgress != null ? 'achieved' : 'Get started'}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={[styles.statCard, { backgroundColor: colorScheme.surface }]} onPress={() => router.push('/(tabs)/appointments')}>
                             {upcomingAppointments.length > 0 ? (
                                 <>
-                                    <View style={[styles.statIcon, { backgroundColor: `${colorScheme.primary}15` }]}>
-                                        <MaterialIcons name="event" size={24} color={colorScheme.primary} />
+                                    <View style={[styles.statIcon, { backgroundColor: `${colorScheme.primary}15`, width: 56, height: 56, borderRadius: 28 }]}>
+                                        <MaterialIcons name="event" size={28} color={colorScheme.primary} />
                                     </View>
                                     <Text style={[styles.statLabel, { color: colorScheme.textSecondary }]}>Next Visit</Text>
                                     <Text style={[styles.statDate, { color: colorScheme.textPrimary }]}>
@@ -543,8 +562,8 @@ export default function DashboardScreen() {
                                 </>
                             ) : (
                                 <>
-                                    <View style={[styles.statIcon, { backgroundColor: `${colorScheme.primary}15` }]}>
-                                        <MaterialIcons name="add-circle" size={24} color={colorScheme.primary} />
+                                    <View style={[styles.statIcon, { backgroundColor: `${colorScheme.primary}15`, width: 56, height: 56, borderRadius: 28 }]}>
+                                        <MaterialIcons name="add-circle" size={30} color={colorScheme.primary} />
                                     </View>
                                     <Text style={[styles.statDate, { color: colorScheme.primary }]} adjustsFontSizeToFit numberOfLines={1}>Book Appointment</Text>
                                     <Text style={[styles.statSub, { color: colorScheme.textTertiary }]}>No upcoming visits</Text>
@@ -565,7 +584,7 @@ export default function DashboardScreen() {
                                     <View style={[styles.trackerIcon, { backgroundColor: '#2196F320' }]}>
                                         <MaterialIcons name="checklist" size={20} color="#2196F3" />
                                     </View>
-                                    <Text style={[styles.trackerName, { color: colorScheme.textPrimary }]}>Milestone tracker</Text>
+                                    <Text style={[styles.trackerName, { color: colorScheme.textPrimary }]}>Milestones Tracker</Text>
                                 </View>
                                 <Text style={[styles.trackerStatus, { color: colorScheme.primary, fontWeight: 'bold' }]}>
                                     {milestoneProgress != null ? `${milestoneProgress}%` : '-'}
@@ -578,10 +597,10 @@ export default function DashboardScreen() {
                                     <View style={[styles.trackerIcon, { backgroundColor: '#00968820' }]}>
                                         <MaterialIcons name="vaccines" size={20} color="#009688" />
                                     </View>
-                                    <Text style={[styles.trackerName, { color: colorScheme.textPrimary }]}>Vaccination tracker</Text>
+                                    <Text style={[styles.trackerName, { color: colorScheme.textPrimary }]}>Vaccinations Tracker</Text>
                                 </View>
                                 <Text style={[styles.trackerStatus, { color: vaccineActionNeeded ? '#FF9800' : colorScheme.primary, fontWeight: 'bold' }]}>
-                                    {vaccineActionNeeded ? 'Confirm Administration' : 'Up to date'}
+                                    {vaccineActionNeeded ? 'Confirm' : 'Up to date'}
                                 </Text>
                             </TouchableOpacity>
 
@@ -594,17 +613,17 @@ export default function DashboardScreen() {
                                     <Text style={[styles.trackerName, { color: colorScheme.textPrimary }]}>Growth Tracker</Text>
                                 </View>
                                 <Text style={[styles.trackerStatus, { color: colorScheme.textSecondary }]}>
-                                    View growth tracker
+                                    view chart
                                 </Text>
                             </TouchableOpacity>
 
                             {/* Teething Tracker (Orange) */}
                             <TouchableOpacity style={[styles.trackerRow, { backgroundColor: colorScheme.surface, borderBottomWidth: 0, borderRadius: 12 }]} onPress={() => navigateTo('/dashboard/teething')}>
                                 <View style={styles.trackerLeft}>
-                                    <View style={[styles.trackerIcon, { backgroundColor: '#FF980020' }]}>
-                                        <MaterialIcons name="child-care" size={20} color="#FF9800" />
+                                    <View style={[styles.trackerIcon, { backgroundColor: '#FFE08240' }]}>
+                                        <MaterialIcons name="child-care" size={20} color="#FBC02D" />
                                     </View>
-                                    <Text style={[styles.trackerName, { color: colorScheme.textPrimary }]}>Teething tracker</Text>
+                                    <Text style={[styles.trackerName, { color: colorScheme.textPrimary }]}>Teething Tracker</Text>
                                 </View>
                                 <Text style={[styles.trackerStatus, { color: colorScheme.textSecondary }]}>
                                     {trackerStats.teethingCount} {trackerStats.teethingCount === 1 ? 'tooth' : 'teeth'}
@@ -684,6 +703,31 @@ export default function DashboardScreen() {
                     </View>
                 )}
             </ScrollView>
+
+            {/* ── AI Floating Action Button ── */}
+            <Animated.View
+                style={[
+                    styles.fabContainer,
+                    {
+                        bottom: insets.bottom + 80,
+                        transform: [{ scale: fabPulse }],
+                    },
+                ]}
+                pointerEvents="box-none"
+            >
+                <TouchableOpacity
+                    style={styles.fab}
+                    onPress={() => router.push('/beacon-ai')}
+                    activeOpacity={0.85}
+                >
+                    <Image
+                        source={require('../../../assets/images/beacon.png')}
+                        style={styles.fabLogo}
+                        resizeMode="contain"
+                    />
+                    <View style={styles.fabOnlineDot} />
+                </TouchableOpacity>
+            </Animated.View>
         </View>
     );
 }
@@ -722,9 +766,9 @@ const styles = StyleSheet.create({
     insightCard: { borderRadius: BorderRadius.lg, padding: Spacing.lg, paddingBottom: Spacing.md, width: '100%' },
     insightHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.sm, gap: Spacing.sm },
     insightEmoji: { fontSize: 28 },
-    insightBadge: { backgroundColor: 'rgba(255,255,255,0.25)', paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: BorderRadius.md },
-    insightBadgeText: { color: '#FFF', fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.bold },
-    insightTip: { color: 'rgba(255,255,255,0.95)', fontSize: Typography.fontSize.sm, lineHeight: 20, flexShrink: 1 },
+    insightBadge: { backgroundColor: 'rgba(0,0,0,0.08)', paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: BorderRadius.md },
+    insightBadgeText: { color: '#1A1A1A', fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.bold },
+    insightTip: { color: 'rgba(0,0,0,0.75)', fontSize: Typography.fontSize.sm, lineHeight: 20, flexShrink: 1 },
     // Stats
     statsRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.lg },
     statCard: { flex: 1, borderRadius: BorderRadius.lg, padding: Spacing.md, alignItems: 'center', ...Shadow.sm },
@@ -735,11 +779,31 @@ const styles = StyleSheet.create({
     statDate: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.bold },
     statIcon: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.xs },
     // Tracker Table Section
-    trackerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.md, borderBottomWidth: 1 },
-    trackerLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-    trackerIcon: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-    trackerName: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.medium },
-    trackerStatus: { fontSize: Typography.fontSize.xs, fontWeight: Typography.fontWeight.medium },
+    trackerRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: Spacing.md,
+        borderBottomWidth: 1,
+        gap: Spacing.sm,
+    },
+    trackerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.md,
+        flex: 1,
+    },
+    trackerName: {
+        fontSize: Typography.fontSize.sm,
+        fontWeight: Typography.fontWeight.medium,
+        flexShrink: 1,
+    },
+    trackerStatus: {
+        fontSize: Typography.fontSize.xs,
+        fontWeight: Typography.fontWeight.bold,
+        textAlign: 'right',
+        marginLeft: Spacing.xs,
+    },
     // Feature Card
     featureCard: { borderRadius: BorderRadius.lg, padding: Spacing.lg, width: '100%' },
     featureIcon: { width: 48, height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginBottom: Spacing.sm },
@@ -774,4 +838,40 @@ const styles = StyleSheet.create({
     warningBtnText: { color: '#FFF', fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, textAlign: 'center' },
     warningBtnSec: { minWidth: '45%', flexGrow: 1, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.sm, borderRadius: BorderRadius.md, borderWidth: 1, alignItems: 'center', backgroundColor: 'transparent' },
     warningBtnSecText: { fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold, textAlign: 'center' },
+    // AI FAB
+    fabContainer: {
+        position: 'absolute',
+        right: Spacing.lg,
+        zIndex: 99,
+    },
+    fab: {
+        width: 58,
+        height: 58,
+        borderRadius: 29,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        shadowColor: '#5C6BC0',
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.45,
+        shadowRadius: 12,
+        elevation: 12,
+        overflow: 'visible',
+    },
+    fabLogo: {
+        width: 52,
+        height: 52,
+        borderRadius: 26,
+    },
+    fabOnlineDot: {
+        position: 'absolute',
+        top: 1,
+        right: 1,
+        width: 13,
+        height: 13,
+        borderRadius: 7,
+        backgroundColor: '#22C55E',
+        borderWidth: 2,
+        borderColor: '#FFFFFF',
+    },
 });

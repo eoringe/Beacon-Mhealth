@@ -28,9 +28,14 @@ import mpesaService from '@/services/mpesaService';
 import { Colors } from '@/constants/theme';
 
 const CONSULTATION_PRICES = {
-    'Developmental Paediatrician': 2500,
-    'Occupational Therapy': 1000,
-    'Speech Therapy': 1500,
+    'Medical Officer': 1000,
+    'Paediatrician': 2000,
+    'Developmental Paediatrician': 3000,
+    'Occupational Therapist': 1500,
+    'Speech Therapist': 2000,
+    'Physiotherapist': 1500,
+    'Psychologist': 2500,
+    'Nutritionist': 1500,
     'Default': 1000 // Fallback price
 };
 

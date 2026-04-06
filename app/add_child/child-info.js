@@ -42,7 +42,7 @@ export default function ChildInfoScreen() {
   const containerWidth = SCREEN_WIDTH - 48; // Account for padding
 
   // Age options for slider - using predefined ages from constants
-  const allAges = [2, 3, 5, 6, 10, 12, 15];
+  const allAges = [2, 3, 5, 6, 10, 12, 15, 18, 24, 30, 36, 48, 60, 72];
   const scrollViewPadding = 16;
 
   const scrollToAge = (direction) => {

@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, usePathname } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useChild } from '@/contexts/ChildContext';
@@ -30,8 +30,11 @@ const NAV_SECTIONS = [
         items: [
             { id: 'growth', label: 'Growth Chart', icon: 'show-chart', route: '/dashboard/growth-chart', color: '#2196F3' },
             { id: 'vaccinations', label: 'Vaccinations', icon: 'vaccines', route: '/dashboard/vaccinations', color: '#4CAF50' },
-            { id: 'milestone_check', label: 'Milestone Checker', icon: 'checklist', route: '/dashboard/milestone-checklist', color: '#4CAF50' },
+            { id: 'milestone_check', label: 'Milestones Checker', icon: 'checklist', route: '/dashboard/milestone-checklist', color: '#4CAF50' },
+            { id: 'milestone_overview', label: 'Milestones Overview', icon: 'flag', route: '/explore', color: '#673AB7' },
+            { id: 'asd_screener', label: 'ASD Screener', icon: 'psychology', route: '/asd-checklist', color: '#673AB7' },
             { id: 'reports', label: 'Medical Reports', icon: 'folder-open', route: '/dashboard/medical-reports', color: '#9C27B0' },
+            { id: 'firsts', label: "Baby's Firsts", icon: 'emoji-events', route: '/dashboard/firsts', color: '#FF9800' },
         ],
     },
     {
@@ -40,12 +43,6 @@ const NAV_SECTIONS = [
             { id: 'feeding', label: 'Feeding Tracker', icon: 'restaurant', route: '/dashboard/feeding', color: '#E91E63' },
             { id: 'sleep', label: 'Sleep Tracker', icon: 'bedtime', route: '/dashboard/sleep', color: '#5C6BC0' },
             { id: 'teething', label: 'Teething Chart', icon: 'face', route: '/dashboard/teething', color: '#FF5722' },
-        ],
-    },
-    {
-        title: 'Development',
-        items: [
-            { id: 'firsts', label: "Baby's Firsts", icon: 'emoji-events', route: '/dashboard/firsts', color: '#FF9800' },
             { id: 'activities', label: 'Daily Activities', icon: 'sports-handball', route: '/dashboard/activities', color: '#009688' },
         ],
     },
@@ -58,6 +55,7 @@ export default function NavigationDrawer({ visible, onClose }) {
     const { user, logout } = useAuth();
     const { selectedChild, children: childrenList } = useChild();
     const [isRendered, setIsRendered] = useState(false);
+    const isNavigating = useRef(false);
 
     const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
     const overlayAnim = useRef(new Animated.Value(0)).current;
@@ -105,10 +103,23 @@ export default function NavigationDrawer({ visible, onClose }) {
         return () => handler.remove();
     }, [visible]);
 
+    const pathname = usePathname();
     const handleNavigate = (route) => {
+        if (isNavigating.current) return;
+        
+        // Prevent duplicate navigation if already on the route
+        if (pathname === route || (route.startsWith('/(tabs)') && pathname === route.replace('/(tabs)', ''))) {
+            onClose();
+            return;
+        }
+
+        isNavigating.current = true;
         onClose();
+        
         setTimeout(() => {
             router.push(route);
+            // Reset navigation lock after a bit
+            setTimeout(() => { isNavigating.current = false; }, 500);
         }, 300);
     };
 
@@ -174,6 +185,24 @@ export default function NavigationDrawer({ visible, onClose }) {
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={{ paddingBottom: 20 }}
                 >
+                    {/* ── Beacon AI Highlighted Link ── */}
+                    <View style={[styles.navSection, { marginTop: Spacing.md }]}>
+                        <TouchableOpacity
+                            style={[styles.aiNavButton, { backgroundColor: `${colorScheme.primary}18`, borderColor: `${colorScheme.primary}40` }]}
+                            onPress={() => handleNavigate('/beacon-ai')}
+                            activeOpacity={0.75}
+                        >
+                            <View style={[styles.aiNavIcon, { backgroundColor: colorScheme.primary }]}>
+                                <MaterialIcons name="smart-toy" size={20} color="#FFFFFF" />
+                            </View>
+                            <View style={styles.aiNavText}>
+                                <Text style={[styles.aiNavLabel, { color: colorScheme.primary }]}>Ask Beacon AI</Text>
+                                <Text style={[styles.aiNavSub, { color: colorScheme.textSecondary }]}>Your Beacon assistant</Text>
+                            </View>
+                            <View style={styles.aiOnlineDot} />
+                        </TouchableOpacity>
+                    </View>
+
                     {NAV_SECTIONS.map((section) => (
                         <View key={section.title} style={styles.navSection}>
                             <Text style={[styles.sectionLabel, { color: colorScheme.textTertiary }]}>
@@ -222,6 +251,40 @@ const styles = StyleSheet.create({
     overlay: {
         ...StyleSheet.absoluteFillObject,
         backgroundColor: 'rgba(0,0,0,0.5)',
+    },
+    // AI Nav Button
+    aiNavButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.md,
+        paddingVertical: Spacing.sm,
+        paddingHorizontal: Spacing.sm,
+        borderRadius: BorderRadius.lg,
+        borderWidth: 1,
+    },
+    aiNavIcon: {
+        width: 38,
+        height: 38,
+        borderRadius: BorderRadius.md,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    aiNavText: {
+        flex: 1,
+    },
+    aiNavLabel: {
+        fontSize: Typography.fontSize.sm,
+        fontWeight: Typography.fontWeight.bold,
+    },
+    aiNavSub: {
+        fontSize: Typography.fontSize.xs,
+        marginTop: 1,
+    },
+    aiOnlineDot: {
+        width: 9,
+        height: 9,
+        borderRadius: 5,
+        backgroundColor: '#22C55E',
     },
     drawer: {
         position: 'absolute',

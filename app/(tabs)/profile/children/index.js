@@ -136,29 +136,20 @@ export default function ChildrenListScreen() {
                 )}
             </TouchableOpacity>
 
+            <TouchableOpacity 
+                style={{ position: 'absolute', top: Spacing.sm, right: Spacing.sm, zIndex: 1, padding: Spacing.xs, backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 12 }}
+                onPress={() => handleDelete(item)}
+            >
+                <MaterialIcons name="delete" size={16} color={colorScheme.error} />
+            </TouchableOpacity>
+
             <View style={[styles.actionButtons, { borderTopColor: colorScheme.border }]}>
                 <TouchableOpacity
                     style={styles.actionButton}
                     onPress={() => handleViewProfile(item)}
                 >
                     <MaterialIcons name="person" size={20} color={colorScheme.primary} />
-                    <Text style={[styles.actionText, { color: colorScheme.primary }]}>Profile</Text>
-                </TouchableOpacity>
-                <View style={[styles.actionDivider, { backgroundColor: colorScheme.border }]} />
-                <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => router.push({ pathname: '/profile/children/edit', params: { id: item.id } })}
-                >
-                    <MaterialIcons name="edit" size={20} color={colorScheme.textSecondary} />
-                    <Text style={[styles.actionText, { color: colorScheme.textSecondary }]}>Edit</Text>
-                </TouchableOpacity>
-                <View style={[styles.actionDivider, { backgroundColor: colorScheme.border }]} />
-                <TouchableOpacity
-                    style={styles.actionButton}
-                    onPress={() => handleDelete(item)}
-                >
-                    <MaterialIcons name="delete" size={20} color={colorScheme.error} />
-                    <Text style={[styles.actionText, { color: colorScheme.error }]}>Delete</Text>
+                    <Text style={[styles.actionText, { color: colorScheme.primary }]}>View Profile</Text>
                 </TouchableOpacity>
             </View>
         </View>
@@ -191,7 +182,7 @@ export default function ChildrenListScreen() {
                         onPress={() => router.push('/profile/children/lookup')}
                     >
                         <MaterialIcons name="search" size={20} color="#FFFFFF" />
-                        <Text style={styles.addButtonText}>Find Patient from Clinic</Text>
+                        <Text style={styles.addButtonText}>Find Client from Clinic</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                         style={[styles.secondaryButton, { borderColor: colorScheme.primary }]}

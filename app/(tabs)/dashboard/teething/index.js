@@ -92,7 +92,7 @@ export default function TeethingChartScreen() {
     const eruptedCount = Object.keys(eruptedTeeth).length;
 
     const getToothColor = (toothId) => {
-        if (eruptedTeeth[toothId]) return '#4CAF50';
+        if (eruptedTeeth[toothId]) return '#1E3A8A';
         return colorScheme.border;
     };
 
@@ -107,15 +107,15 @@ export default function TeethingChartScreen() {
                 style={[
                     styles.toothCell,
                     {
-                        backgroundColor: isErupted ? '#4CAF5020' : colorScheme.surface,
-                        borderColor: isErupted ? '#4CAF50' : colorScheme.border,
+                        backgroundColor: isErupted ? '#1E3A8A20' : colorScheme.surface,
+                        borderColor: isErupted ? '#1E3A8A' : colorScheme.border,
                     }
                 ]}
                 onPress={() => handleToothPress(tooth)}
             >
                 <Text style={styles.toothEmoji}>🦷</Text>
                 <Text style={[styles.toothName, {
-                    color: isErupted ? '#4CAF50' : colorScheme.textPrimary,
+                    color: isErupted ? '#1E3A8A' : colorScheme.textPrimary,
                 }]} numberOfLines={2}>
                     {getShortName(tooth.name)}
                 </Text>
@@ -126,7 +126,7 @@ export default function TeethingChartScreen() {
                 </Text>
                 {isErupted && (
                     <View style={styles.checkMark}>
-                        <MaterialIcons name="check-circle" size={14} color="#4CAF50" />
+                        <MaterialIcons name="check-circle" size={14} color="#1E3A8A" />
                     </View>
                 )}
             </TouchableOpacity>
@@ -143,7 +143,7 @@ export default function TeethingChartScreen() {
                 showsVerticalScrollIndicator={false}
             >
                 {/* Progress */}
-                <View style={[styles.progressCard, { backgroundColor: colorScheme.surface }]}>
+                <View style={[styles.progressCard, { backgroundColor: '#FFE082' }]}>
                     <View style={styles.progressHeader}>
                         <Text style={[styles.progressTitle, { color: colorScheme.textPrimary }]}>
                             Teeth Erupted
@@ -214,9 +214,9 @@ export default function TeethingChartScreen() {
                             </Text>
                         </View>
                         <View style={styles.legendItem}>
-                            <View style={[styles.legendDot, { backgroundColor: '#4CAF50' }]} />
+                            <View style={[styles.legendDot, { backgroundColor: '#1E3A8A' }]} />
                             <Text style={[styles.legendText, { color: colorScheme.textSecondary }]}>
-                                Green = tooth has erupted
+                                Dark Blue = tooth has erupted
                             </Text>
                         </View>
                         <View style={styles.legendItem}>

@@ -9,8 +9,8 @@ import { useAlert } from '@/contexts/AlertContext';
 import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme';
 
 // External URLs for legal pages
-const TERMS_URL = 'https://beaconchildrencenter.co.ke/terms-of-use?token=mobile-app-secure-access';
-const PRIVACY_URL = 'https://beaconchildrencenter.co.ke/privacy-policy?token=mobile-app-secure-access';
+const TERMS_URL = 'https://www.beaconchildrencenter.co.ke/terms-of-service';
+const PRIVACY_URL = 'https://www.beaconchildrencenter.co.ke/privacy-policy';
 
 export default function SettingsScreen() {
     const { colorScheme } = useTheme();

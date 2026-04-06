@@ -109,6 +109,7 @@ function NavigationWrapper() {
           <Stack.Screen name="index" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
           <Stack.Screen name="(tabs)" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
           <Stack.Screen name="auth" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
+          <Stack.Screen name="beacon-ai" options={{ contentStyle: { backgroundColor: colorScheme.background }, animation: 'slide_from_bottom' }} />
           <Stack.Screen name="+not-found" />
         </Stack>
       </View>

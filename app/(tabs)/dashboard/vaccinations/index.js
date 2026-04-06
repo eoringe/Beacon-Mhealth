@@ -443,33 +443,37 @@ export default function VaccinationsScreen() {
                                         />
                                     </View>
                                     <View style={styles.vaccineInfo}>
-                                        <Text style={[styles.vaccineName, { color: colorScheme.textPrimary }]}>
-                                            {vaccine.name}
-                                        </Text>
+                                        <View style={styles.vaccineHeaderRow}>
+                                            <Text style={[styles.vaccineName, { color: colorScheme.textPrimary }]} numberOfLines={2}>
+                                                {vaccine.name}
+                                            </Text>
+                                            <MaterialIcons
+                                                name={expandedId === vaccine.id ? 'expand-less' : 'expand-more'}
+                                                size={24}
+                                                color={colorScheme.textTertiary}
+                                            />
+                                        </View>
+                                        
                                         <Text style={[styles.vaccineFullName, { color: colorScheme.textSecondary }]}>
                                             {vaccine.fullName}
                                         </Text>
                                         <Text style={[styles.scheduleAge, { color: colorScheme.textTertiary }]}>
                                             Schedule: {vaccine.ageLabel}
                                         </Text>
-                                        {vaccine.highRiskCountiesOnly && (
-                                            <View style={styles.highRiskBadge}>
-                                                <MaterialIcons name="location-on" size={10} color="#E65100" />
-                                                <Text style={styles.highRiskBadgeText}>High-Risk Counties Only</Text>
+
+                                        <View style={styles.statusRow}>
+                                            <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(vaccine.status)}20` }]}>
+                                                <Text style={[styles.statusText, { color: getStatusColor(vaccine.status) }]}>
+                                                    {getStatusLabel(vaccine.status)}
+                                                </Text>
                                             </View>
-                                        )}
-                                    </View>
-                                    <View style={styles.vaccineRight}>
-                                        <View style={[styles.statusBadge, { backgroundColor: `${getStatusColor(vaccine.status)}20` }]}>
-                                            <Text style={[styles.statusText, { color: getStatusColor(vaccine.status) }]}>
-                                                {getStatusLabel(vaccine.status)}
-                                            </Text>
+                                            {vaccine.highRiskCountiesOnly && (
+                                                <View style={styles.highRiskBadge}>
+                                                    <MaterialIcons name="location-on" size={10} color="#E65100" />
+                                                    <Text style={styles.highRiskBadgeText}>High-Risk Counties Only</Text>
+                                                </View>
+                                            )}
                                         </View>
-                                        <MaterialIcons
-                                            name={expandedId === vaccine.id ? 'expand-less' : 'expand-more'}
-                                            size={24}
-                                            color={colorScheme.textTertiary}
-                                        />
                                     </View>
                                 </View>
 
@@ -741,22 +745,29 @@ const styles = StyleSheet.create({
     summaryRow: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-around',
     },
     summaryItem: {
         flex: 1,
         alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 2,
     },
     summaryDivider: {
         width: 1,
-        height: 40,
+        height: 30,
+        opacity: 0.5,
     },
     summaryValue: {
-        fontSize: 24,
+        fontSize: 22,
         fontWeight: Typography.fontWeight.bold,
-        marginBottom: Spacing.xs,
+        marginBottom: 2,
+        textAlign: 'center',
     },
     summaryLabel: {
-        fontSize: Typography.fontSize.xs,
+        fontSize: 11,
+        textAlign: 'center',
+        lineHeight: 14,
     },
     section: {
         paddingHorizontal: Spacing.lg,
@@ -808,55 +819,66 @@ const styles = StyleSheet.create({
     },
     vaccineHeader: {
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'flex-start',
+        gap: Spacing.sm,
     },
     vaccineIcon: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: 40,
+        height: 40,
+        borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: Spacing.md,
     },
     vaccineInfo: {
         flex: 1,
+        paddingRight: Spacing.xs,
     },
     vaccineName: {
-        fontSize: Typography.fontSize.md,
-        fontWeight: Typography.fontWeight.semibold,
+        fontSize: Typography.fontSize.base,
+        fontWeight: Typography.fontWeight.bold,
+        lineHeight: 20,
     },
     vaccineFullName: {
-        fontSize: Typography.fontSize.xs,
+        fontSize: 11,
+        lineHeight: 15,
         marginTop: 2,
     },
     scheduleAge: {
         fontSize: Typography.fontSize.xs,
         marginTop: 2,
     },
-    highRiskBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 3,
-        marginTop: 4,
-        backgroundColor: '#FBE9E7',
-        alignSelf: 'flex-start',
-        paddingHorizontal: 6,
-        paddingVertical: 2,
-        borderRadius: 4,
-    },
     highRiskBadgeText: {
         fontSize: 9,
         color: '#E65100',
         fontWeight: '600',
     },
-    vaccineRight: {
-        alignItems: 'flex-end',
-        gap: Spacing.xs,
+    highRiskBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+        backgroundColor: '#FBE9E7',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    vaccineHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        width: '100%',
+    },
+    statusRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: Spacing.sm,
+        marginTop: Spacing.xs,
     },
     statusBadge: {
         paddingHorizontal: Spacing.sm,
         paddingVertical: 4,
         borderRadius: BorderRadius.sm,
+        alignSelf: 'flex-start',
     },
     statusText: {
         fontSize: Typography.fontSize.xs,

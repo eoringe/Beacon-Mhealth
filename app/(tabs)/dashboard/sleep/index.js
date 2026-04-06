@@ -15,6 +15,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useChild } from '@/contexts/ChildContext';
 import { useAlert } from '@/contexts/AlertContext';
 import { SafeHeader } from '@/components/SafeHeader';
+import { SleepChart } from '@/components/SleepChart';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 
 const STORAGE_KEY = 'sleep_logs';
@@ -77,15 +78,29 @@ export default function SleepTrackerScreen() {
 
     const handleAddEntry = () => {
         if (hours === 0 && minutes === 0) return;
+        
+        const todayStr = new Date().toDateString();
+        const existingNightIndex = sleepType === 'night' 
+            ? logs.findIndex(l => l.type === 'night' && new Date(l.timestamp).toDateString() === todayStr)
+            : -1;
+
         const entry = {
-            id: Date.now().toString(),
+            id: existingNightIndex >= 0 ? logs[existingNightIndex].id : Date.now().toString(),
             type: sleepType,
             hours,
             minutes,
             totalMinutes: hours * 60 + minutes,
-            timestamp: new Date().toISOString(),
+            timestamp: existingNightIndex >= 0 ? logs[existingNightIndex].timestamp : new Date().toISOString(),
         };
-        const updated = [entry, ...logs];
+
+        let updated;
+        if (existingNightIndex >= 0) {
+            updated = [...logs];
+            updated[existingNightIndex] = entry;
+        } else {
+            updated = [entry, ...logs];
+        }
+
         setLogs(updated);
         saveLogs(updated);
         setShowAddModal(false);
@@ -135,6 +150,62 @@ export default function SleepTrackerScreen() {
         return `${h % 12 || 12}:${m} ${ampm}`;
     };
 
+    const getChartData = () => {
+        const last7Days = [];
+        const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        
+        for (let i = 6; i >= 0; i--) {
+            const date = new Date();
+            date.setDate(date.getDate() - i);
+            last7Days.push({
+                date: date.toDateString(),
+                label: daysOfWeek[date.getDay()],
+                nap: 0,
+                night: 0,
+                total: 0
+            });
+        }
+
+        logs.forEach(log => {
+            const logDate = new Date(log.timestamp).toDateString();
+            const day = last7Days.find(d => d.date === logDate);
+            if (day) {
+                if (log.type === 'nap') day.nap += log.totalMinutes;
+                else day.night += log.totalMinutes;
+                day.total += log.totalMinutes;
+            }
+        });
+
+        return last7Days;
+    };
+
+    const getGroupedLogs = () => {
+        const groups = {};
+        logs.forEach(log => {
+            const date = new Date(log.timestamp).toDateString();
+            if (!groups[date]) groups[date] = [];
+            groups[date].push(log);
+        });
+        return Object.entries(groups).sort((a, b) => new Date(b[0]) - new Date(a[0]));
+    };
+
+    const formatDate = (dateString) => {
+        const d = new Date(dateString);
+        const today = new Date().toDateString();
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toDateString();
+
+        if (dateString === today) return 'Today';
+        if (dateString === yesterdayStr) return 'Yesterday';
+
+        return d.toLocaleDateString('en-US', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'short'
+        });
+    };
+
     return (
         <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
             <SafeHeader
@@ -172,6 +243,19 @@ export default function SleepTrackerScreen() {
                     </View>
                 </View>
 
+                {/* Sleep Visualization Chart */}
+                <SleepChart 
+                    data={getChartData()} 
+                    themeColors={{
+                        surface: colorScheme.surface,
+                        border: colorScheme.border,
+                        textPrimary: colorScheme.textPrimary,
+                        textSecondary: colorScheme.textSecondary,
+                        textTertiary: colorScheme.textTertiary,
+                        primary: colorScheme.primary
+                    }}
+                />
+
                 {/* Log List */}
                 <View style={styles.logSection}>
                     <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
@@ -188,31 +272,38 @@ export default function SleepTrackerScreen() {
                             </Text>
                         </View>
                     ) : (
-                        logs.slice(0, 20).map((entry) => {
-                            const typeInfo = SLEEP_TYPES.find(t => t.id === entry.type) || SLEEP_TYPES[0];
-                            return (
-                                <TouchableOpacity
-                                    key={entry.id}
-                                    style={[styles.logCard, { backgroundColor: colorScheme.surface }]}
-                                    onLongPress={() => handleDeleteEntry(entry.id)}
-                                >
-                                    <View style={[styles.logIcon, { backgroundColor: `${typeInfo.color}15` }]}>
-                                        <MaterialIcons name={typeInfo.icon} size={24} color={typeInfo.color} />
-                                    </View>
-                                    <View style={styles.logInfo}>
-                                        <Text style={[styles.logTitle, { color: colorScheme.textPrimary }]}>
-                                            {typeInfo.label}
-                                        </Text>
-                                        <Text style={[styles.logDetail, { color: colorScheme.textSecondary }]}>
-                                            {entry.hours}h {entry.minutes}m
-                                        </Text>
-                                    </View>
-                                    <Text style={[styles.logTime, { color: colorScheme.textTertiary }]}>
-                                        {formatTime(entry.timestamp)}
-                                    </Text>
-                                </TouchableOpacity>
-                            );
-                        })
+                        getGroupedLogs().map(([date, dateLogs]) => (
+                            <View key={date} style={{ marginBottom: Spacing.lg }}>
+                                <Text style={[styles.dateHeader, { color: colorScheme.textTertiary }]}>
+                                    {formatDate(date)}
+                                </Text>
+                                {dateLogs.map((entry) => {
+                                    const typeInfo = SLEEP_TYPES.find(t => t.id === entry.type) || SLEEP_TYPES[0];
+                                    return (
+                                        <TouchableOpacity
+                                            key={entry.id}
+                                            style={[styles.logCard, { backgroundColor: colorScheme.surface }]}
+                                            onLongPress={() => handleDeleteEntry(entry.id)}
+                                        >
+                                            <View style={[styles.logIcon, { backgroundColor: `${typeInfo.color}15` }]}>
+                                                <MaterialIcons name={typeInfo.icon} size={24} color={typeInfo.color} />
+                                            </View>
+                                            <View style={styles.logInfo}>
+                                                <Text style={[styles.logTitle, { color: colorScheme.textPrimary }]}>
+                                                    {typeInfo.label}
+                                                </Text>
+                                                <Text style={[styles.logDetail, { color: colorScheme.textSecondary }]}>
+                                                    {entry.hours}h {entry.minutes}m
+                                                </Text>
+                                            </View>
+                                            <Text style={[styles.logTime, { color: colorScheme.textTertiary }]}>
+                                                {formatTime(entry.timestamp)}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                        ))
                     )}
                 </View>
             </ScrollView>
@@ -442,6 +533,14 @@ const styles = StyleSheet.create({
         marginTop: 2,
     },
     logTime: { fontSize: Typography.fontSize.xs },
+    dateHeader: {
+        fontSize: Typography.fontSize.xs,
+        fontWeight: Typography.fontWeight.bold,
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+        marginBottom: Spacing.sm,
+        marginTop: Spacing.md,
+    },
     // Modal
     modalContainer: { flex: 1 },
     modalHeader: {

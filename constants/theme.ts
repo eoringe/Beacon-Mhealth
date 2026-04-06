@@ -3,10 +3,9 @@
  */
 
 export const Colors = {
-  // Primary
-  primary: '#1E63D8',
-  primaryLight: '#D6E4FF',
-  primaryDark: '#0D3C9D',
+  primary: '#5C6BC0',
+  primaryLight: '#E8EAF6',
+  primaryDark: '#3949AB',
 
   // Neutral
   white: '#FFFFFF',

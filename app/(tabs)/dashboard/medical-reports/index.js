@@ -208,7 +208,7 @@ export default function MedicalReportsScreen() {
                                         <Text style={styles.stepNumberText}>5</Text>
                                     </View>
                                     <Text style={[styles.instructionText, { color: colorScheme.textSecondary }]}>
-                                        You can book for assessment and report on this app or call +254115188415.
+                                        You can book for assessment and report on this app or call +254 115 188 415 / +254 780 626 990.
                                     </Text>
                                 </View>
                                 <View style={styles.instructionStep}>

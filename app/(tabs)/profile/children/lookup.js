@@ -58,9 +58,9 @@ export default function PatientLookupScreen() {
             setPatientData(data);
         } catch (err) {
             if (err.message.includes('not found') || err.message.includes('do not match')) {
-                setError('Patient not found or details do not match. Please verify the registration number and date of birth.');
+                setError('Client not found or details do not match. Please verify the registration number and date of birth.');
             } else {
-                setError(err.message || 'Failed to verify patient');
+                setError(err.message || 'Failed to verify client');
             }
         } finally {
             setLoading(false);
@@ -100,7 +100,7 @@ export default function PatientLookupScreen() {
     return (
         <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
             {/* Header */}
-            <SafeHeader title="Find Patient" showBack />
+            <SafeHeader title="Find Client" showBack />
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -117,11 +117,11 @@ export default function PatientLookupScreen() {
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm }}>
                             <MaterialIcons name="security" size={24} color={colorScheme.primary} />
                             <Text style={[styles.searchTitle, { color: colorScheme.textPrimary, marginBottom: 0 }]}>
-                                Patient Identity Verification
+                                Client Identity Verification
                             </Text>
                         </View>
                         <Text style={[styles.searchSubtitle, { color: colorScheme.textSecondary }]}>
-                            Please provide your child's registration number and date of birth. This information will be cross-referenced with the Beacon Children's Centre clinical database to securely verify and confirm the patient's identity.
+                            Please provide your child's registration number and date of birth. This information will be cross-referenced with the Beacon Children's Centre clinical database to securely verify and confirm their identity.
                         </Text>
 
                         {/* Registration Number */}
@@ -189,7 +189,7 @@ export default function PatientLookupScreen() {
                             ) : (
                                 <>
                                     <MaterialIcons name="verified-user" size={20} color="#FFFFFF" />
-                                    <Text style={styles.searchButtonText}>Verify Patient</Text>
+                                    <Text style={styles.searchButtonText}>Verify Client</Text>
                                 </>
                             )}
                         </TouchableOpacity>
@@ -226,7 +226,7 @@ export default function PatientLookupScreen() {
                                 <View style={styles.cardHeader}>
                                     <MaterialIcons name="child-care" size={24} color={colorScheme.primary} />
                                     <Text style={[styles.cardTitle, { color: colorScheme.textPrimary }]}>
-                                        Patient Information
+                                        Client Information
                                     </Text>
                                 </View>
                                 <View style={styles.infoRow}>

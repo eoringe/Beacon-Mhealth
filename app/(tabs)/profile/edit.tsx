@@ -38,6 +38,7 @@ export default function EditProfileScreen() {
     const [initialLoading, setInitialLoading] = useState(true);
     const [photoUrl, setPhotoUrl] = useState(user?.photoURL || null);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [uploading, setUploading] = useState(false);
 
     // Load full profile from backend on mount to get phone number
     useEffect(() => {
@@ -59,15 +60,31 @@ export default function EditProfileScreen() {
     }, []);
 
     const pickImage = async () => {
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.7,
-        });
+        try {
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.7,
+            });
 
-        if (!result.canceled) {
-            setSelectedImage(result.assets[0].uri);
+            if (!result.canceled) {
+                const selectedUri = result.assets[0].uri;
+                setSelectedImage(selectedUri);
+                setUploading(true);
+                
+                // Immediately upload to Firebase Storage
+                const path = `profiles/${user?.uid}/avatar_${Date.now()}.jpg`;
+                const downloadUrl = await storageService.uploadImage(selectedUri, path);
+                setPhotoUrl(downloadUrl);
+                setSelectedImage(null); // Clear local image once uploaded
+                showAlert('Success', 'Profile photo updated!', [], 'success');
+            }
+        } catch (error) {
+            console.error('Error picking/uploading image:', error);
+            showAlert('Error', 'Failed to update photo', [], 'error');
+        } finally {
+            setUploading(false);
         }
     };
 
@@ -81,13 +98,7 @@ export default function EditProfileScreen() {
         try {
             let finalPhotoUrl = photoUrl;
 
-            // 1. Upload new image if selected
-            if (selectedImage) {
-                const path = `profiles/${user?.uid}/avatar_${Date.now()}.jpg`;
-                finalPhotoUrl = await storageService.uploadImage(selectedImage, path);
-            }
-
-            // 2. Update Firebase Profile
+            // 1. Update Firebase Profile
             if (auth.currentUser) {
                 await updateProfile(auth.currentUser, {
                     displayName: displayName,
@@ -131,7 +142,7 @@ export default function EditProfileScreen() {
                     keyboardShouldPersistTaps="handled"
                 >
                     <View style={styles.profileImageContainer}>
-                        <TouchableOpacity onPress={pickImage} style={styles.imageWrapper}>
+                        <TouchableOpacity onPress={pickImage} style={styles.imageWrapper} disabled={uploading}>
                             {selectedImage || photoUrl ? (
                                 <Image 
                                     source={{ uri: (selectedImage || photoUrl) as string }} 
@@ -142,6 +153,14 @@ export default function EditProfileScreen() {
                                     <MaterialIcons name="person" size={50} color={colorScheme.primary} />
                                 </View>
                             )}
+                            
+                            {uploading && (
+                                <View style={styles.uploadingOverlay}>
+                                    <ActivityIndicator size="large" color="#FFF" />
+                                    <Text style={styles.uploadingText}>Uploading...</Text>
+                                </View>
+                            )}
+
                             <View style={[styles.editIconContainer, { backgroundColor: colorScheme.primary }]}>
                                 <MaterialIcons name="edit" size={20} color="#FFF" />
                             </View>
@@ -303,6 +322,21 @@ const styles = StyleSheet.create({
     },
     imageActionText: {
         fontSize: Typography.fontSize.sm,
+        fontWeight: '600',
+    },
+    uploadingOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 60,
+        zIndex: 1000,
+        elevation: 10,
+    },
+    uploadingText: {
+        color: '#FFF',
+        fontSize: 10,
+        marginTop: 4,
         fontWeight: '600',
     }
 });

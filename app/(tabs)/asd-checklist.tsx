@@ -7,14 +7,29 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     Alert,
+    Modal,
+    Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useChild } from '@/contexts/ChildContext';
 import { SafeHeader } from '@/components/SafeHeader';
-import { Spacing, Typography, BorderRadius, Shadow, Colors } from '@/constants/theme';
+import { Spacing, Typography, BorderRadius, Shadow, Colors as ThemeColors } from '@/constants/theme';
+import LinearGradient from 'react-native-linear-gradient';
+import { SUPPORT_ACTIVITIES, SUPPORT_HEADER } from '@/constants/asdSupportActivities';
+
+const VIBRANT = {
+    indigo: ['#6366F1', '#4F46E5'],
+    violet: ['#5813f9ff', '#5d00ffff'],
+    emerald: ['#10B981', '#059669'],
+    rose: ['#F43F5E', '#E11D48'],
+    amber: ['#F59E0B', '#D97706'],
+    lavender: '#F5F3FF',
+    lavenderDark: '#E0E7FF',
+};
 
 const QUESTIONS = [
     { id: 1, text: "Does your child look at you when you call their name?", type: 'reverse' },
@@ -42,30 +57,49 @@ interface AsdScreening {
 
 export default function AsdChecklistScreen() {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const { colorScheme, isDark } = useTheme();
     const childContext = useChild() as any;
-    const { 
-        selectedChild, 
-        saveAsdScreening, 
-        asdLoading, 
-        asdScreenings, 
-        refreshAsdScreenings 
+    const {
+        selectedChild,
+        saveAsdScreening,
+        asdLoading,
+        asdScreenings,
+        refreshAsdScreenings
     } = childContext;
-    
+
     const [step, setStep] = useState('intro'); // intro, questions, result, history-detail
     const [answers, setAnswers] = useState<Record<number, boolean>>({});
     const [result, setResult] = useState<{ score: number, riskLevel: string } | null>(null);
     const [selectedHistory, setSelectedHistory] = useState<AsdScreening | null>(null);
+    const [showSupportModal, setShowSupportModal] = useState(false);
+    const [selectedCategory, setSelectedCategory] = useState<any>(null);
 
     useEffect(() => {
         if (selectedChild?.id) {
             refreshAsdScreenings(selectedChild.id);
         }
     }, [selectedChild]);
-    
+
+    // Calculate lockout status (30 days)
+    const lastScreening = asdScreenings && asdScreenings.length > 0 ? asdScreenings[0] : null;
+    const nextAvailableDate = lastScreening
+        ? new Date(new Date(lastScreening.created_at).getTime() + 30 * 24 * 60 * 60 * 1000)
+        : null;
+    const isLocked = nextAvailableDate && nextAvailableDate > new Date() && step !== 'result';
+    const daysToGo = nextAvailableDate ? Math.ceil((nextAvailableDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 0;
+
     const handleStart = () => {
         if (!selectedChild) {
             Alert.alert("Child Required", "Please select a child from the dashboard first.");
+            return;
+        }
+
+        if (isLocked) {
+            Alert.alert(
+                "Screening Locked",
+                `To ensure accuracy, the ASD screener can only be taken once every 30 days. Next available: ${nextAvailableDate?.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}`
+            );
             return;
         }
 
@@ -73,10 +107,10 @@ export default function AsdChecklistScreen() {
             const dob = new Date(selectedChild.date_of_birth);
             const today = new Date();
             const ageInMonths = (today.getFullYear() - dob.getFullYear()) * 12 + (today.getMonth() - dob.getMonth());
-            
+
             if (ageInMonths < 18) {
                 Alert.alert(
-                    "Age Restriction", 
+                    "Age Restriction",
                     `This rapid ASD screening is designed for children 18 to 60 months. ${selectedChild.first_name} is currently ${ageInMonths} months old.`
                 );
                 return;
@@ -124,7 +158,7 @@ export default function AsdChecklistScreen() {
                     body: `It's time for ${selectedChild.first_name}'s follow-up ASD screening.`,
                     data: { screen: 'asd-checklist' },
                 },
-                trigger: { 
+                trigger: {
                     seconds: 30 * 24 * 60 * 60,
                     type: 'timeInterval'
                 } as any,
@@ -138,7 +172,7 @@ export default function AsdChecklistScreen() {
     const handleSubmit = async () => {
         const totalScore = calculateScore();
         const risk = getRiskLevel(totalScore);
-        
+
         try {
             await saveAsdScreening(selectedChild.id, {
                 responses: answers,
@@ -178,8 +212,8 @@ export default function AsdChecklistScreen() {
                     <Text style={[styles.historyTitle, { color: colorScheme.textSecondary }]}>Previous Screenings</Text>
                 </View>
                 {(asdScreenings as AsdScreening[]).map((screen) => (
-                    <TouchableOpacity 
-                        key={screen.id} 
+                    <TouchableOpacity
+                        key={screen.id}
                         style={[styles.historyCard, { backgroundColor: colorScheme.background, borderColor: colorScheme.border }]}
                         onPress={() => handleViewHistory(screen)}
                     >
@@ -209,63 +243,93 @@ export default function AsdChecklistScreen() {
         if (!selectedHistory) return null;
 
         const riskColors: Record<string, string> = {
-            'Low': '#4CAF50',
-            'Moderate': '#FF9800',
-            'High': '#F44336'
+            'Low': '#10B981',
+            'Moderate': '#F59E0B',
+            'High': '#EF4444'
         };
 
         const currentRiskColor = riskColors[selectedHistory.risk_level] || '#9CA3AF';
 
         return (
-            <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: Spacing.xxl }} showsVerticalScrollIndicator={false}>
                 <View style={styles.detailHeader}>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         style={styles.backLink}
                         onPress={() => {
                             setStep('intro');
                             setSelectedHistory(null);
                         }}
                     >
-                        <MaterialIcons name="arrow-back" size={20} color={colorScheme.primary} />
-                        <Text style={[styles.backLinkText, { color: colorScheme.primary }]}>Back to History</Text>
+                        <MaterialIcons name="arrow-back" size={20} color={VIBRANT.violet[0]} />
+                        <Text style={[styles.backLinkText, { color: VIBRANT.violet[0] }]}>Back</Text>
                     </TouchableOpacity>
                 </View>
 
-                <View style={[styles.card, { backgroundColor: colorScheme.surface, marginHorizontal: Spacing.lg, marginBottom: Spacing.xl }]}>
-                    <Text style={[styles.resultLabel, { color: colorScheme.textSecondary }]}>
-                        Screened: {new Date(selectedHistory.created_at).toLocaleDateString(undefined, { 
-                            day: 'numeric', month: 'long', year: 'numeric',
-                            hour: 'numeric', minute: '2-digit'
-                        })}
-                    </Text>
-                    <View style={[styles.scoreCircle, { borderColor: currentRiskColor }]}>
-                        <Text style={[styles.scoreValue, { color: currentRiskColor }]}>{selectedHistory.score}</Text>
-                        <Text style={[styles.scoreMax, { color: colorScheme.textTertiary }]}>/ 13</Text>
+                <View style={[styles.card, { backgroundColor: colorScheme.surface, marginHorizontal: Spacing.lg, marginBottom: Spacing.xl, padding: 0, overflow: 'hidden' }]}>
+                    <View style={[styles.compactResultHeader, { borderBottomColor: colorScheme.border }]}>
+                        <View>
+                            <Text style={[styles.resultLabelCompact, { color: colorScheme.textTertiary }]}>Historical Record</Text>
+                            <Text style={[styles.compactScoreText, { color: colorScheme.textPrimary }]}>
+                                Score: <Text style={{ color: VIBRANT.indigo[0], fontWeight: 'bold' }}>{selectedHistory.score} / 13</Text>
+                            </Text>
+                        </View>
+                        <View style={[styles.riskBadge, { backgroundColor: selectedHistory.risk_level === 'Low' ? '#10B981' : (selectedHistory.risk_level === 'Moderate' ? '#F59E0B' : '#EF4444') }]}>
+                            <Text style={styles.riskBadgeText}>{selectedHistory.risk_level} Risk</Text>
+                        </View>
                     </View>
-                    <Text style={[styles.riskLevel, { color: currentRiskColor }]}>{selectedHistory.risk_level} Risk</Text>
+
+                    <View style={styles.resultBody}>
+                        <Text style={[styles.infoText, { color: colorScheme.textSecondary, marginBottom: Spacing.md }]}>
+                            Screened on {new Date(selectedHistory.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}
+                        </Text>
+                        {(selectedHistory.risk_level === 'High' || selectedHistory.risk_level === 'Moderate') && (
+                            <TouchableOpacity
+                                style={[styles.gradientButtonWrapper, { marginTop: Spacing.sm }]}
+                                onPress={() => setShowSupportModal(true)}
+                            >
+                                <LinearGradient colors={VIBRANT.indigo} style={[styles.primaryButton, { paddingVertical: Spacing.md }]}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: Spacing.sm }}>
+                                        <MaterialIcons name="volunteer-activism" size={20} color="#FFF" />
+                                        <Text style={styles.primaryButtonText} numberOfLines={1} adjustsFontSizeToFit>Caregiver Support</Text>
+                                    </View>
+                                </LinearGradient>
+                            </TouchableOpacity>
+                        )}
+                    </View>
                 </View>
 
                 <View style={styles.responsesContainer}>
                     <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, paddingHorizontal: Spacing.lg }]}>
-                        Your Responses
+                        Responses
                     </Text>
-                    {QUESTIONS.map((q) => {
+                    {QUESTIONS.map((q, idx) => {
                         const answer = selectedHistory.responses[q.id];
                         const isAtRisk = q.type === 'reverse' ? answer === false : answer === true;
 
                         return (
-                            <View key={q.id} style={[styles.responseCard, { backgroundColor: colorScheme.surface, borderColor: colorScheme.border }]}>
-                                <Text style={[styles.questionText, { color: colorScheme.textPrimary }]}>
+                            <View
+                                key={q.id}
+                                style={[
+                                    styles.responseCard,
+                                    {
+                                        backgroundColor: colorScheme.surface,
+                                        borderColor: colorScheme.border,
+                                        borderLeftWidth: 4,
+                                        borderLeftColor: (idx % 2 === 0) ? VIBRANT.violet[0] : VIBRANT.indigo[0]
+                                    }
+                                ]}
+                            >
+                                <Text style={[styles.questionText, { color: colorScheme.textPrimary, fontSize: 14 }]}>
                                     {q.id}. {q.text}
                                 </Text>
                                 <View style={styles.responseValueRow}>
                                     <View style={[
-                                        styles.answerBadge, 
+                                        styles.answerBadge,
                                         { backgroundColor: isAtRisk ? `${riskColors.High}15` : `${riskColors.Low}15` }
                                     ]}>
                                         <Text style={[
-                                            styles.answerText, 
-                                            { color: isAtRisk ? riskColors.High : riskColors.Low }
+                                            styles.answerText,
+                                            { color: isAtRisk ? riskColors.High : riskColors.Low, fontSize: 12 }
                                         ]}>
                                             {answer ? 'Yes' : 'No'}
                                         </Text>
@@ -273,7 +337,7 @@ export default function AsdChecklistScreen() {
                                     {isAtRisk && (
                                         <View style={styles.atRiskIndicator}>
                                             <MaterialIcons name="warning" size={14} color={riskColors.High} />
-                                            <Text style={[styles.atRiskLabel, { color: riskColors.High }]}>At Risk Answer</Text>
+                                            <Text style={[styles.atRiskLabel, { color: riskColors.High }]}>At Risk</Text>
                                         </View>
                                     )}
                                 </View>
@@ -281,40 +345,52 @@ export default function AsdChecklistScreen() {
                         );
                     })}
                 </View>
-
-                <TouchableOpacity 
-                    style={[styles.primaryButton, { backgroundColor: colorScheme.primary, margin: Spacing.lg }]}
-                    onPress={() => {
-                        setStep('intro');
-                        setSelectedHistory(null);
-                        handleStart();
-                    }}
-                >
-                    <Text style={styles.primaryButtonText}>Retake Assessment</Text>
-                </TouchableOpacity>
             </ScrollView>
         );
     };
 
     const renderIntro = () => (
         <ScrollView contentContainerStyle={styles.centerContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.heroContainer}>
+                <View style={[styles.heroIconBackdrop, { backgroundColor: `${VIBRANT.violet[0]}15` }]}>
+                    <MaterialIcons name="psychology" size={80} color={VIBRANT.violet[0]} />
+                </View>
+                <Text style={[styles.title, { color: colorScheme.textPrimary }]}>Rapid ASD Screener</Text>
+                <Text style={[styles.subtitle, { color: colorScheme.textSecondary }]}>18 - 60 months</Text>
+            </View>
+
             <View style={[styles.card, { backgroundColor: colorScheme.surface }]}>
-                <MaterialIcons name="psychology" size={64} color={colorScheme.primary} />
-                <Text style={[styles.title, { color: colorScheme.textPrimary }]}>Rapid ASD Checklist</Text>
-                <Text style={[styles.subtitle, { color: colorScheme.textSecondary }]}>For children 18 months - 60 months</Text>
-                
-                <View style={styles.infoBox}>
+                <View style={[styles.infoBox, { backgroundColor: isDark ? `${VIBRANT.violet[0]}10` : VIBRANT.lavender, borderColor: VIBRANT.lavenderDark, borderWidth: 1 }]}>
+                    <MaterialIcons name="info" size={20} color={VIBRANT.violet[0]} style={{ marginBottom: Spacing.xs }} />
                     <Text style={[styles.infoText, { color: colorScheme.textSecondary }]}>
                         This screening tool helps identify possible developmental concerns. It does not provide a diagnosis.
                     </Text>
                 </View>
 
-                <TouchableOpacity 
-                    style={[styles.primaryButton, { backgroundColor: colorScheme.primary }]}
-                    onPress={handleStart}
-                >
-                    <Text style={styles.primaryButtonText}>Start New Assessment</Text>
-                </TouchableOpacity>
+                {isLocked ? (
+                    <View style={[styles.lockedCard, { backgroundColor: colorScheme.background, borderColor: colorScheme.border }]}>
+                        <MaterialIcons name="lock-clock" size={32} color={colorScheme.textTertiary} />
+                        <Text style={[styles.lockedTitle, { color: colorScheme.textPrimary }]}>Next Screening Available In:</Text>
+                        <Text style={[styles.lockedCountdown, { color: colorScheme.textPrimary }]}>{daysToGo} Days</Text>
+                        <Text style={[styles.lockedDate, { color: colorScheme.textSecondary }]}>
+                            {nextAvailableDate?.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}
+                        </Text>
+                    </View>
+                ) : (
+                    <TouchableOpacity
+                        style={styles.gradientButtonWrapper}
+                        onPress={handleStart}
+                    >
+                        <LinearGradient
+                            colors={VIBRANT.violet}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.primaryButton}
+                        >
+                            <Text style={styles.primaryButtonText}>Start New Screening</Text>
+                        </LinearGradient>
+                    </TouchableOpacity>
+                )}
 
                 {renderHistory()}
             </View>
@@ -327,60 +403,102 @@ export default function AsdChecklistScreen() {
         return (
             <ScrollView style={styles.scroll}>
                 <View style={[styles.detailHeader, { paddingBottom: 0 }]}>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         style={styles.backLink}
                         onPress={() => setStep('intro')}
                     >
-                        <MaterialIcons name="arrow-back" size={20} color={colorScheme.primary} />
-                        <Text style={[styles.backLinkText, { color: colorScheme.primary }]}>Back to History</Text>
+                        <MaterialIcons name="arrow-back" size={20} color={VIBRANT.violet[0]} />
+                        <Text style={[styles.backLinkText, { color: VIBRANT.violet[0] }]}>Back</Text>
                     </TouchableOpacity>
                 </View>
                 <View style={styles.questionsContainer}>
-                    <Text style={[styles.childHeader, { color: colorScheme.primary }]}>
-                        Assessing: {selectedChild?.first_name}
-                    </Text>
-                    {QUESTIONS.map((q) => (
-                        <View key={q.id} style={[styles.questionCard, { backgroundColor: colorScheme.surface, borderColor: colorScheme.border }]}>
+                    <View style={styles.questionIntro}>
+                        <Text style={[styles.childHeader, { color: VIBRANT.violet[1] }]}>
+                            Assessing: {selectedChild?.first_name}
+                        </Text>
+                        <Text style={[styles.questionHelper, { color: colorScheme.textTertiary }]}>
+                            Please answer based on typical behavior, not just a one-time occurrence.
+                        </Text>
+                    </View>
+
+                    {QUESTIONS.map((q, idx) => (
+                        <View
+                            key={q.id}
+                            style={[
+                                styles.questionCard,
+                                {
+                                    backgroundColor: colorScheme.surface,
+                                    borderColor: colorScheme.border,
+                                    borderLeftWidth: 6,
+                                    borderLeftColor: (idx % 2 === 0) ? VIBRANT.violet[0] : VIBRANT.indigo[0]
+                                }
+                            ]}
+                        >
                             <Text style={[styles.questionText, { color: colorScheme.textPrimary }]}>
                                 {q.id}. {q.text}
                             </Text>
                             <View style={styles.buttonGroup}>
                                 <TouchableOpacity
                                     style={[
-                                        styles.optionButton,
-                                        answers[q.id] === true && { backgroundColor: colorScheme.primary, borderColor: colorScheme.primary }
+                                        styles.optionButtonPill,
+                                        {
+                                            backgroundColor: answers[q.id] === true ? colorScheme.success : `${colorScheme.success}20`,
+                                            borderColor: answers[q.id] === true ? colorScheme.success : `${colorScheme.success}50`
+                                        }
                                     ]}
                                     onPress={() => handleAnswer(q.id, true)}
                                 >
-                                    <Text style={[styles.optionText, answers[q.id] === true && { color: '#FFF' }]}>Yes</Text>
+                                    <Text style={[
+                                        styles.optionText,
+                                        {
+                                            color: answers[q.id] === true ? '#FFF' : colorScheme.success,
+                                            fontWeight: answers[q.id] === true ? '700' : '500'
+                                        }
+                                    ]}>
+                                        Yes
+                                    </Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     style={[
-                                        styles.optionButton,
-                                        answers[q.id] === false && { backgroundColor: colorScheme.primary, borderColor: colorScheme.primary }
+                                        styles.optionButtonPill,
+                                        {
+                                            backgroundColor: answers[q.id] === false ? colorScheme.error : `${colorScheme.error}20`,
+                                            borderColor: answers[q.id] === false ? colorScheme.error : `${colorScheme.error}50`
+                                        }
                                     ]}
                                     onPress={() => handleAnswer(q.id, false)}
                                 >
-                                    <Text style={[styles.optionText, answers[q.id] === false && { color: '#FFF' }]}>No</Text>
+                                    <Text style={[
+                                        styles.optionText,
+                                        {
+                                            color: answers[q.id] === false ? '#FFF' : colorScheme.error,
+                                            fontWeight: answers[q.id] === false ? '700' : '500'
+                                        }
+                                    ]}>
+                                        No
+                                    </Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
                     ))}
 
-                    <TouchableOpacity 
-                        style={[
-                            styles.primaryButton, 
-                            { backgroundColor: colorScheme.primary, marginTop: Spacing.xl },
-                            !allAnswered && { opacity: 0.5 }
-                        ]}
+                    <TouchableOpacity
+                        style={[styles.gradientButtonWrapper, { marginTop: Spacing.xl }, !allAnswered && { opacity: 0.5 }]}
                         disabled={!allAnswered || asdLoading}
                         onPress={handleSubmit}
                     >
-                        {asdLoading ? (
-                            <ActivityIndicator color="#FFF" />
-                        ) : (
-                            <Text style={styles.primaryButtonText}>Submit Assessment</Text>
-                        )}
+                        <LinearGradient
+                            colors={VIBRANT.violet}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={styles.primaryButton}
+                        >
+                            {asdLoading ? (
+                                <ActivityIndicator color="#FFF" />
+                            ) : (
+                                <Text style={styles.primaryButtonText}>Submit Screening</Text>
+                            )}
+                        </LinearGradient>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
@@ -388,77 +506,214 @@ export default function AsdChecklistScreen() {
     };
 
     const renderResult = () => {
-        const riskColors: Record<string, string> = {
-            'Low': '#4CAF50',
-            'Moderate': '#FF9800',
-            'High': '#F44336'
-        };
-
         if (!result) return null;
 
-        const currentRiskColor = riskColors[result.riskLevel] || '#9CA3AF';
+        const riskGradients: Record<string, string[]> = {
+            'Low': VIBRANT.emerald,
+            'Moderate': VIBRANT.amber,
+            'High': ['#F43F5E', '#9333EA'] // Softer Rose to Violet mix
+        };
+
+        const currentGradient = riskGradients[result.riskLevel] || VIBRANT.violet;
+        const currentRiskColor = result.riskLevel === 'Low' ? '#10B981' : (result.riskLevel === 'Moderate' ? '#F59E0B' : '#E11D48');
 
         return (
-            <ScrollView contentContainerStyle={styles.centerContent}>
-                <View style={[styles.card, { backgroundColor: colorScheme.surface }]}>
-                    <Text style={[styles.resultLabel, { color: colorScheme.textSecondary }]}>Screening Result</Text>
-                    <View style={[styles.scoreCircle, { borderColor: currentRiskColor }]}>
-                        <Text style={[styles.scoreValue, { color: currentRiskColor }]}>{result.score}</Text>
-                        <Text style={[styles.scoreMax, { color: colorScheme.textTertiary }]}>/ 13</Text>
+            <ScrollView contentContainerStyle={[styles.centerContent, { paddingBottom: Spacing.xxxl }]}>
+                <View style={[styles.card, { backgroundColor: colorScheme.surface, padding: 0, overflow: 'hidden' }]}>
+                    <View style={[styles.compactResultHeader, { borderBottomColor: colorScheme.border }]}>
+                        <View>
+                            <Text style={[styles.resultLabelCompact, { color: colorScheme.textTertiary }]}>Screening Result</Text>
+                            <Text style={[styles.compactScoreText, { color: colorScheme.textPrimary }]}>
+                                Score: <Text style={{ color: VIBRANT.indigo[0], fontWeight: 'bold' }}>{result.score} / 13</Text>
+                            </Text>
+                        </View>
+                        <View style={[styles.riskBadge, { backgroundColor: result.riskLevel === 'Low' ? '#10B981' : (result.riskLevel === 'Moderate' ? '#F59E0B' : '#EF4444') }]}>
+                            <Text style={styles.riskBadgeText}>{result.riskLevel} Risk</Text>
+                        </View>
                     </View>
-                    <Text style={[styles.riskLevel, { color: currentRiskColor }]}>{result.riskLevel} Risk</Text>
-                    
-                    <View style={styles.interpretationBox}>
-                        {result.riskLevel === 'Low' && (
-                            <Text style={[styles.interpretationText, { color: colorScheme.textPrimary }]}>
-                                Low likelihood. Please monitor and repeat the assessment in 30 days. We've set a reminder for you.
-                            </Text>
-                        )}
-                        {result.riskLevel === 'Moderate' && (
-                            <Text style={[styles.interpretationText, { color: colorScheme.textPrimary }]}>
-                                Moderate risk. Monitor your child's progress closely and repeat the assessment in 4-6 weeks.
-                            </Text>
-                        )}
-                        {result.riskLevel === 'High' && (
-                            <View>
-                                <Text style={[styles.interpretationText, { color: colorScheme.textPrimary, marginBottom: Spacing.md }]}>
-                                    High risk. We recommend further professional assessment by a specialist.
+
+                    <View style={styles.resultBody}>
+                        <View style={[styles.interpretationBoxColorful, { backgroundColor: `${currentRiskColor}10`, borderColor: `${currentRiskColor}30` }]}>
+                            {result.riskLevel === 'Low' && (
+                                <Text style={[styles.interpretationText, { color: colorScheme.textPrimary }]}>
+                                    Great! {selectedChild?.first_name} shows a low likelihood of ASD. We've set a reminder to repeat this screening in 30 days.
                                 </Text>
-                                <TouchableOpacity 
-                                    style={[styles.bookButton, { backgroundColor: colorScheme.primary }]}
-                                    onPress={() => router.push('/(tabs)/appointments')}
-                                >
-                                    <Text style={styles.bookButtonText}>Book an Appointment</Text>
-                                </TouchableOpacity>
-                            </View>
+                            )}
+                            {(result.riskLevel === 'High' || result.riskLevel === 'Moderate') && (
+                                <View>
+                                    <Text style={[styles.interpretationText, { color: colorScheme.textPrimary, marginBottom: Spacing.md }]}>
+                                        {result.riskLevel === 'High' 
+                                            ? `${selectedChild?.first_name}'s score indicates a high risk. We strongly recommend a professional assessment.`
+                                            : `${selectedChild?.first_name}'s score indicates a moderate risk. We recommend close monitoring and repeating the assessment in 4-6 weeks.`
+                                        }
+                                    </Text>
+                                    
+                                    {result.riskLevel === 'High' && (
+                                        <TouchableOpacity
+                                            style={[styles.gradientButtonWrapper, { marginBottom: Spacing.md }]}
+                                            onPress={() => router.push('/(tabs)/appointments')}
+                                        >
+                                            <LinearGradient colors={VIBRANT.indigo} style={styles.primaryButton}>
+                                                <Text style={styles.primaryButtonText} numberOfLines={1} adjustsFontSizeToFit>Book Consultation</Text>
+                                            </LinearGradient>
+                                        </TouchableOpacity>
+                                    )}
+
+                                    <TouchableOpacity
+                                        style={styles.gradientButtonWrapper}
+                                        onPress={() => setShowSupportModal(true)}
+                                    >
+                                        <LinearGradient colors={['#9333EA', '#7E22CE']} style={styles.primaryButton}>
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: Spacing.sm }}>
+                                                <MaterialIcons name="volunteer-activism" size={20} color="#FFF" />
+                                                <Text style={styles.primaryButtonText} numberOfLines={1} adjustsFontSizeToFit>Caregiver Support</Text>
+                                            </View>
+                                        </LinearGradient>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+                        </View>
+
+                        <Text style={[styles.disclaimerTextJustified, { color: colorScheme.textTertiary }]}>
+                            “This tool helps identify possible developmental concerns. It does not provide a diagnosis. Please consult a qualified professional for a full assessment.”
+                        </Text>
+
+                        {!isLocked && (
+                            <TouchableOpacity
+                                style={[styles.textButton, { marginTop: Spacing.md }]}
+                                onPress={() => {
+                                    setStep('intro');
+                                    setAnswers({});
+                                }}
+                            >
+                                <Text style={{ color: VIBRANT.violet[0], fontWeight: 'bold' }}>Retake Screening</Text>
+                            </TouchableOpacity>
                         )}
                     </View>
-
-                    <Text style={styles.disclaimerText}>
-                        “This tool helps identify possible developmental concerns. It does not provide a diagnosis. Please consult a qualified professional for a full assessment.”
-                    </Text>
-
-                    <TouchableOpacity 
-                        style={styles.textButton}
-                        onPress={() => {
-                            setStep('intro');
-                            setAnswers({});
-                        }}
-                    >
-                        <Text style={{ color: colorScheme.primary }}>Retake Assessment</Text>
-                    </TouchableOpacity>
                 </View>
             </ScrollView>
         );
     };
 
+    const renderSupportModal = () => (
+        <Modal
+            visible={showSupportModal}
+            animationType="slide"
+            transparent={false}
+            onRequestClose={() => {
+                if (selectedCategory) setSelectedCategory(null);
+                else setShowSupportModal(false);
+            }}
+        >
+            <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
+                <View style={[styles.modalHeader, { 
+                    backgroundColor: isDark ? VIBRANT.violet[0] : colorScheme.primary, 
+                    paddingTop: insets.top + (Platform.OS === 'ios' ? 0 : Spacing.md),
+                }]}>
+                    <TouchableOpacity 
+                        onPress={() => {
+                            if (selectedCategory) setSelectedCategory(null);
+                            else setShowSupportModal(false);
+                        }}
+                        style={styles.modalCloseBtn}
+                    >
+                        <MaterialIcons name={selectedCategory ? "arrow-back" : "close"} size={24} color="#FFFFFF" />
+                    </TouchableOpacity>
+                    <Text style={[styles.modalHeaderText, { color: '#FFFFFF' }]}>
+                        {selectedCategory ? selectedCategory.title : SUPPORT_HEADER.title}
+                    </Text>
+                    <View style={{ width: 40 }} />
+                </View>
+
+                <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: Spacing.xxxl }}>
+                    {!selectedCategory ? (
+                        <View style={{ padding: Spacing.lg }}>
+                            <View style={[styles.supportIntroCard, { backgroundColor: colorScheme.surface }]}>
+                                <Text style={[styles.supportIntroTitle, { color: colorScheme.textPrimary }]}>
+                                    {SUPPORT_HEADER.subtitle}
+                                </Text>
+                                <View style={styles.reminderGrid}>
+                                    {SUPPORT_HEADER.reminders.map((r, i) => (
+                                        <View key={i} style={styles.reminderItem}>
+                                            <MaterialIcons name="check-circle" size={16} color={VIBRANT.emerald[0]} />
+                                            <Text style={[styles.reminderText, { color: colorScheme.textSecondary }]}>{r}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            </View>
+
+                            <View style={styles.categoryGrid}>
+                                {SUPPORT_ACTIVITIES.map((cat) => (
+                                    <TouchableOpacity
+                                        key={cat.id}
+                                        style={[styles.categoryCard, { backgroundColor: colorScheme.surface }]}
+                                        onPress={() => setSelectedCategory(cat)}
+                                    >
+                                        <View style={[styles.categoryIconCircle, { backgroundColor: `${cat.color}15` }]}>
+                                            <MaterialIcons name={cat.icon as any} size={28} color={cat.color} />
+                                        </View>
+                                        <Text 
+                                            style={[styles.categoryCardTitle, { color: colorScheme.textPrimary }]}
+                                            numberOfLines={2}
+                                            adjustsFontSizeToFit
+                                        >
+                                            {cat.title}
+                                        </Text>
+                                        <Text style={[styles.categoryCardCount, { color: colorScheme.textTertiary }]}>{cat.tips.length} Tips</Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            <View style={[styles.supportFooter, { backgroundColor: `${VIBRANT.indigo[0]}10` }]}>
+                                <Text style={[styles.supportFooterText, { color: colorScheme.textPrimary }]}>
+                                    {SUPPORT_HEADER.closing}
+                                </Text>
+                                <Text style={[styles.supportContact, { color: VIBRANT.indigo[0] }]}>
+                                    {SUPPORT_HEADER.footer}
+                                </Text>
+                            </View>
+                        </View>
+                    ) : (
+                        <View style={{ padding: Spacing.lg }}>
+                            <View style={[styles.categoryHeader, { borderLeftColor: selectedCategory.color }]}>
+                                <MaterialIcons name={selectedCategory.icon as any} size={32} color={selectedCategory.color} />
+                                <View>
+                                    <Text style={[styles.categoryDetailTitle, { color: colorScheme.textPrimary }]}>{selectedCategory.title}</Text>
+                                </View>
+                            </View>
+
+                            {selectedCategory.tips.map((tip: any, idx: number) => (
+                                <View key={idx} style={[styles.tipCard, { backgroundColor: colorScheme.surface }]}>
+                                    <View style={[styles.tipNumber, { backgroundColor: selectedCategory.color }]}>
+                                        <Text style={styles.tipNumberText}>{idx + 1}</Text>
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={[styles.tipDetailText, { color: colorScheme.textPrimary }]}>{tip.text}</Text>
+                                    </View>
+                                </View>
+                            ))}
+
+                            <TouchableOpacity 
+                                style={[styles.backToGridBtn, { borderColor: selectedCategory.color }]}
+                                onPress={() => setSelectedCategory(null)}
+                            >
+                                <Text style={[styles.backToGridText, { color: selectedCategory.color }]}>View All Categories</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
+                </ScrollView>
+            </View>
+        </Modal>
+    );
+
     return (
         <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
-            <SafeHeader title="ASD Screening" />
+            <SafeHeader title="ASD Screener" showMenu={true} />
             {step === 'intro' && renderIntro()}
             {step === 'questions' && renderQuestions()}
             {step === 'result' && renderResult()}
             {step === 'history-detail' && renderHistoryDetail()}
+            {renderSupportModal()}
         </View>
     );
 }
@@ -478,95 +733,156 @@ const styles = StyleSheet.create({
         ...Shadow.md,
     },
     title: {
-        fontSize: Typography.fontSize.xl,
+        fontSize: Typography.fontSize.xxl,
         fontWeight: 'bold',
-        marginTop: Spacing.md,
+        marginTop: Spacing.lg,
         textAlign: 'center',
     },
     subtitle: {
-        fontSize: Typography.fontSize.sm,
+        fontSize: Typography.fontSize.md,
         marginTop: Spacing.xs,
         marginBottom: Spacing.xl,
+        textAlign: 'center',
+        opacity: 0.8,
+    },
+    heroContainer: {
+        alignItems: 'center',
+        marginBottom: Spacing.lg,
+    },
+    heroIconBackdrop: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: Spacing.xl,
     },
     infoBox: {
-        backgroundColor: 'rgba(0,0,0,0.05)',
-        padding: Spacing.md,
-        borderRadius: BorderRadius.md,
+        padding: Spacing.lg,
+        borderRadius: BorderRadius.lg,
         marginBottom: Spacing.xl,
+        width: '100%',
+        alignItems: 'center',
     },
     infoText: {
         fontSize: Typography.fontSize.sm,
         textAlign: 'center',
         fontStyle: 'italic',
+        lineHeight: 20,
+    },
+    questionIntro: {
+        marginBottom: Spacing.xl,
+        alignItems: 'center',
+    },
+    questionHelper: {
+        fontSize: Typography.fontSize.xs,
+        textAlign: 'center',
+        marginTop: 4,
     },
     childHeader: {
-        fontSize: Typography.fontSize.md,
-        fontWeight: '700',
-        marginBottom: Spacing.lg,
+        fontSize: Typography.fontSize.lg,
+        fontWeight: 'bold',
         textAlign: 'center',
     },
     questionsContainer: {
         padding: Spacing.lg,
     },
     questionCard: {
-        padding: Spacing.md,
-        borderRadius: BorderRadius.md,
+        padding: Spacing.lg,
+        borderRadius: BorderRadius.lg,
         borderWidth: 1,
-        marginBottom: Spacing.md,
+        marginBottom: Spacing.lg,
+        ...Shadow.sm,
     },
     questionText: {
-        fontSize: Typography.fontSize.base,
+        fontSize: Typography.fontSize.md,
         lineHeight: 22,
-        marginBottom: Spacing.md,
+        fontWeight: '500',
+        marginBottom: Spacing.lg,
     },
     buttonGroup: {
         flexDirection: 'row',
         gap: Spacing.md,
     },
-    optionButton: {
+    optionButtonPill: {
         flex: 1,
-        paddingVertical: Spacing.sm,
-        borderRadius: BorderRadius.sm,
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
+        paddingVertical: Spacing.sm + 2,
+        borderRadius: BorderRadius.md,
         alignItems: 'center',
+        borderWidth: 1.5,
     },
     optionText: {
         fontSize: Typography.fontSize.sm,
-        fontWeight: '600',
+    },
+    gradientButtonWrapper: {
+        width: '100%',
+        borderRadius: BorderRadius.md,
+        overflow: 'hidden',
+        ...Shadow.md,
     },
     primaryButton: {
         width: '100%',
-        paddingVertical: Spacing.md,
-        borderRadius: BorderRadius.md,
+        paddingVertical: Spacing.lg,
         alignItems: 'center',
+        justifyContent: 'center',
     },
     primaryButtonText: {
         color: '#FFF',
         fontSize: Typography.fontSize.md,
         fontWeight: 'bold',
+        letterSpacing: 0.5,
     },
-    resultLabel: {
-        fontSize: Typography.fontSize.sm,
+    compactResultHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: Spacing.lg,
+        borderBottomWidth: 1,
+    },
+    resultLabelCompact: {
+        fontSize: 10,
         textTransform: 'uppercase',
         letterSpacing: 1,
-        marginBottom: Spacing.lg,
+        fontWeight: '700',
+        marginBottom: 2,
     },
-    scoreCircle: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        borderWidth: 8,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: Spacing.md,
+    compactScoreText: {
+        fontSize: Typography.fontSize.lg,
+        fontWeight: '600',
     },
-    scoreValue: {
-        fontSize: 32,
-        fontWeight: 'bold',
+    riskBadge: {
+        paddingHorizontal: Spacing.md,
+        paddingVertical: 6,
+        borderRadius: BorderRadius.full,
     },
-    scoreMax: {
+    riskBadgeText: {
+        color: '#FFF',
         fontSize: Typography.fontSize.xs,
+        fontWeight: 'bold',
+        textTransform: 'uppercase',
+    },
+    resultBody: {
+        padding: Spacing.lg,
+        alignItems: 'center',
+    },
+    interpretationBoxColorful: {
+        padding: Spacing.lg,
+        borderRadius: BorderRadius.lg,
+        borderWidth: 1,
+        marginBottom: Spacing.xl,
+        width: '100%',
+    },
+    interpretationText: {
+        fontSize: Typography.fontSize.base,
+        lineHeight: 24,
+        textAlign: 'center',
+    },
+    disclaimerTextJustified: {
+        fontSize: Typography.fontSize.xs,
+        textAlign: 'center',
+        lineHeight: 18,
+        fontStyle: 'italic',
+        marginTop: Spacing.lg,
     },
     riskLevel: {
         fontSize: Typography.fontSize.xl,
@@ -576,11 +892,6 @@ const styles = StyleSheet.create({
     interpretationBox: {
         width: '100%',
         marginBottom: Spacing.xl,
-    },
-    interpretationText: {
-        fontSize: Typography.fontSize.base,
-        lineHeight: 24,
-        textAlign: 'center',
     },
     disclaimerText: {
         fontSize: 10,
@@ -707,5 +1018,169 @@ const styles = StyleSheet.create({
         fontSize: 10,
         fontWeight: 'bold',
         textTransform: 'uppercase',
+    },
+    lockedCard: {
+        width: '100%',
+        padding: Spacing.xl,
+        borderRadius: BorderRadius.lg,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderStyle: 'dashed',
+        marginVertical: Spacing.md,
+    },
+    lockedTitle: {
+        fontSize: Typography.fontSize.sm,
+        fontWeight: '600',
+        marginTop: Spacing.sm,
+    },
+    lockedCountdown: {
+        fontSize: 32,
+        fontWeight: 'bold',
+        marginVertical: Spacing.xs,
+    },
+    lockedDate: {
+        fontSize: Typography.fontSize.xs,
+        fontWeight: '500',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: Spacing.lg,
+        justifyContent: 'space-between',
+    },
+    modalHeaderText: {
+        color: '#FFF',
+        fontSize: Typography.fontSize.lg,
+        fontWeight: 'bold',
+    },
+    modalCloseBtn: {
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    supportIntroCard: {
+        padding: Spacing.lg,
+        borderRadius: BorderRadius.lg,
+        marginBottom: Spacing.lg,
+        ...Shadow.sm,
+    },
+    supportIntroTitle: {
+        fontSize: Typography.fontSize.md,
+        lineHeight: 22,
+        fontWeight: '500',
+        marginBottom: Spacing.md,
+    },
+    reminderGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: Spacing.sm,
+    },
+    reminderItem: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 6,
+        width: '48%',
+    },
+    reminderText: {
+        fontSize: Typography.fontSize.xs,
+    },
+    categoryGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        gap: Spacing.md,
+    },
+    categoryCard: {
+        width: '47%',
+        padding: Spacing.lg,
+        borderRadius: BorderRadius.lg,
+        alignItems: 'center',
+        marginBottom: Spacing.sm,
+        ...Shadow.sm,
+    },
+    categoryIconCircle: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: Spacing.sm,
+    },
+    categoryCardTitle: {
+        fontSize: Typography.fontSize.sm,
+        fontWeight: 'bold',
+        textAlign: 'center',
+        marginBottom: 2,
+    },
+    categoryCardCount: {
+        fontSize: 10,
+        fontWeight: '500',
+    },
+    supportFooter: {
+        marginTop: Spacing.xl,
+        padding: Spacing.xl,
+        borderRadius: BorderRadius.lg,
+        alignItems: 'center',
+    },
+    supportFooterText: {
+        fontSize: Typography.fontSize.sm,
+        textAlign: 'center',
+        lineHeight: 20,
+        marginBottom: Spacing.md,
+    },
+    supportContact: {
+        fontSize: Typography.fontSize.sm,
+        fontWeight: 'bold',
+        textAlign: 'center',
+    },
+    categoryHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.md,
+        paddingVertical: Spacing.lg,
+        borderLeftWidth: 4,
+        paddingLeft: Spacing.lg,
+        marginBottom: Spacing.lg,
+    },
+    categoryDetailTitle: {
+        fontSize: Typography.fontSize.xl,
+        fontWeight: 'bold',
+    },
+    tipCard: {
+        flexDirection: 'row',
+        padding: Spacing.lg,
+        borderRadius: BorderRadius.lg,
+        marginBottom: Spacing.md,
+        alignItems: 'center',
+        gap: Spacing.lg,
+        ...Shadow.sm,
+    },
+    tipNumber: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    tipNumberText: {
+        color: '#FFF',
+        fontSize: Typography.fontSize.xs,
+        fontWeight: 'bold',
+    },
+    tipDetailText: {
+        flex: 1,
+        fontSize: Typography.fontSize.md,
+        lineHeight: 22,
+    },
+    backToGridBtn: {
+        marginTop: Spacing.xl,
+        paddingVertical: Spacing.md,
+        borderRadius: BorderRadius.md,
+        borderWidth: 1,
+        alignItems: 'center',
+    },
+    backToGridText: {
+        fontWeight: 'bold',
     },
 });

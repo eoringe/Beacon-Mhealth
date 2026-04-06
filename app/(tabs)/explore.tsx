@@ -68,7 +68,7 @@ export default function MilestonesTab() {
           <MaterialIcons name="info" size={24} color={isDark ? colorScheme.primary : '#1976D2'} />
           <View style={styles.whoTextContainer}>
             <Text style={[styles.whoTitle, { color: isDark ? colorScheme.textPrimary : '#1976D2' }]}>
-              Source of Milestone Data
+              Source of Milestones Data
             </Text>
             <Text style={[styles.whoText, { color: isDark ? colorScheme.textSecondary : '#1976D2' }]}>
               These milestones are based on the CDC's "Learn the Signs. Act Early." program (2022).

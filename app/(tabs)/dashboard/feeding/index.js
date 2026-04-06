@@ -18,12 +18,12 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useChild } from '@/contexts/ChildContext';
 import { useAlert } from '@/contexts/AlertContext';
 import { SafeHeader } from '@/components/SafeHeader';
+import { FeedingChart } from '@/components/FeedingChart';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import {
     FEEDING_TYPES,
     BREAST_SIDES,
     FOOD_CATEGORIES,
-    FOOD_REACTIONS,
     BOTTLE_VOLUMES,
     DURATION_OPTIONS,
     FEEDING_FREQUENCIES,
@@ -54,7 +54,6 @@ export default function FeedingTrackerScreen() {
     // Solid fields
     const [foodCategory, setFoodCategory] = useState('fruits');
     const [foodName, setFoodName] = useState('');
-    const [reaction, setReaction] = useState('none');
     const [feedingFrequency, setFeedingFrequency] = useState('demand');
 
     const childId = selectedChild?.id;
@@ -100,7 +99,6 @@ export default function FeedingTrackerScreen() {
         } else {
             entry.foodCategory = foodCategory;
             entry.foodName = foodName;
-            entry.reaction = reaction;
         }
 
         entry.frequency = feedingFrequency;
@@ -129,7 +127,6 @@ export default function FeedingTrackerScreen() {
         } else {
             setFoodCategory(entry.foodCategory);
             setFoodName(entry.foodName || '');
-            setReaction(entry.reaction || 'none');
         }
         setFeedingFrequency(entry.frequency || 'demand');
         setShowAddModal(true);
@@ -162,7 +159,6 @@ export default function FeedingTrackerScreen() {
         setVolume(120);
         setFoodCategory('fruits');
         setFoodName('');
-        setReaction('none');
         setFeedingFrequency('demand');
     };
 
@@ -207,6 +203,37 @@ export default function FeedingTrackerScreen() {
         });
         return Object.entries(groups).sort((a, b) => new Date(b[0]) - new Date(a[0]));
     }, [logs]);
+
+    const getChartData = () => {
+        const last7Days = [];
+        const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        
+        for (let i = 6; i >= 0; i--) {
+            const date = new Date();
+            date.setDate(date.getDate() - i);
+            last7Days.push({
+                date: date.toDateString(),
+                label: daysOfWeek[date.getDay()],
+                breast: 0,
+                bottle: 0,
+                solid: 0,
+                total: 0
+            });
+        }
+
+        logs.forEach(log => {
+            const logDate = new Date(log.timestamp).toDateString();
+            const day = last7Days.find(d => d.date === logDate);
+            if (day) {
+                if (log.type === 'breast') day.breast++;
+                else if (log.type === 'bottle') day.bottle++;
+                else if (log.type === 'solid') day.solid++;
+                day.total++;
+            }
+        });
+
+        return last7Days;
+    };
 
     const getTypeInfo = (typeId) => FEEDING_TYPES.find(t => t.id === typeId) || FEEDING_TYPES[0];
 
@@ -306,7 +333,13 @@ export default function FeedingTrackerScreen() {
                                 <View style={[styles.quickLogIcon, { backgroundColor: `${type.color}15` }]}>
                                     <MaterialIcons name={type.icon} size={24} color={type.color} />
                                 </View>
-                                <Text style={[styles.quickLogLabel, { color: colorScheme.textPrimary }]}>{type.label}</Text>
+                                <Text 
+                                    style={[styles.quickLogLabel, { color: colorScheme.textPrimary }]}
+                                    numberOfLines={1}
+                                    adjustsFontSizeToFit
+                                >
+                                    {type.label}
+                                </Text>
                             </TouchableOpacity>
                         ))}
                     </View>
@@ -333,6 +366,19 @@ export default function FeedingTrackerScreen() {
                     </View>
                 </View>
 
+                {/* Feeding Visualization Chart */}
+                <FeedingChart 
+                    data={getChartData()} 
+                    themeColors={{
+                        surface: colorScheme.surface,
+                        border: colorScheme.border,
+                        textPrimary: colorScheme.textPrimary,
+                        textSecondary: colorScheme.textSecondary,
+                        textTertiary: colorScheme.textTertiary,
+                        primary: colorScheme.primary
+                    }}
+                />
+
                 {/* Log List */}
                 <View style={styles.logSection}>
                     <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
@@ -354,7 +400,6 @@ export default function FeedingTrackerScreen() {
                                 <Text style={[styles.dateHeader, { color: colorScheme.textTertiary }]}>{formatDate(date)}</Text>
                                 {dateLogs.map((entry) => {
                                     const typeInfo = getTypeInfo(entry.type);
-                                    const reactionInfo = entry.type === 'solid' ? FOOD_REACTIONS.find(r => r.id === entry.reaction) : null;
                                     return (
                                         <View
                                             key={entry.id}
@@ -375,14 +420,6 @@ export default function FeedingTrackerScreen() {
                                                         return `${cat?.icon || ''} ${cat?.label || entry.foodCategory}${entry.foodName ? `: ${entry.foodName}` : ''}`;
                                                     })()}
                                                 </Text>
-                                                {reactionInfo && (
-                                                    <View style={styles.reactionRow}>
-                                                        <MaterialIcons name={reactionInfo.icon} size={14} color={reactionInfo.color} />
-                                                        <Text style={[styles.reactionText, { color: reactionInfo.color }]}>
-                                                            {reactionInfo.label}
-                                                        </Text>
-                                                    </View>
-                                                )}
                                             </View>
                                             <View style={styles.logActions}>
                                                 <View style={styles.logTimeRow}>
@@ -463,11 +500,15 @@ export default function FeedingTrackerScreen() {
                                             size={20}
                                             color={feedingType === type.id ? '#FFFFFF' : colorScheme.textSecondary}
                                         />
-                                        <Text style={{
-                                            color: feedingType === type.id ? '#FFFFFF' : colorScheme.textPrimary,
-                                            fontSize: Typography.fontSize.sm,
-                                            fontWeight: Typography.fontWeight.medium,
-                                        }}>
+                                        <Text 
+                                            style={{
+                                                color: feedingType === type.id ? '#FFFFFF' : colorScheme.textPrimary,
+                                                fontSize: Typography.fontSize.xs,
+                                                fontWeight: Typography.fontWeight.medium,
+                                            }}
+                                            numberOfLines={1}
+                                            adjustsFontSizeToFit
+                                        >
                                             {type.label}
                                         </Text>
                                     </TouchableOpacity>
@@ -600,35 +641,6 @@ export default function FeedingTrackerScreen() {
                                         value={foodName}
                                         onChangeText={setFoodName}
                                     />
-
-                                    <Text style={[styles.fieldLabel, { color: colorScheme.textPrimary }]}>Reaction</Text>
-                                    <View style={styles.typeRow}>
-                                        {FOOD_REACTIONS.map((r) => (
-                                            <TouchableOpacity
-                                                key={r.id}
-                                                style={[
-                                                    styles.reactionChip,
-                                                    {
-                                                        backgroundColor: reaction === r.id ? r.color : colorScheme.surface,
-                                                        borderColor: reaction === r.id ? r.color : colorScheme.border,
-                                                    }
-                                                ]}
-                                                onPress={() => setReaction(r.id)}
-                                            >
-                                                <MaterialIcons
-                                                    name={r.icon}
-                                                    size={16}
-                                                    color={reaction === r.id ? '#FFFFFF' : colorScheme.textSecondary}
-                                                />
-                                                <Text style={{
-                                                    color: reaction === r.id ? '#FFFFFF' : colorScheme.textPrimary,
-                                                    fontSize: Typography.fontSize.xs,
-                                                }}>
-                                                    {r.label}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </View>
                                 </>
                             )}
 
@@ -833,12 +845,13 @@ const styles = StyleSheet.create({
     },
     typeChip: {
         flex: 1,
-        minWidth: 90,
+        minWidth: 80,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: Spacing.xs,
-        paddingVertical: Spacing.md,
+        gap: 4,
+        paddingVertical: Spacing.sm,
+        paddingHorizontal: 4,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
     },
@@ -863,33 +876,11 @@ const styles = StyleSheet.create({
     foodCatChip: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: Spacing.xs,
-        paddingVertical: Spacing.sm,
-        paddingHorizontal: Spacing.md,
-        borderRadius: BorderRadius.md,
-        borderWidth: 1,
-    },
-    reactionChip: {
-        flex: 1,
-        minWidth: '45%',
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        paddingVertical: Spacing.sm,
+        gap: 4,
+        paddingVertical: Spacing.xs,
         paddingHorizontal: Spacing.sm,
         borderRadius: BorderRadius.md,
         borderWidth: 1,
-        marginBottom: 4,
-    },
-    reactionRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        marginTop: 4,
-    },
-    reactionText: {
-        fontSize: 11,
-        fontWeight: '600',
     },
     logActions: {
         alignItems: 'flex-end',

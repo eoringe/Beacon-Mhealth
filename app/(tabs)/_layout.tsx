@@ -127,6 +127,7 @@ function TabLayoutInner() {
           name="explore"
           options={{
             title: 'Milestones',
+            href: null,
             tabBarIcon: ({ color, size }) => (
               <MaterialIcons name="flag" size={size} color={color} />
             ),
