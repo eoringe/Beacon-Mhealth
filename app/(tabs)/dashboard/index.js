@@ -709,7 +709,7 @@ export default function DashboardScreen() {
                 style={[
                     styles.fabContainer,
                     {
-                        bottom: insets.bottom + 80,
+                        bottom: insets.bottom + 50,
                         transform: [{ scale: fabPulse }],
                     },
                 ]}

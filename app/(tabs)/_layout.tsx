@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Tabs, useRouter } from 'expo-router';
+import { Tabs } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Platform, AppState, AppStateStatus, View, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,7 +20,6 @@ export default function TabLayout() {
 function TabLayoutInner() {
   const insets = useSafeAreaInsets();
   const { colorScheme, isDark } = useTheme();
-  const router = useRouter();
   const { selectedChild } = useChild() as { selectedChild: any };
   const { showAlert } = useAlert();
   const { drawerVisible, closeDrawer } = useDrawer();
@@ -91,10 +90,26 @@ function TabLayoutInner() {
               return;
             }
 
-            // Special handling for the profile tab to ensure it always resets to root
+            // Special handling for the profile tab: navigate to it (no-op if already active)
+            // and pop its inner stack back to root if it has gone deeper
             if (route.name === 'profile') {
               e.preventDefault();
-              router.replace('/profile');
+              const state = navigation.getState();
+              const isAlreadyOnProfile = state.routes[state.index]?.name === 'profile';
+              if (isAlreadyOnProfile) {
+                // Pop the inner profile stack back to its root screen
+                const profileTab = navigation.getState().routes.find((r: any) => r.name === 'profile');
+                if (profileTab?.state && typeof profileTab.state.index === 'number' && profileTab.state.index > 0) {
+                  navigation.dispatch({
+                    type: 'POP_TO_TOP',
+                    target: profileTab.state.key,
+                  });
+                }
+                // Already at root — do nothing, prevents re-rendering
+              } else {
+                // Switch to profile tab normally
+                navigation.navigate('profile');
+              }
               return;
             }
 

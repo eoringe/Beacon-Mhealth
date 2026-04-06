@@ -116,10 +116,6 @@ exports.getDoctorAvailability = async (req, res) => {
             return res.status(400).json({ error: 'Date is required' });
         }
 
-        // Check if date is weekend (Default working hours are Mon-Fri)
-        if (isWeekend(date)) {
-            return res.json({ available: false, reason: 'Weekends are not available', slots: [] });
-        }
 
         const appointmentType = normalizeAppointmentType(req.query.appointmentType || req.query.appointment_type);
         const dayOfWeek = new Date(date).getDay(); // 0 (Sunday) - 6 (Saturday)
@@ -248,10 +244,6 @@ exports.getSpecializationAvailability = async (req, res) => {
             return res.status(400).json({ error: 'Date is required' });
         }
 
-        if (isWeekend(date)) {
-            return res.json({ available: false, reason: 'Weekends are not available', slots: [] });
-        }
-
         const appointmentType = normalizeAppointmentType(req.query.appointmentType || req.query.appointment_type);
         const dayOfWeek = new Date(date).getDay();
 
@@ -374,7 +366,7 @@ exports.getSpecializationTeleWindows = async (req, res) => {
 
         // Fetch all windows for these doctors with names
         const windowsResult = await externalQuery(
-            `SELECT ta.day_of_week, ta.start_time, ta.end_time, s.fullname as doctor_name
+            `SELECT ta.day_of_week, ta.start_time, ta.end_time, ta.window_type, s.fullname as doctor_name
              FROM doctor_teleconsultation_availabilities ta
              JOIN staff s ON ta.doctor_id = s.id
              WHERE ta.doctor_id = ANY($1)

@@ -66,8 +66,8 @@ export default function SelectSlotScreen() {
 
 
     const [appointmentType, setAppointmentType] = useState('IN_PERSON');
-    const [teleWindows, setTeleWindows] = useState([]);
-    const [fetchingWindows, setFetchingWindows] = useState(false);
+    const [availabilityWindows, setAvailabilityWindows] = useState([]);
+    const [fetchingAvailabilityWindows, setFetchingAvailabilityWindows] = useState(false);
 
     // Payment Modal States
     const [isPaymentModalVisible, setIsPaymentModalVisible] = useState(false);
@@ -95,22 +95,22 @@ export default function SelectSlotScreen() {
 
     useEffect(() => {
         if (specialization?.id) {
-            fetchTeleWindows();
+            fetchAvailabilityWindows();
         }
     }, [specialization?.id]);
 
-    const fetchTeleWindows = async () => {
-        if (fetchingWindows) return;
+    const fetchAvailabilityWindows = async () => {
+        if (fetchingAvailabilityWindows) return;
         try {
-            setFetchingWindows(true);
+            setFetchingAvailabilityWindows(true);
             const windows = await appointmentService.getSpecializationTeleWindows(specialization.id);
             if (windows && Array.isArray(windows)) {
-                setTeleWindows(windows);
+                setAvailabilityWindows(windows);
             }
         } catch (error) {
-            console.error('Error fetching tele windows:', error);
+            console.error('Error fetching availability windows:', error);
         } finally {
-            setFetchingWindows(false);
+            setFetchingAvailabilityWindows(false);
         }
     };
 
@@ -392,27 +392,30 @@ export default function SelectSlotScreen() {
         }
     };
 
-    // Helper to disable weekends and non-teleconsult days
+    // Helper to disable dates with no availability windows
     const isDateDisabled = (dateString) => {
-        if (isWeekend(dateString)) return true;
-
-        if (appointmentType === 'TELECONSULT') {
-            const [y, m, d] = dateString.split('-').map(Number);
-            const date = new Date(y, m - 1, d);
-            const dayOfWeek = date.getDay(); // 0-6
-            return !teleWindows.some(w => w.day_of_week === dayOfWeek);
-        }
-
-        return false;
-    };
-
-    // Helper to disable weekends
-    const isWeekend = (dateString) => {
         const [y, m, d] = dateString.split('-').map(Number);
         const date = new Date(y, m - 1, d);
-        const day = date.getDay();
-        return day === 0 || day === 6; // Sunday or Saturday
+        const dayOfWeek = date.getDay(); // 0-6
+
+        // Map frontend type to backend window_type
+        const targetType = appointmentType === 'TELECONSULT' ? 'teleconsult' : 'in_person';
+
+        // Check if there are ANY windows for this day of the week and this type
+        const hasWindows = availabilityWindows.some(w => {
+            const matchesType = !w.window_type || w.window_type === targetType || 
+                               (targetType === 'teleconsult' && w.window_type !== 'in_person');
+            return w.day_of_week === dayOfWeek && matchesType;
+        });
+
+        // If no windows defined at all for this specialization, default to Mon-Fri (legacy behavior)
+        if (availabilityWindows.length === 0) {
+            return dayOfWeek === 0 || dayOfWeek === 6;
+        }
+
+        return !hasWindows;
     };
+
 
     // Format time from 24hr to 12hr
     const formatTime = (time24) => {
@@ -564,53 +567,67 @@ export default function SelectSlotScreen() {
                             </View>
                         )}
 
-                        {/* Teleconsult Availability Disclaimer */}
-                        {appointmentType === 'TELECONSULT' && (
-                            <View style={[styles.disclaimerContainer, { backgroundColor: colorScheme.primaryLight + '20' }]}>
-                                <View style={styles.disclaimerHeader}>
-                                    <MaterialIcons name="videocam" size={18} color={colorScheme.primary} />
-                                    <Text style={[styles.disclaimerTitle, { color: colorScheme.primary }]}>
-                                        Teleconsultation Availability
-                                    </Text>
-                                </View>
-                                {fetchingWindows ? (
-                                    <View style={styles.disclaimerLoading}>
-                                        <CustomLoading size={14} />
-                                    </View>
-                                ) : teleWindows.length > 0 ? (
-                                    <View style={styles.windowsList}>
-                                        {teleWindows.reduce((acc, window) => {
-                                            const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                                            const dayName = dayNames[window.day_of_week];
-                                            let day = acc.find(d => d.name === dayName);
-                                            if (!day) {
-                                                day = { name: dayName, times: [], dayIndex: window.day_of_week };
-                                                acc.push(day);
-                                            }
-
-                                            const timeRange = `${window.start_time.substring(0, 5)} - ${window.end_time.substring(0, 5)}`;
-                                            if (!day.times.includes(timeRange)) {
-                                                day.times.push(timeRange);
-                                            }
-                                            return acc;
-                                        }, []).sort((a, b) => a.dayIndex - b.dayIndex).map((day, dIdx) => (
-                                            <View key={dIdx} style={styles.doctorWindowGroup}>
-                                                <Text style={[styles.disclaimerText, { color: colorScheme.textSecondary }]}>
-                                                    • {day.name}: {day.times.join(', ')}
-                                                </Text>
-                                            </View>
-                                        ))}
-                                    </View>
-                                ) : (
-                                    <Text style={[styles.disclaimerText, { color: colorScheme.error }]}>
-                                        No teleconsultation windows defined for this specialization.
-                                    </Text>
-                                )}
-                                <Text style={[styles.disclaimerFooter, { color: colorScheme.textTertiary }]}>
-                                    * Only the above days are enabled on the calendar below.
+                        {/* Availability Disclaimer for both In-Person and Teleconsult */}
+                        <View style={[styles.disclaimerContainer, { backgroundColor: colorScheme.primaryLight + '20' }]}>
+                            <View style={styles.disclaimerHeader}>
+                                <MaterialIcons 
+                                    name={appointmentType === 'TELECONSULT' ? "videocam" : "location-on"} 
+                                    size={18} 
+                                    color={colorScheme.primary} 
+                                />
+                                <Text style={[styles.disclaimerTitle, { color: colorScheme.primary }]}>
+                                    {appointmentType === 'TELECONSULT' ? "Teleconsultation" : "In-Person"} Availability
                                 </Text>
                             </View>
-                        )}
+                            {fetchingAvailabilityWindows ? (
+                                <View style={styles.disclaimerLoading}>
+                                    <CustomLoading size={14} />
+                                </View>
+                            ) : (() => {
+                                const targetType = appointmentType === 'TELECONSULT' ? 'teleconsult' : 'in_person';
+                                const filteredWindows = availabilityWindows.filter(w => 
+                                    !w.window_type || w.window_type === targetType || 
+                                    (targetType === 'teleconsult' && w.window_type !== 'in_person')
+                                );
+
+                                if (filteredWindows.length > 0) {
+                                    return (
+                                        <View style={styles.windowsList}>
+                                            {filteredWindows.reduce((acc, window) => {
+                                                const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                                                const dayName = dayNames[window.day_of_week];
+                                                let day = acc.find(d => d.name === dayName);
+                                                if (!day) {
+                                                    day = { name: dayName, times: [], dayIndex: window.day_of_week };
+                                                    acc.push(day);
+                                                }
+
+                                                const timeRange = `${window.start_time.substring(0, 5)} - ${window.end_time.substring(0, 5)}`;
+                                                if (!day.times.includes(timeRange)) {
+                                                    day.times.push(timeRange);
+                                                }
+                                                return acc;
+                                            }, []).sort((a, b) => a.dayIndex - b.dayIndex).map((day, dIdx) => (
+                                                <View key={dIdx} style={styles.doctorWindowGroup}>
+                                                    <Text style={[styles.disclaimerText, { color: colorScheme.textSecondary }]}>
+                                                        • {day.name}: {day.times.join(', ')}
+                                                    </Text>
+                                                </View>
+                                            ))}
+                                        </View>
+                                    );
+                                } else {
+                                    return (
+                                        <Text style={[styles.disclaimerText, { color: colorScheme.error }]}>
+                                            No {appointmentType === 'TELECONSULT' ? "teleconsultation" : "in-person"} windows defined for this specialization.
+                                        </Text>
+                                    );
+                                }
+                            })()}
+                            <Text style={[styles.disclaimerFooter, { color: colorScheme.textTertiary }]}>
+                                * Only the above days are enabled on the calendar below.
+                            </Text>
+                        </View>
                     </View>
 
                     {/* Guest Booking Notice & Parent/Guardian Details */}
@@ -749,9 +766,6 @@ export default function SelectSlotScreen() {
                                 }}
                             />
                         </View>
-                        <Text style={[styles.helperText, { color: colorScheme.textTertiary }]}>
-                            * Weekends are not available for appointments
-                        </Text>
                     </View>
 
                     {/* Time Slots */}

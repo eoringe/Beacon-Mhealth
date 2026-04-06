@@ -14,6 +14,7 @@ import {
     Alert,
     Linking,
     ActivityIndicator,
+    useWindowDimensions,
 } from 'react-native';
 import { CustomLoading } from '@/components/CustomLoading';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -28,6 +29,8 @@ import { Colors, Spacing, Typography, BorderRadius } from '@/constants/theme';
 export default function AuthScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { width } = useWindowDimensions();
+    const isTablet = width >= 768;
     const { login, loginWithGoogle, signup, loading, actionLoading, resendVerificationEmail, logout } = useAuth();
     const { showAlert } = useAlert();
     const [activeTab, setActiveTab] = useState('login');
@@ -156,7 +159,7 @@ export default function AuthScreen() {
                         <View style={styles.header}>
                             <Image
                                 source={require('../../assets/images/beacon.jpg')}
-                                style={styles.logo}
+                                style={[styles.logo, isTablet && styles.logoTablet]}
                                 resizeMode="contain"
                             />
                             <Text style={styles.title}>Get Started now</Text>
@@ -441,9 +444,7 @@ const styles = StyleSheet.create({
     scrollContent: {
         paddingHorizontal: Spacing.xl,
         paddingTop: Spacing.md,
-        width: '100%',
-        maxWidth: 500,
-        alignSelf: 'center',
+        flexGrow: 1,
     },
     header: {
         alignItems: 'center',
@@ -453,6 +454,11 @@ const styles = StyleSheet.create({
         width: 120,
         height: 90,
         marginBottom: Spacing.sm,
+    },
+    logoTablet: {
+        width: 200,
+        height: 150,
+        marginBottom: Spacing.md,
     },
     title: {
         fontSize: Typography.fontSize.xl,

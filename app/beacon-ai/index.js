@@ -13,6 +13,7 @@ import {
     Easing,
     ActivityIndicator,
     SafeAreaView,
+    Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -184,6 +185,7 @@ export default function BeaconAIScreen() {
     const [inputText, setInputText] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [showQuickQuestions, setShowQuickQuestions] = useState(true);
+    const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
     const flatListRef = useRef(null);
     const inputRef = useRef(null);
@@ -192,6 +194,22 @@ export default function BeaconAIScreen() {
         setTimeout(() => {
             flatListRef.current?.scrollToEnd({ animated: true });
         }, 100);
+    }, []);
+
+    useEffect(() => {
+        const showListener = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+            () => setIsKeyboardVisible(true)
+        );
+        const hideListener = Keyboard.addListener(
+            Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+            () => setIsKeyboardVisible(false)
+        );
+
+        return () => {
+            showListener.remove();
+            hideListener.remove();
+        };
     }, []);
 
     const handleSend = useCallback(async (text) => {
@@ -279,15 +297,13 @@ export default function BeaconAIScreen() {
                         </View>
                     </View>
                 </View>
-
-                <View style={{ width: 40 }} />
             </View>
 
             {/* ── Message List ── */}
             <KeyboardAvoidingView
                 style={{ flex: 1 }}
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={0}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 70 : 0}
             >
                 <FlatList
                     ref={flatListRef}
@@ -330,7 +346,7 @@ export default function BeaconAIScreen() {
                     {
                         backgroundColor: isDark ? colorScheme.surface : '#FFFFFF',
                         borderTopColor: colorScheme.border,
-                        paddingBottom: insets.bottom + Spacing.sm,
+                        paddingBottom: 4,
                     }
                 ]}>
                     <View style={[styles.inputWrapper, {
@@ -370,6 +386,9 @@ export default function BeaconAIScreen() {
                     </TouchableOpacity>
                 </View>
             </KeyboardAvoidingView>
+            
+            {/* Bottom Safe Area Spacer (Hidden when keyboard is active) */}
+            {!isKeyboardVisible && <View style={{ height: insets.bottom, backgroundColor: isDark ? colorScheme.surface : '#FFFFFF' }} />}
         </View>
     );
 }
@@ -398,7 +417,7 @@ const styles = StyleSheet.create({
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContent: 'flex-start',
         gap: Spacing.sm,
     },
     headerAvatarWrapper: {
@@ -576,7 +595,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'flex-end',
         paddingHorizontal: Spacing.md,
-        paddingTop: Spacing.sm,
+        paddingTop: 6,
         borderTopWidth: 1,
         gap: Spacing.sm,
     },
@@ -585,7 +604,7 @@ const styles = StyleSheet.create({
         borderRadius: BorderRadius.xl,
         borderWidth: 1,
         paddingHorizontal: Spacing.md,
-        paddingVertical: Platform.OS === 'ios' ? Spacing.sm : 2,
+        paddingVertical: Platform.OS === 'ios' ? 6 : 2,
         maxHeight: 120,
         justifyContent: 'center',
     },
