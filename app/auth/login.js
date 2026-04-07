@@ -158,7 +158,7 @@ export default function AuthScreen() {
                         {/* Header with Logo */}
                         <View style={styles.header}>
                             <Image
-                                source={require('../../assets/images/beacon.jpg')}
+                                source={require('../../assets/images/beacon_hero.jpg')}
                                 style={[styles.logo, isTablet && styles.logoTablet]}
                                 resizeMode="contain"
                             />

@@ -445,7 +445,7 @@ export default function DashboardScreen() {
                     ) : (
                         <View style={[styles.introContainer, { backgroundColor: colorScheme.surface }]}>
                             <View style={styles.introIconContainer}>
-                                <Image source={require('../../../assets/images/beacon.jpg')} style={styles.introLogo} resizeMode="contain" />
+                                <Image source={require('../../../assets/images/beacon_hero.jpg')} style={styles.introLogo} resizeMode="contain" />
                             </View>
                             <Text style={[styles.introTitle, { color: colorScheme.textPrimary }]}>
                                 Welcome to{'\n'}

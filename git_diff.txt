@@ -1,0 +1,184 @@
+diff --git a/app.json b/app.json
+index 2bcfdd7..07b320b 100644
+--- a/app.json
++++ b/app.json
+@@ -2,7 +2,7 @@
+   "expo": {
+     "name": "Beacon Children's Centre",
+     "slug": "beacon-children-center",
+-    "version": "1.1.0",
++    "version": "1.2.0",
+     "orientation": "default",
+     "icon": "./assets/images/beacon_30.png",
+     "scheme": "myapp",
+@@ -20,10 +20,12 @@
+     "ios": {
+       "supportsTablet": true,
+       "bundleIdentifier": "com.beaconchildrencenter.app",
++      "buildNumber": "1.2.0",
+       "infoPlist": {}
+     },
+     "android": {
+       "package": "com.beaconchildrencenter.app",
++      "versionCode": 2,
+       "googleServicesFile": "./google-services.json",
+       "adaptiveIcon": {
+         "foregroundImage": "./assets/images/beacon_30.png",
+diff --git a/app/(tabs)/dashboard/index.js b/app/(tabs)/dashboard/index.js
+index 2e74aa4..8b5d76b 100644
+--- a/app/(tabs)/dashboard/index.js
++++ b/app/(tabs)/dashboard/index.js
+@@ -445,7 +445,7 @@ export default function DashboardScreen() {
+                     ) : (
+                         <View style={[styles.introContainer, { backgroundColor: colorScheme.surface }]}>
+                             <View style={styles.introIconContainer}>
+-                                <Image source={require('../../../assets/images/beacon.jpg')} style={styles.introLogo} resizeMode="contain" />
++                                <Image source={require('../../../assets/images/beacon_hero.jpg')} style={styles.introLogo} resizeMode="contain" />
+                             </View>
+                             <Text style={[styles.introTitle, { color: colorScheme.textPrimary }]}>
+                                 Welcome to{'\n'}
+diff --git a/app/(tabs)/profile/index.tsx b/app/(tabs)/profile/index.tsx
+index eede683..692a3f7 100644
+--- a/app/(tabs)/profile/index.tsx
++++ b/app/(tabs)/profile/index.tsx
+@@ -163,7 +163,7 @@ export default function ProfileScreen() {
+                         icon: 'info-outline' as IconName,
+                         label: 'App Version',
+                         color: colorScheme.textTertiary,
+-                        subtitle: '1.1.0',
++                        subtitle: '1.2.0',
+                         onPress: () => { },
+                     },
+                 ],
+diff --git a/app/auth/login-old.js b/app/auth/login-old.js
+index d3bbb56..02750f8 100644
+--- a/app/auth/login-old.js
++++ b/app/auth/login-old.js
+@@ -220,7 +220,7 @@ export default function AuthScreen() {
+             {/* Header with Logo */}
+             <View style={styles.header}>
+               <Image
+-                source={require('../../assets/images/beacon.jpg')}
++                source={require('../../assets/images/beacon_hero.jpg')}
+                 style={styles.logo}
+                 resizeMode="contain"
+               />
+diff --git a/app/auth/login.js b/app/auth/login.js
+index 2d83e96..d601167 100644
+--- a/app/auth/login.js
++++ b/app/auth/login.js
+@@ -158,7 +158,7 @@ export default function AuthScreen() {
+                         {/* Header with Logo */}
+                         <View style={styles.header}>
+                             <Image
+-                                source={require('../../assets/images/beacon.jpg')}
++                                source={require('../../assets/images/beacon_hero.jpg')}
+                                 style={[styles.logo, isTablet && styles.logoTablet]}
+                                 resizeMode="contain"
+                             />
+diff --git a/app/auth/signup-old.js b/app/auth/signup-old.js
+index 160ddff..974bfc4 100644
+--- a/app/auth/signup-old.js
++++ b/app/auth/signup-old.js
+@@ -43,7 +43,7 @@ export default function SignupScreen() {
+             {/* Header with Logo */}
+             <View style={styles.header}>
+               <Image
+-                source={require('../../assets/images/beacon.jpg')}
++                source={require('../../assets/images/beacon_hero.jpg')}
+                 style={styles.logo}
+                 resizeMode="contain"
+               />
+diff --git a/app/settings/index.tsx b/app/settings/index.tsx
+index a781d07..a082258 100644
+--- a/app/settings/index.tsx
++++ b/app/settings/index.tsx
+@@ -137,7 +137,7 @@ export default function SettingsScreen() {
+ 
+                 <View style={styles.footer}>
+                     <Text style={[styles.versionText, { color: colorScheme.textTertiary }]}>
+-                        Version 1.1.0
++                        Version 1.2.0
+                     </Text>
+                 </View>
+             </ScrollView>
+diff --git a/app/tour/features.js b/app/tour/features.js
+index a968592..140878d 100644
+--- a/app/tour/features.js
++++ b/app/tour/features.js
+@@ -31,7 +31,7 @@ export default function FeaturesTourScreen() {
+         {/* Illustration */}
+         <View style={styles.illustrationContainer}>
+           <Image
+-            source={require('../../assets/images/beacon.jpg')}
++            source={require('../../assets/images/beacon_hero.jpg')}
+             style={styles.illustration}
+             resizeMode="contain"
+           />
+diff --git a/app/tour/get-started.js b/app/tour/get-started.js
+index a65ae2a..1468e1d 100644
+--- a/app/tour/get-started.js
++++ b/app/tour/get-started.js
+@@ -31,7 +31,7 @@ export default function GetStartedTourScreen() {
+         {/* Illustration */}
+         <View style={styles.illustrationContainer}>
+           <Image
+-            source={require('../../assets/images/beacon.jpg')}
++            source={require('../../assets/images/beacon_hero.jpg')}
+             style={styles.illustration}
+             resizeMode="contain"
+           />
+diff --git a/app/tour/welcome.js b/app/tour/welcome.js
+index ab5a864..4652b3c 100644
+--- a/app/tour/welcome.js
++++ b/app/tour/welcome.js
+@@ -31,7 +31,7 @@ export default function WelcomeTourScreen() {
+         {/* Illustration */}
+         <View style={styles.illustrationContainer}>
+           <Image
+-            source={require('../../assets/images/beacon.jpg')}
++            source={require('../../assets/images/beacon_hero.jpg')}
+             style={styles.illustration}
+             resizeMode="contain"
+           />
+diff --git a/assets/images/beacon.jpg b/assets/images/beacon.jpg
+deleted file mode 100644
+index e0322e3..0000000
+Binary files a/assets/images/beacon.jpg and /dev/null differ
+diff --git a/config/firebase.js b/config/firebase.js
+index c2ece7c..ae9f94e 100644
+--- a/config/firebase.js
++++ b/config/firebase.js
+@@ -22,10 +22,15 @@ import { getStorage } from 'firebase/storage';
+ // Initialize Firebase
+ const app = initializeApp(firebaseConfig);
+ 
+-// Initialize Auth with AsyncStorage persistence
+-const auth = initializeAuth(app, {
+-    persistence: getReactNativePersistence(AsyncStorage)
+-});
++// Initialize Auth with AsyncStorage persistence (SSR-safe)
++let auth;
++if (Constants.appOwnership === 'expo' || Platform.OS !== 'web') {
++    auth = initializeAuth(app, {
++        persistence: getReactNativePersistence(AsyncStorage)
++    });
++} else {
++    auth = getAuth(app);
++}
+ 
+ // Initialize Storage
+ const storage = getStorage(app);
+diff --git a/package.json b/package.json
+index 7b537da..a606e00 100644
+--- a/package.json
++++ b/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "beacon-children-center",
+   "main": "expo-router/entry",
+-  "version": "1.0.0",
++  "version": "1.2.0",
+   "scripts": {
+     "start": "expo start",
+     "reset-project": "node ./scripts/reset-project.js",

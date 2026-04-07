@@ -43,7 +43,7 @@ export default function SignupScreen() {
             {/* Header with Logo */}
             <View style={styles.header}>
               <Image
-                source={require('../../assets/images/beacon.jpg')}
+                source={require('../../assets/images/beacon_hero.jpg')}
                 style={styles.logo}
                 resizeMode="contain"
               />

@@ -31,7 +31,7 @@ export default function GetStartedTourScreen() {
         {/* Illustration */}
         <View style={styles.illustrationContainer}>
           <Image
-            source={require('../../assets/images/beacon.jpg')}
+            source={require('../../assets/images/beacon_hero.jpg')}
             style={styles.illustration}
             resizeMode="contain"
           />
