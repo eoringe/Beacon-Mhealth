@@ -137,7 +137,7 @@ export default function SettingsScreen() {
 
                 <View style={styles.footer}>
                     <Text style={[styles.versionText, { color: colorScheme.textTertiary }]}>
-                        Version 1.2.0
+                        Version 1.3.1
                     </Text>
                 </View>
             </ScrollView>

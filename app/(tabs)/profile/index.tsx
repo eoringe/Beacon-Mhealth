@@ -163,7 +163,7 @@ export default function ProfileScreen() {
                         icon: 'info-outline' as IconName,
                         label: 'App Version',
                         color: colorScheme.textTertiary,
-                        subtitle: '1.2.0',
+                        subtitle: '1.3.1',
                         onPress: () => { },
                     },
                 ],

@@ -5,6 +5,8 @@ import {
     getReactNativePersistence,
 } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
