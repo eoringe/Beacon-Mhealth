@@ -138,6 +138,19 @@ exports.initiateStkPush = async (req, res) => {
             ? 'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest'
             : 'https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest';
 
+        // Generate a clean AccountReference (Max 12 chars)
+        let accountRef = 'BCC-APP';
+        if (appointment_data.child_id) {
+            accountRef = `BCC-${String(appointment_data.child_id).substring(0, 8)}`;
+        } else if (appointment_data.child_first_name || appointment_data.child_name) {
+            const name = (appointment_data.child_first_name || appointment_data.child_name)
+                .replace(/[^a-zA-Z]/g, '').substring(0, 8);
+            accountRef = `BCC-${name}`;
+        } else {
+            // Fallback for new patients without ID yet: Last 4 digits of phone
+            accountRef = `BCC-NP-${formattedPhone.slice(-4)}`;
+        }
+
         const stkRequest = {
             BusinessShortCode: shortcode,
             Password: password,
@@ -148,7 +161,7 @@ exports.initiateStkPush = async (req, res) => {
             PartyB: shortcode,
             PhoneNumber: formattedPhone,
             CallBackURL: process.env.MPESA_CALLBACK_URL,
-            AccountReference: `BCC-${String(appointment_data.child_id).substring(0, 8)}`,
+            AccountReference: accountRef.substring(0, 12).toUpperCase(),
             TransactionDesc: 'Consultation Fee'
         };
 

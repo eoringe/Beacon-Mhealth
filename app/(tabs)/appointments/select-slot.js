@@ -312,6 +312,7 @@ export default function SelectSlotScreen() {
                 amount,
                 {
                     childId: selectedChild?.id,
+                    child_first_name: selectedChild?.firstName || selectedChild?.first_name || (selectedChild?.name ? selectedChild.name.split(' ')[0] : 'Child'),
                     specializationId: specialization.id,
                     doctorId: 0,
                     appointmentDate: selectedDate,
