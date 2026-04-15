@@ -402,6 +402,13 @@ exports.getSpecializationTeleWindows = async (req, res) => {
 // Helper: Auto-assign a doctor from a specialization for a given date/time
 // Picks the doctor with fewest appointments that day who is free at the requested time
 const autoAssignDoctor = async (specializationId, appointmentDate, appointmentTime, appointmentType = 'IN_PERSON') => {
+    const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dayOfWeek = new Date(appointmentDate).getDay();
+
+    console.log(`\n====== [AutoAssign] START ======`);
+    console.log(`[AutoAssign] specializationId=${specializationId}, date="${appointmentDate}", time="${appointmentTime}", type=${appointmentType}`);
+    console.log(`[AutoAssign] computed dayOfWeek=${dayOfWeek} (${DAY_NAMES[dayOfWeek]}), typeof appointmentTime=${typeof appointmentTime}`);
+
     // Find all active doctors with this specialization (many-to-many via staff_specialization)
     const doctorsResult = await externalQuery(
         `SELECT DISTINCT s.id FROM staff s
@@ -410,6 +417,8 @@ const autoAssignDoctor = async (specializationId, appointmentDate, appointmentTi
         [specializationId]
     );
 
+    console.log(`[AutoAssign] Found ${doctorsResult.rows.length} active doctor(s): [${doctorsResult.rows.map(d => d.id).join(', ')}]`);
+
     if (doctorsResult.rows.length === 0) {
         throw new Error('No doctors available for this specialization');
     }
@@ -417,39 +426,48 @@ const autoAssignDoctor = async (specializationId, appointmentDate, appointmentTi
     // For each doctor, check if the slot is free and count their daily appointments
     const candidates = [];
     for (const doc of doctorsResult.rows) {
+        console.log(`\n[AutoAssign] --- Checking doctor ${doc.id} ---`);
+
         // Check for doctor unavailability
         const unavailability = await isDoctorUnavailableOnDate(doc.id, appointmentDate);
         if (unavailability.unavailable) {
-            console.log(`[AutoAssign] Skipping doctor ${doc.id} - Marked as unavailable: ${unavailability.reason}`);
+            console.log(`[AutoAssign] SKIP doctor ${doc.id} - unavailable: ${unavailability.reason}`);
             continue;
         }
+        console.log(`[AutoAssign] doctor ${doc.id} - not marked unavailable`);
 
         // IN-PERSON: enforce explicit in_person window for the requested day/time
         if (appointmentType === 'IN_PERSON') {
-            const dayOfWeek = new Date(appointmentDate).getDay();
             const inPersonResult = await externalQuery(
                 `SELECT start_time, end_time FROM doctor_teleconsultation_availabilities
                  WHERE doctor_id = $1 AND day_of_week = $2 AND window_type = 'in_person'`,
                 [doc.id, dayOfWeek]
             );
+            console.log(`[AutoAssign] doctor ${doc.id} IN_PERSON windows day=${dayOfWeek}: ${JSON.stringify(inPersonResult.rows)}`);
             if (!isTimeInWindows(appointmentTime, inPersonResult.rows)) {
-                console.log(`[AutoAssign] Skipping doctor ${doc.id} - No in-person window for ${appointmentTime}`);
+                console.log(`[AutoAssign] SKIP doctor ${doc.id} - time "${appointmentTime}" not in in_person window`);
                 continue;
             }
+            console.log(`[AutoAssign] doctor ${doc.id} - IN_PERSON window PASSED`);
         }
 
         // TELECONSULT: enforce tele-window for the requested day/time (exclude in_person windows)
         if (appointmentType === 'TELECONSULT') {
-            const dayOfWeek = new Date(appointmentDate).getDay();
             const teleResult = await externalQuery(
-                `SELECT start_time, end_time FROM doctor_teleconsultation_availabilities
+                `SELECT start_time, end_time, window_type FROM doctor_teleconsultation_availabilities
                  WHERE doctor_id = $1 AND day_of_week = $2 AND (window_type IS NULL OR window_type != 'in_person')`,
                 [doc.id, dayOfWeek]
             );
+            console.log(`[AutoAssign] doctor ${doc.id} TELECONSULT windows day=${dayOfWeek}: ${JSON.stringify(teleResult.rows)}`);
+            teleResult.rows.forEach(w => {
+                const s = w.start_time.substring(0, 5), e = w.end_time.substring(0, 5), t = appointmentTime.substring(0, 5);
+                console.log(`[AutoAssign]   window [${s}-${e}]: "${t}">="${s}"?${t>=s} AND "${t}"<"${e}"?${t<e} => ${t>=s&&t<e}`);
+            });
             if (!isTimeInWindows(appointmentTime, teleResult.rows)) {
-                console.log(`[AutoAssign] Skipping doctor ${doc.id} - No teleconsult window for ${appointmentTime}`);
+                console.log(`[AutoAssign] SKIP doctor ${doc.id} - time "${appointmentTime}" not in any TELECONSULT window`);
                 continue;
             }
+            console.log(`[AutoAssign] doctor ${doc.id} - TELECONSULT window PASSED`);
         }
 
         // Check daily limit (use both staff_id and doctor_id to match the full appointment count)
@@ -457,26 +475,37 @@ const autoAssignDoctor = async (specializationId, appointmentDate, appointmentTi
             `SELECT COUNT(*) as count FROM appointments WHERE (staff_id = $1 OR doctor_id = $1) AND appointment_date = $2`,
             [doc.id, appointmentDate]
         );
-        if (parseInt(dailyCount.rows[0].count) >= 10) continue;
+        const apptCount = parseInt(dailyCount.rows[0].count);
+        console.log(`[AutoAssign] doctor ${doc.id} - daily bookings: ${apptCount}/10`);
+        if (apptCount >= 10) {
+            console.log(`[AutoAssign] SKIP doctor ${doc.id} - daily limit reached`);
+            continue;
+        }
 
         // Normalize to HH:MM to handle DB TIME columns stored as "HH:MM:SS"
         const normalizedTime = appointmentTime.substring(0, 5);
 
         // Check if this specific slot is free
         const conflict = await externalQuery(`
-            SELECT id FROM appointments
+            SELECT id, start_time::text as st FROM appointments
             WHERE (staff_id = $1 OR doctor_id = $1)
             AND appointment_date = $2
             AND start_time::text LIKE $3
             AND status != 'cancelled'
         `, [doc.id, appointmentDate, `${normalizedTime}%`]);
 
+        console.log(`[AutoAssign] doctor ${doc.id} - conflict check "${normalizedTime}%" on ${appointmentDate}: ${conflict.rows.length > 0 ? 'CONFLICT ' + JSON.stringify(conflict.rows) : 'none'}`);
+
         if (conflict.rows.length === 0) {
-            candidates.push({ id: doc.id, count: parseInt(dailyCount.rows[0].count) });
+            console.log(`[AutoAssign] doctor ${doc.id} - ✅ CANDIDATE`);
+            candidates.push({ id: doc.id, count: apptCount });
         } else {
-            console.log(`[AutoAssign] Skipping doctor ${doc.id} - Conflict at ${normalizedTime}`);
+            console.log(`[AutoAssign] SKIP doctor ${doc.id} - conflict at ${normalizedTime}`);
         }
     }
+
+    console.log(`[AutoAssign] Candidates: ${candidates.length > 0 ? candidates.map(c=>c.id).join(',') : 'NONE'}`);
+    console.log(`====== [AutoAssign] END ======\n`);
 
     if (candidates.length === 0) {
         throw new Error('No doctors available at the selected time');
