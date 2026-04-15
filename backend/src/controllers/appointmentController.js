@@ -433,28 +433,48 @@ const autoAssignDoctor = async (specializationId, appointmentDate, appointmentTi
                 [doc.id, dayOfWeek]
             );
             if (!isTimeInWindows(appointmentTime, inPersonResult.rows)) {
+                console.log(`[AutoAssign] Skipping doctor ${doc.id} - No in-person window for ${appointmentTime}`);
                 continue;
             }
         }
 
-        // Check daily limit
+        // TELECONSULT: enforce tele-window for the requested day/time
+        if (appointmentType === 'TELECONSULT') {
+            const dayOfWeek = new Date(appointmentDate).getDay();
+            const teleResult = await externalQuery(
+                `SELECT start_time, end_time FROM doctor_teleconsultation_availabilities
+                 WHERE doctor_id = $1 AND day_of_week = $2`,
+                [doc.id, dayOfWeek]
+            );
+            if (!isTimeInWindows(appointmentTime, teleResult.rows)) {
+                console.log(`[AutoAssign] Skipping doctor ${doc.id} - No teleconsult window for ${appointmentTime}`);
+                continue;
+            }
+        }
+
+        // Check daily limit (use both staff_id and doctor_id to match the full appointment count)
         const dailyCount = await externalQuery(
-            `SELECT COUNT(*) as count FROM appointments WHERE staff_id = $1 AND appointment_date = $2`,
+            `SELECT COUNT(*) as count FROM appointments WHERE (staff_id = $1 OR doctor_id = $1) AND appointment_date = $2`,
             [doc.id, appointmentDate]
         );
         if (parseInt(dailyCount.rows[0].count) >= 10) continue;
+
+        // Normalize to HH:MM to handle DB TIME columns stored as "HH:MM:SS"
+        const normalizedTime = appointmentTime.substring(0, 5);
 
         // Check if this specific slot is free
         const conflict = await externalQuery(`
             SELECT id FROM appointments
             WHERE (staff_id = $1 OR doctor_id = $1)
             AND appointment_date = $2
-            AND start_time = $3
+            AND start_time::text LIKE $3
             AND status != 'cancelled'
-        `, [doc.id, appointmentDate, appointmentTime]);
+        `, [doc.id, appointmentDate, `${normalizedTime}%`]);
 
         if (conflict.rows.length === 0) {
             candidates.push({ id: doc.id, count: parseInt(dailyCount.rows[0].count) });
+        } else {
+            console.log(`[AutoAssign] Skipping doctor ${doc.id} - Conflict at ${normalizedTime}`);
         }
     }
 
