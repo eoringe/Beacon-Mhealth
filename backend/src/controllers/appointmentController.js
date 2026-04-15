@@ -283,12 +283,12 @@ exports.getSpecializationAvailability = async (req, res) => {
                 inPersonWindows = inPersonResult.rows;
             }
 
-            // TELECONSULTATION SPECIFIC: Filter by tele-windows
+            // TELECONSULTATION SPECIFIC: Filter by tele-windows (exclude in_person windows)
             let teleWindows = [];
             if (appointmentType === 'TELECONSULT') {
                 const teleResult = await externalQuery(
                     `SELECT start_time, end_time FROM doctor_teleconsultation_availabilities 
-                     WHERE doctor_id = $1 AND day_of_week = $2`,
+                     WHERE doctor_id = $1 AND day_of_week = $2 AND (window_type IS NULL OR window_type != 'in_person')`,
                     [docId, dayOfWeek]
                 );
                 if (teleResult.rows.length === 0) continue;
@@ -438,12 +438,12 @@ const autoAssignDoctor = async (specializationId, appointmentDate, appointmentTi
             }
         }
 
-        // TELECONSULT: enforce tele-window for the requested day/time
+        // TELECONSULT: enforce tele-window for the requested day/time (exclude in_person windows)
         if (appointmentType === 'TELECONSULT') {
             const dayOfWeek = new Date(appointmentDate).getDay();
             const teleResult = await externalQuery(
                 `SELECT start_time, end_time FROM doctor_teleconsultation_availabilities
-                 WHERE doctor_id = $1 AND day_of_week = $2`,
+                 WHERE doctor_id = $1 AND day_of_week = $2 AND (window_type IS NULL OR window_type != 'in_person')`,
                 [doc.id, dayOfWeek]
             );
             if (!isTimeInWindows(appointmentTime, teleResult.rows)) {

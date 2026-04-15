@@ -451,12 +451,12 @@ exports.getPublicAvailability = async (req, res) => {
                 inPersonWindows = inPersonResult.rows;
             }
 
-            // Check tele-windows if needed
+            // Check tele-windows if needed (exclude in_person-only windows)
             let teleWindows = [];
             if (appointment_type === 'TELECONSULT') {
                 const dayOfWeek = new Date(date).getDay();
                 const teleResult = await externalQuery(
-                    `SELECT start_time, end_time FROM doctor_teleconsultation_availabilities WHERE doctor_id = $1 AND day_of_week = $2`,
+                    `SELECT start_time, end_time FROM doctor_teleconsultation_availabilities WHERE doctor_id = $1 AND day_of_week = $2 AND (window_type IS NULL OR window_type != 'in_person')`,
                     [doc.id, dayOfWeek]
                 );
                 if (teleResult.rows.length === 0) continue;
