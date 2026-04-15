@@ -329,32 +329,11 @@ export default function SelectSlotScreen() {
             mpesaService.pollPaymentStatus(
                 paymentResponse.checkout_request_id,
                 async (statusData) => {
-                    // Payment succeeded — now create the appointment
+                    // Payment succeeded — appointment was already created by the M-Pesa callback
+                    // Just use the data returned by the status poll
                     try {
-                        let meetLink = statusData.google_meet_link;
-                        let appointmentId = statusData.appointment_id;
-
-                        if (paymentFlowType === 'GUEST') {
-                            const guestData = {
-                                parent_first_name: parentFirstName,
-                                parent_last_name: parentLastName,
-                                parent_phone: parentPhone,
-                                parent_email: parentEmail || null,
-                                parent_gender: parentGender || null,
-                                child_first_name: selectedChild?.firstName || selectedChild?.first_name || selectedChild?.name?.split(' ')[0] || '',
-                                child_last_name: selectedChild?.lastName || selectedChild?.last_name || selectedChild?.name?.split(' ').slice(1).join(' ') || '',
-                                child_dob: selectedChild?.dateOfBirth || selectedChild?.date_of_birth || selectedChild?.dob || '',
-                                child_gender: selectedChild?.gender || 'Male',
-                                local_child_id: selectedChild?.id || null, // Pass local ID so backend can update it
-                                specialization_id: specialization.id,
-                                appointment_date: selectedDate,
-                                start_time: selectedTime,
-                                appointment_type: 'TELECONSULT',
-                            };
-                            const bookingResponse = await appointmentService.createGuestAppointment(guestData);
-                            meetLink = bookingResponse?.google_meet_link || meetLink;
-                            appointmentId = bookingResponse?.appointment_id || appointmentId;
-                        }
+                        let meetLink = statusData.google_meet_link || '';
+                        let appointmentId = statusData.appointment_id || '';
 
                         setIsPolling(false);
                         setBooking(false);

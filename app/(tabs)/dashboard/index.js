@@ -553,9 +553,11 @@ export default function DashboardScreen() {
                             {upcomingAppointments.length > 0 ? (
                                 <>
                                     <View style={[styles.statIcon, { backgroundColor: `${colorScheme.primary}15`, width: 56, height: 56, borderRadius: 28 }]}>
-                                        <MaterialIcons name="event" size={28} color={colorScheme.primary} />
+                                        <MaterialIcons name="medical-services" size={28} color={colorScheme.primary} />
                                     </View>
-                                    <Text style={[styles.statLabel, { color: colorScheme.textSecondary }]}>Next Visit</Text>
+                                    <Text style={[styles.statLabel, { color: colorScheme.textSecondary }]} numberOfLines={1}>
+                                        {upcomingAppointments[0].doctor_specialty || (upcomingAppointments[0].doctor_name && upcomingAppointments[0].doctor_name.includes('Dr') ? 'Specialist' : 'Therapy Session')}
+                                    </Text>
                                     <Text style={[styles.statDate, { color: colorScheme.textPrimary }]}>
                                         {new Date(upcomingAppointments[0].appointment_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                                     </Text>

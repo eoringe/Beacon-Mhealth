@@ -577,6 +577,24 @@ async function createAppointmentLogic(appointmentData, userId) {
         let childRegNumber = localChild.registration_number;
         const childFullName = `${localChild.first_name} ${localChild.last_name}`;
 
+        // Fetch specialization name if specializationId is provided
+        let bookedSpecialty = null;
+        if (specializationId) {
+            try {
+                const specResult = await externalQuery(
+                    'SELECT specialization FROM doctor_specialization WHERE id = $1',
+                    [specializationId]
+                );
+                if (specResult.rows.length > 0) {
+                    bookedSpecialty = specResult.rows[0].specialization;
+                }
+            } catch (specErr) {
+                console.error('[AppointmentLogic] Failed to fetch specialization name:', specErr);
+            }
+        }
+
+        const finalTitle = bookedSpecialty ? `[${bookedSpecialty}] ${childFullName}` : childFullName;
+
         // 3. Database Transaction (External)
         externalClient = await externalPool.connect();
         await externalClient.query('BEGIN');
@@ -655,7 +673,7 @@ async function createAppointmentLogic(appointmentData, userId) {
                 appointment_date, start_time, end_time, status, appointment_type, 
                 created_at, updated_at
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', $8, NOW(), NOW()) RETURNING *`,
-            [externalChildId, doctorId, 1, childFullName, appointmentDate, appointmentTime, endTimeStr, normalizedAppointmentType]
+            [externalChildId, doctorId, 1, finalTitle, appointmentDate, appointmentTime, endTimeStr, normalizedAppointmentType]
         );
 
         const appointment = appResult.rows[0];
@@ -672,7 +690,7 @@ async function createAppointmentLogic(appointmentData, userId) {
 
                     const idempotencyKey = googleCalendarService.generateIdempotencyKey(childId, doctorId, appointmentDate, appointmentTime);
                     const event = await googleCalendarService.createCalendarEvent({
-                        summary: `Teleconsultation: ${childFullName}`,
+                        summary: bookedSpecialty ? `${bookedSpecialty}: ${childFullName}` : `Teleconsultation: ${childFullName}`,
                         description: `Teleconsultation booked via app. Reason: ${reason || 'N/A'}\nNotes: ${notes || 'N/A'}`,
                         date: appointmentDate,
                         startTime: appointmentTime,
@@ -833,6 +851,7 @@ exports.getUserAppointments = async (req, res) => {
                 a.google_meet_link,
                 a.google_calendar_event_id,
                 a.google_calendar_html_link,
+                a.appointment_title,
                 s.fullname as doctor_name,
                 ds.specialization as doctor_specialty,
                 s.email as doctor_email,
@@ -883,7 +902,13 @@ exports.getUserAppointments = async (req, res) => {
                 appointment_time: appt.appointment_time,
                 status: appt.status,
                 doctor_name: parseName(appt.doctor_name),
-                doctor_specialty: appt.doctor_specialty || 'General',
+                doctor_specialty: (() => {
+                    if (appt.appointment_title && appt.appointment_title.startsWith('[')) {
+                        const match = appt.appointment_title.match(/^\[(.*?)\]/);
+                        if (match) return match[1];
+                    }
+                    return appt.doctor_specialty || 'General';
+                })(),
                 child_name: parseName(appt.child_fullname),
                 doctor_id: appt.doctor_id || appt.staff_id,
                 doctor_photo: null,

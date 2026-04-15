@@ -311,27 +311,16 @@ export default function AppointmentsScreen() {
                                 ]}
                             >
                                 <MaterialIcons
-                                    name="person"
+                                    name="medical-services"
                                     size={24}
                                     color={colorScheme.primary}
                                 />
                             </View>
                         )}
                         <View style={styles.doctorDetails}>
-                            {appointment.doctor_specialty?.includes('Developmental Paediatrician') ? (
-                                <>
-                                    <Text style={[styles.doctorName, { color: colorScheme.textPrimary }]}>
-                                        {appointment.doctor_name}
-                                    </Text>
-                                    <Text style={[styles.specialty, { color: colorScheme.textSecondary }]}>
-                                        {appointment.doctor_specialty}
-                                    </Text>
-                                </>
-                            ) : (
-                                <Text style={[styles.doctorName, { color: colorScheme.textPrimary }]}>
-                                    {appointment.doctor_specialty || 'Therapy Session'}
-                                </Text>
-                            )}
+                            <Text style={[styles.doctorName, { color: colorScheme.textPrimary }]}>
+                                {appointment.doctor_specialty || 'Therapy Session'}
+                            </Text>
                         </View>
                     </View>
 
@@ -431,7 +420,7 @@ export default function AppointmentsScreen() {
                                         styles.cancelButton,
                                         { borderColor: colorScheme.border },
                                     ]}
-                                    onPress={() => onCancel(appointment.id, appointment.doctor_name)}
+                                    onPress={() => onCancel(appointment.id, appointment.doctor_specialty || 'this session')}
                                 >
                                     <Text style={[styles.actionButtonText, { color: colorScheme.error }]}>
                                         Cancel Appointment
