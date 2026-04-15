@@ -30,7 +30,7 @@ import { Colors } from '@/constants/theme';
 const CONSULTATION_PRICES = {
     'Medical Officer': 1000,
     'Paediatrician': 2000,
-    'Developmental Paediatrician': 1,
+    'Developmental Paediatrician': 3000,
     'Occupational Therapist': 1500,
     'Speech Therapist': 2000,
     'Physiotherapist': 1500,
@@ -544,6 +544,16 @@ export default function SelectSlotScreen() {
                                         KES {(CONSULTATION_PRICES[specialization.name] || CONSULTATION_PRICES['Default']).toLocaleString()}
                                     </Text>
                                 </View>
+                            </View>
+                        )}
+
+                        {/* Gmail Account Disclaimer for Teleconsult */}
+                        {appointmentType === 'TELECONSULT' && (
+                            <View style={[styles.infoCallout, { backgroundColor: `${colorScheme.info}10`, borderColor: colorScheme.info, marginTop: 12 }]}>
+                                <MaterialIcons name="info" size={20} color={colorScheme.info} />
+                                <Text style={[styles.infoCalloutText, { color: colorScheme.textPrimary, flex: 1, marginLeft: 8, fontSize: 13 }]}>
+                                    <Text style={{ fontWeight: 'bold' }}>Important:</Text> You must join the meeting using the email you registered with on the app.
+                                </Text>
                             </View>
                         )}
 
@@ -1248,5 +1258,15 @@ const styles = StyleSheet.create({
     priceValue: {
         fontSize: 18,
         fontWeight: Typography.fontWeight.bold,
+    },
+    infoCallout: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: Spacing.md,
+        borderRadius: BorderRadius.md,
+        borderWidth: 1,
+    },
+    infoCalloutText: {
+        lineHeight: 18,
     },
 });

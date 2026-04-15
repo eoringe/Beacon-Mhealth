@@ -482,6 +482,13 @@ export default function AppointmentsScreen() {
                                             <Text style={[styles.linkButtonText, { color: colorScheme.primary }]}>Join Meeting</Text>
                                         </TouchableOpacity>
                                     )}
+                                    {appointment.google_meet_link && (
+                                        <View style={{ width: '100%', marginTop: 4, paddingHorizontal: 4 }}>
+                                            <Text style={{ fontSize: 11, color: colorScheme.textSecondary, fontStyle: 'italic' }}>
+                                                * Join using the email you registered with on the app.
+                                            </Text>
+                                        </View>
+                                    )}
                                     {appointment.google_calendar_html_link && (
                                         <TouchableOpacity
                                             style={[styles.linkButton, { backgroundColor: `${colorScheme.info}10` }]}
@@ -658,7 +665,7 @@ export default function AppointmentsScreen() {
                 }}
                 activeOpacity={0.8}
             >
-                <MaterialIcons name="add" size={28} color="#FFFFFF" />
+                <Text style={styles.fabText}>Book Now</Text>
             </TouchableOpacity>
         </View>
     );
@@ -785,12 +792,17 @@ const styles = StyleSheet.create({
         position: 'absolute',
         right: Spacing.lg,
         bottom: Spacing.xl * 4, // Moved up to avoid bottom nav
-        width: 56,
-        height: 56,
-        borderRadius: 28,
+        paddingHorizontal: Spacing.xl,
+        height: 50,
+        borderRadius: 25,
         justifyContent: 'center',
         alignItems: 'center',
         ...Shadow.lg,
+    },
+    fabText: {
+        color: '#FFFFFF',
+        fontSize: Typography.fontSize.base,
+        fontWeight: Typography.fontWeight.bold,
     },
     filterContainer: {
         marginBottom: Spacing.sm,
