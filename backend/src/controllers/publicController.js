@@ -1,6 +1,24 @@
+const axios = require('axios');
+const { pool } = require('../config/database');
 const { externalQuery, externalPool } = require('../config/externalDatabase');
 const googleCalendarService = require('../services/googleCalendarService');
 const emailService = require('../services/emailService');
+
+// =============================================
+// CONSULTATION PRICES (KES)
+// Developmental Paediatrician set to 1 for testing
+// =============================================
+const CONSULTATION_PRICES = {
+    'Medical Officer': 1000,
+    'Paediatrician': 2000,
+    'Developmental Paediatrician': 1,  // KES 1 for testing
+    'Occupational Therapist': 1500,
+    'Speech Therapist': 2000,
+    'Physiotherapist': 1500,
+    'Psychologist': 2500,
+    'Nutritionist': 1500,
+    'Default': 1000
+};
 
 /**
  * Helper: Check if date is weekend (Default Mon-Fri working hours)
@@ -488,4 +506,228 @@ exports.getPublicAvailability = async (req, res) => {
     } catch (error) {
         res.status(500).json({ success: false, message: 'Availability check failed' });
     }
+};
+
+// =============================================
+// M-PESA HELPERS (duplicated from mpesaController to avoid circular deps)
+// =============================================
+const getMpesaAccessToken = async () => {
+    const consumerKey = process.env.MPESA_CONSUMER_KEY;
+    const consumerSecret = process.env.MPESA_CONSUMER_SECRET;
+
+    console.log('[PublicTeleconsult] --- M-Pesa Token Request ---');
+    console.log('[PublicTeleconsult] Consumer Key:', consumerKey ? `${consumerKey.substring(0, 5)}...` : 'MISSING');
+    console.log('[PublicTeleconsult] MPESA_ENV:', process.env.MPESA_ENV);
+
+    const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
+    const url = process.env.MPESA_ENV === 'sandbox'
+        ? 'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials'
+        : 'https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials';
+
+    const response = await axios.get(url, {
+        headers: { Authorization: `Basic ${auth}` }
+    });
+    console.log('[PublicTeleconsult] Token acquired successfully');
+    return response.data.access_token;
+};
+
+/**
+ * Public Teleconsult Booking with M-Pesa Payment
+ * 
+ * Flow:
+ * 1. Web app sends booking details + phone number
+ * 2. Backend validates, determines price, initiates STK push
+ * 3. Stores appointment_data in mpesa_transactions
+ * 4. Returns checkout_request_id for polling
+ * 5. On M-Pesa callback success → appointment is auto-created
+ */
+exports.bookPublicTeleconsult = async (req, res) => {
+    console.log('\n========================================');
+    console.log('[PublicTeleconsult] NEW BOOKING REQUEST');
+    console.log('[PublicTeleconsult] Timestamp:', new Date().toISOString());
+    console.log('[PublicTeleconsult] Body:', JSON.stringify(req.body, null, 2));
+    console.log('========================================');
+
+    try {
+        const {
+            // Patient info
+            is_return_patient,
+            reg_number,
+            dob,
+            parent_first_name,
+            parent_last_name,
+            parent_phone,
+            parent_email,
+            child_first_name,
+            child_last_name,
+            child_dob,
+            child_gender,
+            // Booking details
+            specialization_id,
+            appointment_date,
+            appointment_time,
+            reason,
+            // Payment
+            phone  // M-Pesa phone number
+        } = req.body;
+
+        // ---- VALIDATION ----
+        if (!specialization_id || !appointment_date || !appointment_time) {
+            console.log('[PublicTeleconsult] VALIDATION FAILED: Missing booking details');
+            return res.status(400).json({ success: false, message: 'specialization_id, appointment_date, and appointment_time are required' });
+        }
+        if (!phone) {
+            console.log('[PublicTeleconsult] VALIDATION FAILED: Missing phone for M-Pesa');
+            return res.status(400).json({ success: false, message: 'phone is required for M-Pesa payment' });
+        }
+        if (!is_return_patient && (!parent_phone || !child_first_name || !child_dob)) {
+            console.log('[PublicTeleconsult] VALIDATION FAILED: Missing guest patient details');
+            return res.status(400).json({ success: false, message: 'Guest bookings require parent_phone, child_first_name, and child_dob' });
+        }
+
+        // ---- RESOLVE SPECIALIZATION NAME & PRICE ----
+        let specName = 'Default';
+        try {
+            const specResult = await externalQuery(
+                'SELECT specialization FROM doctor_specialization WHERE id = $1',
+                [specialization_id]
+            );
+            if (specResult.rows.length > 0) {
+                specName = specResult.rows[0].specialization;
+            }
+        } catch (specErr) {
+            console.error('[PublicTeleconsult] Error fetching specialization name:', specErr.message);
+        }
+
+        const amount = CONSULTATION_PRICES[specName] || CONSULTATION_PRICES['Default'];
+        console.log(`[PublicTeleconsult] Specialization: "${specName}", Price: KES ${amount}`);
+
+        // ---- FORMAT PHONE ----
+        let formattedPhone = phone.replace(/\s+/g, '').replace(/[^0-9]/g, '');
+        if (formattedPhone.startsWith('0')) {
+            formattedPhone = '254' + formattedPhone.substring(1);
+        } else if (!formattedPhone.startsWith('254')) {
+            formattedPhone = '254' + formattedPhone;
+        }
+        console.log('[PublicTeleconsult] Formatted phone:', formattedPhone);
+
+        // ---- BUILD APPOINTMENT DATA (stored in mpesa_transactions for callback) ----
+        const appointmentData = {
+            is_public_booking: true,  // Flag for callback to use public flow
+            is_return_patient: !!is_return_patient,
+            reg_number: reg_number || null,
+            dob: dob || null,
+            parent_first_name: parent_first_name || null,
+            parent_last_name: parent_last_name || null,
+            parent_phone: parent_phone || phone,
+            parent_email: parent_email || null,
+            child_first_name: child_first_name || null,
+            child_last_name: child_last_name || null,
+            child_dob: child_dob || null,
+            child_gender: child_gender || 'Male',
+            specialization_id,
+            appointment_date,
+            appointment_time,
+            appointment_type: 'TELECONSULT',
+            reason: reason || null
+        };
+
+        // ---- INITIATE STK PUSH ----
+        console.log('[PublicTeleconsult] Initiating STK Push...');
+        const token = await getMpesaAccessToken();
+
+        const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14);
+        const passkey = process.env.MPESA_PASSKEY;
+        const shortcode = process.env.MPESA_SHORTCODE;
+        const password = Buffer.from(`${shortcode}${passkey}${timestamp}`).toString('base64');
+
+        const stkUrl = process.env.MPESA_ENV === 'sandbox'
+            ? 'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest'
+            : 'https://api.safaricom.co.ke/mpesa/stkpush/v1/processrequest';
+
+        // Generate AccountReference
+        let accountRef = 'BCC-WEB';
+        if (child_first_name) {
+            accountRef = `BCC-${child_first_name.replace(/[^a-zA-Z]/g, '').substring(0, 7)}`;
+        } else if (reg_number) {
+            accountRef = `BCC-${reg_number.substring(0, 8)}`;
+        }
+
+        const stkRequest = {
+            BusinessShortCode: shortcode,
+            Password: password,
+            Timestamp: timestamp,
+            TransactionType: 'CustomerPayBillOnline',
+            Amount: Math.ceil(Number(amount)),
+            PartyA: formattedPhone,
+            PartyB: shortcode,
+            PhoneNumber: formattedPhone,
+            CallBackURL: process.env.MPESA_CALLBACK_URL,
+            AccountReference: accountRef.substring(0, 12).toUpperCase(),
+            TransactionDesc: `${specName} Teleconsult`
+        };
+
+        console.log('[PublicTeleconsult] STK Request:', JSON.stringify({
+            ...stkRequest,
+            Password: '***HIDDEN***'
+        }, null, 2));
+
+        const stkResponse = await axios.post(stkUrl, stkRequest, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+
+        const checkoutRequestId = stkResponse.data.CheckoutRequestID;
+        const merchantRequestId = stkResponse.data.MerchantRequestID;
+
+        console.log('[PublicTeleconsult] STK Push SUCCESS');
+        console.log('[PublicTeleconsult] CheckoutRequestID:', checkoutRequestId);
+        console.log('[PublicTeleconsult] MerchantRequestID:', merchantRequestId);
+
+        // ---- SAVE TO DB ----
+        const client = await pool.connect();
+        try {
+            await client.query(
+                `INSERT INTO mpesa_transactions 
+                 (checkout_request_id, merchant_request_id, amount, phone, status, appointment_data, reference_id)
+                 VALUES ($1, $2, $3, $4, 'pending', $5, $6)`,
+                [checkoutRequestId, merchantRequestId, amount, formattedPhone, JSON.stringify(appointmentData), `PUBLIC-${Date.now()}`]
+            );
+            console.log('[PublicTeleconsult] Transaction saved to DB');
+        } finally {
+            client.release();
+        }
+
+        // ---- RESPOND ----
+        res.json({
+            success: true,
+            message: 'STK Push sent to your phone. Please enter your M-Pesa PIN to complete payment.',
+            checkout_request_id: checkoutRequestId,
+            merchant_request_id: merchantRequestId,
+            amount,
+            specialization: specName
+        });
+
+    } catch (error) {
+        console.error('[PublicTeleconsult] ERROR:', error.response?.data || error.message);
+        console.error('[PublicTeleconsult] Stack:', error.stack);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to initiate payment',
+            error: error.response?.data || error.message
+        });
+    }
+};
+
+/**
+ * Get Consultation Prices (Public)
+ * Returns the price list for teleconsultation services
+ */
+exports.getConsultationPrices = async (req, res) => {
+    console.log('[PublicTeleconsult] Price list requested');
+    res.json({
+        success: true,
+        prices: CONSULTATION_PRICES,
+        currency: 'KES',
+        note: 'Prices are for teleconsultation services. In-person bookings do not require prepayment.'
+    });
 };

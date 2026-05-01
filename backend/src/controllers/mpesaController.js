@@ -285,8 +285,11 @@ exports.checkStatus = async (req, res) => {
 };
 
 exports.callback = async (req, res) => {
-    console.log('--- M-PESA CALLBACK RECEIVED ---');
-    console.log('Request Body:', JSON.stringify(req.body, null, 2));
+    console.log('\n========================================');
+    console.log('[Callback] M-PESA CALLBACK RECEIVED');
+    console.log('[Callback] Timestamp:', new Date().toISOString());
+    console.log('[Callback] Request Body:', JSON.stringify(req.body, null, 2));
+    console.log('========================================');
 
     try {
         const { Body } = req.body;
@@ -296,7 +299,7 @@ exports.callback = async (req, res) => {
         const resultCode = stkCallback.ResultCode;
         const resultDesc = stkCallback.ResultDesc;
 
-        console.log('Callback Details:', { checkoutRequestId, resultCode, resultDesc });
+        console.log('[Callback] Details:', { checkoutRequestId, resultCode, resultDesc });
 
         const client = await pool.connect();
         try {
@@ -306,24 +309,24 @@ exports.callback = async (req, res) => {
                 [checkoutRequestId]
             );
 
-            console.log('Transaction lookup result:', txResult.rows.length, 'rows');
+            console.log('[Callback] Transaction lookup:', txResult.rows.length, 'rows found');
 
             if (txResult.rows.length === 0) {
-                console.error('Transaction not found for callback:', checkoutRequestId);
+                console.error('[Callback] Transaction NOT FOUND for:', checkoutRequestId);
                 return res.json({ result: 'fail' });
             }
 
             const transaction = txResult.rows[0];
-            console.log('Found transaction ID:', transaction.id);
+            console.log('[Callback] Found transaction ID:', transaction.id, 'Amount:', transaction.amount, 'Status:', transaction.status);
 
             if (resultCode === 0) {
-                // SUCCESS
+                // ============ PAYMENT SUCCESS ============
                 const meta = stkCallback.CallbackMetadata.Item;
                 const amountItem = meta.find(i => i.Name === 'Amount');
                 const receiptItem = meta.find(i => i.Name === 'MpesaReceiptNumber');
 
                 const receipt = receiptItem ? receiptItem.Value : 'UNKNOWN';
-                console.log('Payment successful, receipt:', receipt);
+                console.log('[Callback] Payment SUCCESSFUL, receipt:', receipt, 'amount:', amountItem?.Value);
 
                 // Update Transaction
                 const updateResult = await client.query(
@@ -333,54 +336,278 @@ exports.callback = async (req, res) => {
                      RETURNING *`,
                     [receipt, resultDesc, transaction.id]
                 );
-                console.log('Transaction updated:', updateResult.rows[0]?.status);
+                console.log('[Callback] Transaction updated to:', updateResult.rows[0]?.status);
 
-                // triggers appointment creation
+                // ============ CREATE APPOINTMENT ============
                 const apptDataRaw = transaction.appointment_data;
-                const childId = apptDataRaw.childId || apptDataRaw.child_id;
+                // Handle string vs object (JSONB should auto-parse, but be safe)
+                const apptData = typeof apptDataRaw === 'string' ? JSON.parse(apptDataRaw) : apptDataRaw;
 
-                // Get User ID from child
-                const userResult = await client.query('SELECT parent_id FROM children WHERE id = $1', [childId]);
-                const userId = userResult.rows[0]?.parent_id;
+                console.log('[Callback] Appointment data:', JSON.stringify(apptData, null, 2));
+                console.log('[Callback] is_public_booking:', apptData.is_public_booking);
 
-                if (userId) {
+                if (apptData.is_public_booking) {
+                    // ======== PUBLIC/WEB APP BOOKING FLOW ========
+                    console.log('[Callback] Using PUBLIC booking flow');
                     try {
-                        // Standardize keys for createAppointmentLogic
-                        const apptData = {
-                            childId: childId,
-                            specializationId: apptDataRaw.specializationId || apptDataRaw.specialization_id,
-                            doctorId: apptDataRaw.doctorId || apptDataRaw.doctor_id || 0,
-                            appointmentDate: apptDataRaw.appointmentDate || apptDataRaw.appointment_date,
-                            appointmentTime: apptDataRaw.appointmentTime || apptDataRaw.appointment_time,
-                            appointmentType: apptDataRaw.appointmentType || apptDataRaw.appointment_type || 'TELECONSULT',
-                            reason: apptDataRaw.reason,
-                            notes: apptDataRaw.notes
-                        };
+                        const { externalPool } = require('../config/externalDatabase');
+                        const { externalQuery } = require('../config/externalDatabase');
+                        const googleCalendarService = require('../services/googleCalendarService');
+                        const emailService = require('../services/emailService');
 
-                        const result = await appointmentController.createAppointmentLogic(apptData, userId);
-                        console.log('Appointment created via Callback:', result);
-                    } catch (err) {
-                        console.error('Failed to create appointment after payment:', err);
+                        let externalClient = await externalPool.connect();
+                        try {
+                            await externalClient.query('BEGIN');
+
+                            let externalChildId;
+                            let childFullName;
+
+                            // 1. Resolve Patient
+                            if (apptData.is_return_patient) {
+                                console.log('[Callback] Return patient flow, reg:', apptData.reg_number);
+                                const check = await externalClient.query(
+                                    'SELECT id, fullname FROM children WHERE registration_number = $1 AND dob = $2',
+                                    [apptData.reg_number, apptData.dob]
+                                );
+                                if (check.rows.length === 0) throw new Error('Return patient verification failed in callback');
+                                externalChildId = check.rows[0].id;
+                                childFullName = check.rows[0].fullname;
+                                if (typeof childFullName === 'object') {
+                                    childFullName = `${childFullName.first_name || ''} ${childFullName.last_name || ''}`.trim();
+                                }
+                                console.log('[Callback] Return patient found, childId:', externalChildId);
+                            } else {
+                                console.log('[Callback] Guest patient flow');
+                                // Create/Find Parent
+                                const parentCheck = await externalClient.query(
+                                    'SELECT id FROM parents WHERE telephone = $1 OR (email IS NOT NULL AND LOWER(email) = LOWER($2))',
+                                    [apptData.parent_phone, apptData.parent_email || '']
+                                );
+
+                                let externalParentId;
+                                if (parentCheck.rows.length > 0) {
+                                    externalParentId = parentCheck.rows[0].id;
+                                    console.log('[Callback] Found existing parent:', externalParentId);
+                                } else {
+                                    const fullnameJson = JSON.stringify({
+                                        first_name: apptData.parent_first_name || 'Guest',
+                                        last_name: apptData.parent_last_name || 'Parent'
+                                    });
+                                    const parentResult = await externalClient.query(
+                                        'INSERT INTO parents (fullname, telephone, email, relationship_id, gender_id, created_at, updated_at) VALUES ($1, $2, $3, 1, 2, NOW(), NOW()) RETURNING id',
+                                        [fullnameJson, apptData.parent_phone, apptData.parent_email]
+                                    );
+                                    externalParentId = parentResult.rows[0].id;
+                                    console.log('[Callback] Created new parent:', externalParentId);
+                                }
+
+                                // Create Child
+                                const timestamp = Math.floor(Date.now() / 1000);
+                                const guestRegNumber = `GUEST-${timestamp}-${Math.floor(Math.random() * 9000)}`;
+                                const childFullnameJson = JSON.stringify({
+                                    first_name: apptData.child_first_name || 'Child',
+                                    last_name: apptData.child_last_name || ''
+                                });
+                                const genderId = (apptData.child_gender || '').toLowerCase() === 'female' ? 2 : 1;
+
+                                const childResult = await externalClient.query(
+                                    'INSERT INTO children (fullname, dob, gender_id, registration_number, created_at, updated_at) VALUES ($1, $2, $3, $4, NOW(), NOW()) RETURNING id',
+                                    [childFullnameJson, apptData.child_dob, genderId, guestRegNumber]
+                                );
+                                externalChildId = childResult.rows[0].id;
+                                childFullName = `${apptData.child_first_name || ''} ${apptData.child_last_name || ''}`.trim();
+                                console.log('[Callback] Created guest child:', externalChildId, 'reg:', guestRegNumber);
+
+                                // Link them
+                                await externalClient.query(
+                                    'INSERT INTO child_parent (parent_id, child_id, created_at, updated_at) VALUES ($1, $2, NOW(), NOW())',
+                                    [externalParentId, externalChildId]
+                                );
+                                console.log('[Callback] Linked parent-child');
+                            }
+
+                            // 2. Auto-assign Doctor
+                            // Inline auto-assign to avoid import complexity
+                            const specId = apptData.specialization_id;
+                            const appointmentDate = apptData.appointment_date;
+                            const appointmentTime = apptData.appointment_time;
+                            const dayOfWeek = new Date(appointmentDate).getDay();
+
+                            const doctorsResult = await externalQuery(
+                                `SELECT s.id FROM staff s JOIN staff_specialization ss ON ss.staff_id = s.id WHERE ss.specialization_id = $1 AND s.is_active = true`,
+                                [specId]
+                            );
+                            console.log('[Callback] Found', doctorsResult.rows.length, 'doctors for specialization', specId);
+
+                            let assignedDoctorId = null;
+                            for (const doc of doctorsResult.rows) {
+                                const teleResult = await externalQuery(
+                                    `SELECT start_time, end_time FROM doctor_teleconsultation_availabilities WHERE doctor_id = $1 AND day_of_week = $2 AND (window_type IS NULL OR window_type != 'in_person')`,
+                                    [doc.id, dayOfWeek]
+                                );
+                                const normalizedTime = appointmentTime.substring(0, 5);
+                                const inWindow = teleResult.rows.some(w => {
+                                    const s = w.start_time.substring(0, 5);
+                                    const e = w.end_time.substring(0, 5);
+                                    return normalizedTime >= s && normalizedTime < e;
+                                });
+                                if (!inWindow) continue;
+
+                                const conflict = await externalQuery(
+                                    `SELECT id FROM appointments WHERE (staff_id = $1 OR doctor_id = $1) AND appointment_date = $2 AND start_time::text LIKE $3 AND status != 'cancelled'`,
+                                    [doc.id, appointmentDate, `${normalizedTime}%`]
+                                );
+                                if (conflict.rows.length === 0) {
+                                    assignedDoctorId = doc.id;
+                                    console.log('[Callback] Assigned doctor:', assignedDoctorId);
+                                    break;
+                                }
+                            }
+
+                            if (!assignedDoctorId) {
+                                console.error('[Callback] No doctor available for slot! Payment received but no appointment created.');
+                                // Still commit what we have — the payment is real
+                                await externalClient.query('COMMIT');
+                                return res.json({ result: 'success' });
+                            }
+
+                            // 3. Create Appointment
+                            const [hours, minutes] = appointmentTime.split(':').map(Number);
+                            const endTimeStr = `${(hours + 1).toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+
+                            // Fetch specialization name for title
+                            let specNameForTitle = '';
+                            try {
+                                const specResult = await externalQuery('SELECT specialization FROM doctor_specialization WHERE id = $1', [specId]);
+                                if (specResult.rows.length > 0) specNameForTitle = specResult.rows[0].specialization;
+                            } catch (e) {}
+
+                            const finalTitle = specNameForTitle ? `[${specNameForTitle}] ${childFullName}` : childFullName;
+
+                            const apptResult = await externalClient.query(
+                                `INSERT INTO appointments (
+                                    child_id, doctor_id, staff_id, appointment_title, 
+                                    appointment_date, start_time, end_time, status, appointment_type, 
+                                    created_at, updated_at
+                                ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending', 'TELECONSULT', NOW(), NOW()) RETURNING *`,
+                                [externalChildId, assignedDoctorId, 1, finalTitle, appointmentDate, appointmentTime, endTimeStr]
+                            );
+
+                            const appointment = apptResult.rows[0];
+                            console.log('[Callback] Appointment CREATED:', appointment.id);
+
+                            // 4. Google Calendar + Meet Link
+                            try {
+                                googleCalendarService.initialize();
+                                if (googleCalendarService.isConfigured()) {
+                                    const emailToInvite = apptData.parent_email;
+                                    const idempotencyKey = googleCalendarService.generateIdempotencyKey(externalChildId, assignedDoctorId, appointmentDate, appointmentTime);
+                                    
+                                    const event = await googleCalendarService.createCalendarEvent({
+                                        summary: specNameForTitle ? `${specNameForTitle}: ${childFullName}` : `Teleconsultation: ${childFullName}`,
+                                        description: `Public Booking (Paid via M-Pesa: ${receipt}). Reason: ${apptData.reason || 'N/A'}`,
+                                        date: appointmentDate,
+                                        startTime: appointmentTime,
+                                        endTime: endTimeStr,
+                                        attendees: emailToInvite ? [emailToInvite] : []
+                                    }, idempotencyKey);
+
+                                    if (event.meetLink) {
+                                        await externalClient.query(
+                                            'UPDATE appointments SET google_meet_link = $1, google_calendar_event_id = $2, google_calendar_html_link = $3 WHERE id = $4',
+                                            [event.meetLink, event.eventId, event.htmlLink, appointment.id]
+                                        );
+                                        appointment.google_meet_link = event.meetLink;
+                                        console.log('[Callback] Meet link added:', event.meetLink);
+                                    }
+                                }
+                            } catch (calErr) {
+                                console.error('[Callback] Google Calendar error:', calErr.message);
+                            }
+
+                            // 5. Send Email
+                            try {
+                                if (apptData.parent_email) {
+                                    console.log('[Callback] Sending confirmation email to:', apptData.parent_email);
+                                    emailService.sendBookingConfirmation(apptData.parent_email, {
+                                        ...appointment,
+                                        appointment_title: childFullName,
+                                    }).catch(err => console.error('[Callback] Email error:', err.message));
+                                }
+                            } catch (emailErr) {
+                                console.error('[Callback] Email setup error:', emailErr.message);
+                            }
+
+                            await externalClient.query('COMMIT');
+                            console.log('[Callback] PUBLIC booking flow COMPLETE');
+
+                        } catch (publicErr) {
+                            if (externalClient) await externalClient.query('ROLLBACK');
+                            console.error('[Callback] PUBLIC booking FAILED:', publicErr.message);
+                            console.error('[Callback] Stack:', publicErr.stack);
+                        } finally {
+                            if (externalClient) externalClient.release();
+                        }
+
+                    } catch (outerErr) {
+                        console.error('[Callback] Error in public booking setup:', outerErr.message);
+                    }
+
+                } else {
+                    // ======== MOBILE APP BOOKING FLOW (existing) ========
+                    console.log('[Callback] Using MOBILE APP booking flow');
+                    const childId = apptData.childId || apptData.child_id;
+
+                    // Get User ID from child
+                    const userResult = await client.query('SELECT parent_id FROM children WHERE id = $1', [childId]);
+                    const userId = userResult.rows[0]?.parent_id;
+                    console.log('[Callback] Resolved userId:', userId, 'from childId:', childId);
+
+                    if (userId) {
+                        try {
+                            // Standardize keys for createAppointmentLogic
+                            const mobileApptData = {
+                                childId: childId,
+                                specializationId: apptData.specializationId || apptData.specialization_id,
+                                doctorId: apptData.doctorId || apptData.doctor_id || 0,
+                                appointmentDate: apptData.appointmentDate || apptData.appointment_date,
+                                appointmentTime: apptData.appointmentTime || apptData.appointment_time,
+                                appointmentType: apptData.appointmentType || apptData.appointment_type || 'TELECONSULT',
+                                reason: apptData.reason,
+                                notes: apptData.notes
+                            };
+
+                            const result = await appointmentController.createAppointmentLogic(mobileApptData, userId);
+                            console.log('[Callback] Mobile appointment created:', result?.id);
+                        } catch (err) {
+                            console.error('[Callback] Mobile appointment creation FAILED:', err.message);
+                        }
+                    } else {
+                        console.error('[Callback] Could not resolve userId for childId:', childId);
                     }
                 }
 
             } else {
-                // FAILED / CANCELLED
+                // ============ PAYMENT FAILED / CANCELLED ============
+                console.log('[Callback] Payment FAILED/CANCELLED. ResultCode:', resultCode, 'Desc:', resultDesc);
                 await client.query(
                     `UPDATE mpesa_transactions 
                      SET status = 'failed', result_desc = $1, updated_at = NOW()
                      WHERE id = $2`,
                     [resultDesc, transaction.id]
                 );
+                console.log('[Callback] Transaction marked as failed');
             }
         } finally {
             client.release();
         }
 
+        console.log('[Callback] Sending ACK to Safaricom');
         res.json({ result: 'success' }); // Ack to Safaricom
 
     } catch (error) {
-        console.error('Callback Error:', error);
-        res.status(500).json({ error: 'Callback failed' }); // Safaricom doesn't care much about 500, they retry.
+        console.error('[Callback] CRITICAL ERROR:', error.message);
+        console.error('[Callback] Stack:', error.stack);
+        res.status(500).json({ error: 'Callback failed' });
     }
 };

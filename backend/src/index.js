@@ -98,6 +98,16 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`📍 Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`🔗 Health check: http://localhost:${PORT}/health`);
     console.log(`🌐 Network access: http://0.0.0.0:${PORT}`);
+    
+    // M-Pesa Configuration Status
+    console.log('\n--- M-Pesa Configuration ---');
+    console.log(`💳 MPESA_ENV: ${process.env.MPESA_ENV || 'NOT SET'}`);
+    console.log(`💳 MPESA_SHORTCODE: ${process.env.MPESA_SHORTCODE || 'NOT SET'}`);
+    console.log(`💳 MPESA_CONSUMER_KEY: ${process.env.MPESA_CONSUMER_KEY ? '✅ Set' : '❌ Missing'}`);
+    console.log(`💳 MPESA_CONSUMER_SECRET: ${process.env.MPESA_CONSUMER_SECRET ? '✅ Set' : '❌ Missing'}`);
+    console.log(`💳 MPESA_PASSKEY: ${process.env.MPESA_PASSKEY ? '✅ Set' : '❌ Missing'}`);
+    console.log(`💳 MPESA_CALLBACK_URL: ${process.env.MPESA_CALLBACK_URL || 'NOT SET'}`);
+    console.log('----------------------------\n');
 });
 
 // Graceful shutdown

@@ -30,7 +30,7 @@ import { Colors } from '@/constants/theme';
 const CONSULTATION_PRICES = {
     'Medical Officer': 1000,
     'Paediatrician': 2000,
-    'Developmental Paediatrician': 3000,
+    'Developmental Paediatrician': 1,  // KES 1 for testing (was 3000)
     'Occupational Therapist': 1500,
     'Speech Therapist': 2000,
     'Physiotherapist': 1500,
