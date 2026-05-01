@@ -11,6 +11,7 @@ router.get('/specializations', publicController.getPublicSpecializations);
 
 // Availability
 router.get('/availability', publicController.getPublicAvailability);
+router.get('/specialization-schedule', publicController.getSpecializationSchedule);
 
 // Consultation Prices
 router.get('/consultation-prices', publicController.getConsultationPrices);

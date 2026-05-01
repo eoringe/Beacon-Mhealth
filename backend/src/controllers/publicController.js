@@ -508,6 +508,76 @@ exports.getPublicAvailability = async (req, res) => {
     }
 };
 
+/**
+ * Get General Schedule (Public)
+ * Returns the weekly schedule windows for a given specialization
+ */
+exports.getSpecializationSchedule = async (req, res) => {
+    try {
+        const { specialization_id } = req.query;
+        if (!specialization_id) return res.status(400).json({ error: 'specialization_id is required' });
+
+        // Get all active doctors for this specialization
+        const doctorsResult = await externalQuery(
+            `SELECT s.id FROM staff s 
+             JOIN staff_specialization ss ON ss.staff_id = s.id 
+             WHERE ss.specialization_id = $1 AND s.is_active = true`,
+            [specialization_id]
+        );
+
+        const schedule = { IN_PERSON: {}, TELECONSULT: {} };
+        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        
+        // Initialize all days to empty arrays for UI consistency
+        for (const type of ['IN_PERSON', 'TELECONSULT']) {
+            days.forEach(day => schedule[type][day] = []);
+        }
+
+        if (doctorsResult.rows.length > 0) {
+            const doctorIds = doctorsResult.rows.map(r => r.id);
+            
+            // Fetch availabilities
+            const availResult = await externalQuery(
+                `SELECT day_of_week, start_time, end_time, window_type FROM doctor_teleconsultation_availabilities
+                 WHERE doctor_id = ANY($1::int[])`,
+                [doctorIds]
+            );
+
+            // Group by day and type
+            const sets = { IN_PERSON: {}, TELECONSULT: {} };
+            days.forEach(day => {
+                sets.IN_PERSON[day] = new Set();
+                sets.TELECONSULT[day] = new Set();
+            });
+
+            availResult.rows.forEach(row => {
+                const dayName = days[row.day_of_week];
+                // Time from DB might be '09:00:00'
+                const timeStr = `${row.start_time.substring(0, 5)} - ${row.end_time.substring(0, 5)}`;
+                
+                if (row.window_type === 'in_person') {
+                    sets.IN_PERSON[dayName].add(timeStr);
+                } else {
+                    // Null or anything else is treated as teleconsult window
+                    sets.TELECONSULT[dayName].add(timeStr);
+                }
+            });
+
+            // Convert sets to sorted arrays
+            for (const type of ['IN_PERSON', 'TELECONSULT']) {
+                days.forEach(day => {
+                    schedule[type][day] = Array.from(sets[type][day]).sort();
+                });
+            }
+        }
+
+        res.json({ success: true, schedule });
+    } catch (error) {
+        console.error('Schedule Error:', error);
+        res.status(500).json({ success: false, message: 'Failed to fetch schedule' });
+    }
+};
+
 // =============================================
 // M-PESA HELPERS (duplicated from mpesaController to avoid circular deps)
 // =============================================
