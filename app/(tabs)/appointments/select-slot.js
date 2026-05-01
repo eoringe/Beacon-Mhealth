@@ -557,21 +557,15 @@ export default function SelectSlotScreen() {
                             </View>
                         )}
 
-                        {/* Availability Disclaimer for both In-Person and Teleconsult */}
-                        <View style={[styles.disclaimerContainer, { backgroundColor: colorScheme.primaryLight + '20' }]}>
-                            <View style={styles.disclaimerHeader}>
-                                <MaterialIcons 
-                                    name={appointmentType === 'TELECONSULT' ? "videocam" : "location-on"} 
-                                    size={18} 
-                                    color={colorScheme.primary} 
-                                />
-                                <Text style={[styles.disclaimerTitle, { color: colorScheme.primary }]}>
-                                    {appointmentType === 'TELECONSULT' ? "Teleconsultation" : "In-Person"} Availability
-                                </Text>
-                            </View>
+                        {/* Available Slots / Weekly Schedule */}
+                        <View style={[styles.section, { marginTop: Spacing.lg }]}>
+                            <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, marginBottom: Spacing.sm }]}>
+                                {appointmentType === 'TELECONSULT' ? "Teleconsultation Schedule" : "In-Person Schedule"}
+                            </Text>
+                            
                             {fetchingAvailabilityWindows ? (
-                                <View style={styles.disclaimerLoading}>
-                                    <CustomLoading size={14} />
+                                <View style={{ padding: Spacing.md, alignItems: 'center' }}>
+                                    <CustomLoading size={20} />
                                 </View>
                             ) : (() => {
                                 const targetType = appointmentType === 'TELECONSULT' ? 'teleconsult' : 'in_person';
@@ -581,42 +575,58 @@ export default function SelectSlotScreen() {
                                 );
 
                                 if (filteredWindows.length > 0) {
-                                    return (
-                                        <View style={styles.windowsList}>
-                                            {filteredWindows.reduce((acc, window) => {
-                                                const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-                                                const dayName = dayNames[window.day_of_week];
-                                                let day = acc.find(d => d.name === dayName);
-                                                if (!day) {
-                                                    day = { name: dayName, times: [], dayIndex: window.day_of_week };
-                                                    acc.push(day);
-                                                }
+                                    const grouped = filteredWindows.reduce((acc, window) => {
+                                        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                                        const dayName = dayNames[window.day_of_week];
+                                        let day = acc.find(d => d.name === dayName);
+                                        if (!day) {
+                                            day = { name: dayName, times: [], dayIndex: window.day_of_week };
+                                            acc.push(day);
+                                        }
 
-                                                const timeRange = `${window.start_time.substring(0, 5)} - ${window.end_time.substring(0, 5)}`;
-                                                if (!day.times.includes(timeRange)) {
-                                                    day.times.push(timeRange);
-                                                }
-                                                return acc;
-                                            }, []).sort((a, b) => a.dayIndex - b.dayIndex).map((day, dIdx) => (
-                                                <View key={dIdx} style={styles.doctorWindowGroup}>
-                                                    <Text style={[styles.disclaimerText, { color: colorScheme.textSecondary }]}>
-                                                        • {day.name}: {day.times.join(', ')}
-                                                    </Text>
+                                        const timeRange = `${formatTime(window.start_time.substring(0, 5))} - ${formatTime(window.end_time.substring(0, 5))}`;
+                                        if (!day.times.includes(timeRange)) {
+                                            day.times.push(timeRange);
+                                        }
+                                        return acc;
+                                    }, []).sort((a, b) => a.dayIndex - b.dayIndex);
+
+                                    return (
+                                        <View style={{ gap: Spacing.md }}>
+                                            {grouped.map((day, dIdx) => (
+                                                <View key={dIdx} style={{ backgroundColor: colorScheme.surface, padding: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: colorScheme.border }}>
+                                                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.sm }}>
+                                                        <MaterialIcons name="event-available" size={18} color={colorScheme.primary} style={{ marginRight: 6 }} />
+                                                        <Text style={{ fontSize: Typography.fontSize.md, fontWeight: Typography.fontWeight.semibold, color: colorScheme.textPrimary }}>
+                                                            {day.name}
+                                                        </Text>
+                                                    </View>
+                                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm }}>
+                                                        {day.times.map((time, tIdx) => (
+                                                            <View key={tIdx} style={{ backgroundColor: colorScheme.primaryLight + '30', paddingHorizontal: Spacing.sm, paddingVertical: 6, borderRadius: BorderRadius.sm, borderWidth: 1, borderColor: colorScheme.primaryLight }}>
+                                                                <Text style={{ color: colorScheme.primary, fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.medium }}>
+                                                                    {time}
+                                                                </Text>
+                                                            </View>
+                                                        ))}
+                                                    </View>
                                                 </View>
                                             ))}
+                                            <Text style={{ fontSize: Typography.fontSize.xs, color: colorScheme.textTertiary, fontStyle: 'italic', marginTop: 4 }}>
+                                                * Please select a {grouped.map(d => d.name).join(', ')} on the calendar below.
+                                            </Text>
                                         </View>
                                     );
                                 } else {
                                     return (
-                                        <Text style={[styles.disclaimerText, { color: colorScheme.error }]}>
-                                            No {appointmentType === 'TELECONSULT' ? "teleconsultation" : "in-person"} windows defined for this specialization.
-                                        </Text>
+                                        <View style={{ backgroundColor: colorScheme.error + '15', padding: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, borderColor: colorScheme.error }}>
+                                            <Text style={{ color: colorScheme.error, fontSize: Typography.fontSize.sm }}>
+                                                No {appointmentType === 'TELECONSULT' ? "teleconsultation" : "in-person"} schedule available for this service.
+                                            </Text>
+                                        </View>
                                     );
                                 }
                             })()}
-                            <Text style={[styles.disclaimerFooter, { color: colorScheme.textTertiary }]}>
-                                * Only the above days are enabled on the calendar below.
-                            </Text>
                         </View>
                     </View>
 
