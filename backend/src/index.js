@@ -40,7 +40,15 @@ app.use(requestLogger);          // Request logging
 // PARSING MIDDLEWARE
 // ========================================
 app.use(cors({
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+    origin: function (origin, callback) {
+        const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
+        // Allow requests with no origin (mobile apps, curl), localhost, or explicitly allowed origins
+        if (!origin || origin.startsWith('http://localhost:') || allowedOrigins.includes(origin) || allowedOrigins.includes('*') || allowedOrigins.length === 0) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']
