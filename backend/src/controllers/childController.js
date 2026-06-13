@@ -48,10 +48,10 @@ exports.addChild = async (req, res) => {
         const nameCheck = await client.query(
             `SELECT * FROM children 
              WHERE parent_id = $1 
-               AND LOWER(first_name) = LOWER($2) 
+               AND LOWER(first_name) = LOWER($2::text) 
                AND (
-                 (last_name IS NULL AND ($3 IS NULL OR $3 = '')) OR 
-                 (LOWER(last_name) = LOWER($3))
+                 (last_name IS NULL AND ($3::text IS NULL OR $3::text = '')) OR 
+                 (LOWER(last_name) = LOWER($3::text))
                )
                AND date_of_birth = $4::date`,
             [userId, firstName, lastName || null, cleanDob]
