@@ -27,17 +27,24 @@ export const resilientFetch = async (
     delay = 1000,
     perRequestTimeoutMs = 15000
 ): Promise<Response> => {
+    const method = (options?.method || 'GET').toUpperCase();
+    const urlStr = typeof url === 'string' ? url : url instanceof URL ? url.toString() : '(Request)';
+    console.log(`[ResilientFetch] ▶ ${method} ${urlStr} (max retries: ${retries}, timeout: ${perRequestTimeoutMs}ms)`);
+
     for (let i = 0; i <= retries; i++) {
         // Create a per-attempt AbortController so stalled requests fail fast
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), perRequestTimeoutMs);
 
         try {
+            console.log(`[ResilientFetch]   Attempt ${i + 1}/${retries + 1}...`);
             const response = await fetch(url, {
                 ...options,
                 signal: controller.signal,
             });
             clearTimeout(timeoutId);
+            
+            console.log(`[ResilientFetch]   ◀ ${response.status} ${response.statusText}`);
             
             // Retry on transient server gateway errors
             if (!response.ok && [502, 503, 504].includes(response.status) && i < retries) {
@@ -48,6 +55,8 @@ export const resilientFetch = async (
         } catch (error: any) {
             clearTimeout(timeoutId);
             const errorMessage = error?.message || '';
+            console.error(`[ResilientFetch]   ✖ Attempt ${i + 1} failed: [${error?.name}] ${errorMessage}`);
+            
             const isNetworkError = 
                 error instanceof TypeError || 
                 errorMessage.includes('Network request failed') ||
@@ -60,10 +69,11 @@ export const resilientFetch = async (
 
             if (isNetworkError && i < retries) {
                 const backoffDelay = delay * Math.pow(2, i);
-                console.warn(`[ResilientFetch] Network error detected: "${errorMessage}". Retrying in ${backoffDelay}ms... (Attempt ${i + 1}/${retries})`);
+                console.warn(`[ResilientFetch]   ↻ Retrying in ${backoffDelay}ms... (Attempt ${i + 1}/${retries})`);
                 await new Promise(resolve => setTimeout(resolve, backoffDelay));
                 continue;
             }
+            console.error(`[ResilientFetch]   ✖ FINAL FAILURE after ${i + 1} attempts: ${errorMessage}`);
             throw error;
         }
     }

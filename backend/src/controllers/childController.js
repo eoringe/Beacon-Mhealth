@@ -2,13 +2,17 @@ const { pool } = require('../config/database');
 
 // Add a new child
 exports.addChild = async (req, res) => {
-    console.log('[ChildController] Adding new child for user:', req.user.id);
+    console.log('[ChildController] ======= ADD CHILD START =======');
+    console.log('[ChildController] User ID (from auth):', req.user.id);
+    console.log('[ChildController] User UID (firebase):', req.user.uid);
+    console.log('[ChildController] Request body:', JSON.stringify(req.body));
+    
     const client = await pool.connect();
     try {
         const { firstName, lastName, dateOfBirth, gender, registrationNumber } = req.body;
         const userId = req.user.id; // From auth middleware
 
-        console.log('[ChildController] Child data:', { firstName, lastName, dateOfBirth, gender, registrationNumber });
+        console.log('[ChildController] Parsed fields:', { firstName, lastName, dateOfBirth, gender, registrationNumber, userId });
 
         // Validation
         if (!firstName || !dateOfBirth || !gender) {
@@ -16,19 +20,31 @@ exports.addChild = async (req, res) => {
             return res.status(400).json({ error: 'First name, date of birth, and gender are required' });
         }
 
+        if (!userId) {
+            console.error('[ChildController] No user ID found - user may not exist in DB yet');
+            return res.status(400).json({ error: 'User not found in database. Please re-login.' });
+        }
+
         // 1. If registration number is provided, check if it's already linked to this user
         if (registrationNumber) {
-            const regCheck = await client.query(
-                'SELECT * FROM children WHERE parent_id = $1 AND registration_number = $2',
-                [userId, registrationNumber]
-            );
-            if (regCheck.rows.length > 0) {
-                return res.status(400).json({ error: 'This child record is already linked to your account.' });
+            console.log('[ChildController] Checking registration number:', registrationNumber);
+            try {
+                const regCheck = await client.query(
+                    'SELECT * FROM children WHERE parent_id = $1 AND registration_number = $2',
+                    [userId, registrationNumber]
+                );
+                if (regCheck.rows.length > 0) {
+                    return res.status(400).json({ error: 'This child record is already linked to your account.' });
+                }
+            } catch (regErr) {
+                // registration_number column might not exist - skip this check
+                console.warn('[ChildController] Registration number check failed (column may not exist):', regErr.message);
             }
         }
 
         // 2. Check for duplicate name + DOB under the same parent to prevent double-submissions on network retries
         const cleanDob = dateOfBirth.split('T')[0];
+        console.log('[ChildController] Checking duplicate with cleanDob:', cleanDob);
         const nameCheck = await client.query(
             `SELECT * FROM children 
              WHERE parent_id = $1 
@@ -45,19 +61,49 @@ exports.addChild = async (req, res) => {
             return res.status(200).json(nameCheck.rows[0]);
         }
 
-        const query = `
-            INSERT INTO children (parent_id, first_name, last_name, date_of_birth, gender, registration_number, photo_url)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-            RETURNING *
-        `;
-        const values = [userId, firstName, lastName || null, cleanDob, gender, registrationNumber || null, req.body.photoUrl || null];
+        // 3. Try inserting with registration_number first, fall back without it
+        let result;
+        try {
+            console.log('[ChildController] Attempting INSERT with registration_number...');
+            const query = `
+                INSERT INTO children (parent_id, first_name, last_name, date_of_birth, gender, registration_number, photo_url)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                RETURNING *
+            `;
+            const values = [userId, firstName, lastName || null, cleanDob, gender, registrationNumber || null, req.body.photoUrl || null];
+            console.log('[ChildController] INSERT values:', values);
+            result = await client.query(query, values);
+        } catch (insertErr) {
+            // If registration_number column doesn't exist, retry without it
+            if (insertErr.message && insertErr.message.includes('registration_number')) {
+                console.warn('[ChildController] registration_number column not found, retrying without it...');
+                const fallbackQuery = `
+                    INSERT INTO children (parent_id, first_name, last_name, date_of_birth, gender, photo_url)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    RETURNING *
+                `;
+                const fallbackValues = [userId, firstName, lastName || null, cleanDob, gender, req.body.photoUrl || null];
+                console.log('[ChildController] Fallback INSERT values:', fallbackValues);
+                result = await client.query(fallbackQuery, fallbackValues);
+            } else {
+                throw insertErr;
+            }
+        }
 
-        const result = await client.query(query, values);
-        console.log('[ChildController] Child added successfully:', result.rows[0].id);
+        console.log('[ChildController] ✔ Child added successfully:', result.rows[0].id);
+        console.log('[ChildController] ======= ADD CHILD END =======');
         res.status(201).json(result.rows[0]);
     } catch (error) {
-        console.error('[ChildController] Error adding child:', error);
-        res.status(500).json({ error: 'Server error adding child' });
+        console.error('[ChildController] ✖ Error adding child:', error.message);
+        console.error('[ChildController] ✖ Error stack:', error.stack);
+        console.error('[ChildController] ✖ Error code:', error.code);
+        console.error('[ChildController] ✖ Error detail:', error.detail);
+        res.status(500).json({ 
+            error: 'Server error adding child',
+            debugMessage: error.message,
+            debugCode: error.code,
+            debugDetail: error.detail
+        });
     } finally {
         client.release();
     }

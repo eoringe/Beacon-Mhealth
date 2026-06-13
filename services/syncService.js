@@ -153,7 +153,8 @@ class SyncService {
         });
 
         await this.saveQueue(queue);
-        console.log(`[SyncService] Enqueued task: ${type} (ID: ${taskId})`);
+        console.log(`[SyncService] ✚ Enqueued task: ${type} (ID: ${taskId})`);
+        console.log(`[SyncService]   Payload: ${JSON.stringify(payload).substring(0, 500)}`);
 
         // Trigger processing immediately in the background
         this.processQueue();
@@ -173,10 +174,13 @@ class SyncService {
         }
 
         this.isProcessing = true;
+        console.log('[SyncService] ═══════════════════════════════════════');
         console.log('[SyncService] Starting sync queue processing...');
 
         try {
             let queue = await this.getQueue();
+            console.log(`[SyncService] Queue length: ${queue.length}`);
+            queue.forEach((t, i) => console.log(`[SyncService]   [${i}] ${t.type} | attempts=${t.attempts} | id=${t.id} | payload_keys=${Object.keys(t.payload).join(',')}`));
             
             while (queue.length > 0) {
                 const task = queue[0];
@@ -188,6 +192,7 @@ class SyncService {
 
                 try {
                     const token = await authService.getToken();
+                    console.log(`[SyncService] Auth token present: ${!!token}, length: ${token?.length || 0}`);
                     if (!token) throw new Error('No auth token available');
 
                     const headers = {
@@ -293,19 +298,46 @@ class SyncService {
 
                         case 'ADD_CHILD': {
                             const { childData } = task.payload;
-                            const res = await resilientFetch(`${API_URL}/children`, {
-                                method: 'POST',
-                                headers,
-                                body: JSON.stringify(childData)
-                            });
+                            const addChildUrl = `${API_URL}/children`;
+                            const addChildBody = JSON.stringify(childData);
+                            console.log(`[SyncService][ADD_CHILD] ▶ URL: ${addChildUrl}`);
+                            console.log(`[SyncService][ADD_CHILD] ▶ Payload: ${addChildBody}`);
+                            console.log(`[SyncService][ADD_CHILD] ▶ TempId: ${task.payload.tempId}`);
+                            console.log(`[SyncService][ADD_CHILD] ▶ Headers: ${JSON.stringify({ ...headers, Authorization: 'Bearer ***' })}`);
+
+                            let res;
+                            try {
+                                res = await resilientFetch(addChildUrl, {
+                                    method: 'POST',
+                                    headers,
+                                    body: addChildBody
+                                });
+                            } catch (fetchErr) {
+                                console.error(`[SyncService][ADD_CHILD] ✖ resilientFetch threw:`, fetchErr?.message || fetchErr);
+                                console.error(`[SyncService][ADD_CHILD] ✖ Error name: ${fetchErr?.name}`);
+                                console.error(`[SyncService][ADD_CHILD] ✖ Error stack: ${fetchErr?.stack}`);
+                                throw fetchErr;
+                            }
+
+                            console.log(`[SyncService][ADD_CHILD] ◀ Response status: ${res.status} ${res.statusText}`);
+
+                            // Read raw body text first for logging
+                            let rawBody = '';
+                            try {
+                                rawBody = await res.clone().text();
+                                console.log(`[SyncService][ADD_CHILD] ◀ Raw response body: ${rawBody.substring(0, 500)}`);
+                            } catch (bodyErr) {
+                                console.warn(`[SyncService][ADD_CHILD] Could not read response body:`, bodyErr?.message);
+                            }
 
                             if (res.status >= 400 && res.status < 500) {
                                 clientError = true;
-                                throw new Error(`Client error: ${res.status}`);
+                                throw new Error(`Client error ${res.status}: ${rawBody.substring(0, 200)}`);
                             }
-                            if (!res.ok) throw new Error(`Server status: ${res.status}`);
+                            if (!res.ok) throw new Error(`Server error ${res.status}: ${rawBody.substring(0, 200)}`);
 
-                            resultData = await res.json();
+                            resultData = JSON.parse(rawBody);
+                            console.log(`[SyncService][ADD_CHILD] ✔ Created child with server ID: ${resultData?.id}`);
                             success = true;
                             break;
                         }
@@ -317,15 +349,19 @@ class SyncService {
                                 success = true;
                                 break;
                             }
-                            const res = await resilientFetch(`${API_URL}/children/${id}`, {
+                            const updateUrl = `${API_URL}/children/${id}`;
+                            console.log(`[SyncService][UPDATE_CHILD] ▶ URL: ${updateUrl}`);
+                            const res = await resilientFetch(updateUrl, {
                                 method: 'PUT',
                                 headers,
                                 body: JSON.stringify(childData)
                             });
 
+                            console.log(`[SyncService][UPDATE_CHILD] ◀ Status: ${res.status}`);
                             if (res.status >= 400 && res.status < 500) {
                                 clientError = true;
-                                throw new Error(`Client error: ${res.status}`);
+                                const errBody = await res.text();
+                                throw new Error(`Client error ${res.status}: ${errBody.substring(0, 200)}`);
                             }
                             if (!res.ok) throw new Error(`Server status: ${res.status}`);
 
@@ -341,11 +377,14 @@ class SyncService {
                                 success = true;
                                 break;
                             }
-                            const res = await resilientFetch(`${API_URL}/children/${id}`, {
+                            const deleteUrl = `${API_URL}/children/${id}`;
+                            console.log(`[SyncService][DELETE_CHILD] ▶ URL: ${deleteUrl}`);
+                            const res = await resilientFetch(deleteUrl, {
                                 method: 'DELETE',
                                 headers
                             });
 
+                            console.log(`[SyncService][DELETE_CHILD] ◀ Status: ${res.status}`);
                             if (res.status >= 400 && res.status < 500) {
                                 clientError = true;
                                 throw new Error(`Client error: ${res.status}`);
@@ -362,7 +401,9 @@ class SyncService {
                             break;
                     }
                 } catch (taskError) {
-                    console.error(`[SyncService] Task execution failed:`, taskError?.message || taskError);
+                    console.error(`[SyncService] ✖ Task execution failed for ${task.type}:`, taskError?.message || taskError);
+                    console.error(`[SyncService] ✖ Full task payload:`, JSON.stringify(task.payload));
+                    console.error(`[SyncService] ✖ Error type: ${taskError?.name}, Stack: ${taskError?.stack?.substring(0, 300)}`);
                 }
 
                 if (success) {
