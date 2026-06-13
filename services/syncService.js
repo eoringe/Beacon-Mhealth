@@ -10,6 +10,7 @@ class SyncService {
     constructor() {
         this.isProcessing = false;
         this.unsubscribeNetInfo = null;
+        this.syncInterval = null;
         this.listeners = [];
     }
 
@@ -40,7 +41,7 @@ class SyncService {
     }
 
     /**
-     * Start the sync service (listen to connectivity changes)
+     * Start the sync service (listen to connectivity changes and start periodic check)
      */
     start() {
         if (this.unsubscribeNetInfo) return;
@@ -53,6 +54,12 @@ class SyncService {
             }
         });
 
+        // Periodic check to retry sync if server was down but network was online
+        this.syncInterval = setInterval(() => {
+            console.log('[SyncService] Periodic check: triggering sync run...');
+            this.processQueue();
+        }, 60000); // Check/retry every 60 seconds
+
         // Trigger an initial process run
         this.processQueue();
     }
@@ -64,6 +71,10 @@ class SyncService {
         if (this.unsubscribeNetInfo) {
             this.unsubscribeNetInfo();
             this.unsubscribeNetInfo = null;
+        }
+        if (this.syncInterval) {
+            clearInterval(this.syncInterval);
+            this.syncInterval = null;
         }
     }
 
@@ -401,9 +412,9 @@ class SyncService {
                             break;
                     }
                 } catch (taskError) {
-                    console.error(`[SyncService] ✖ Task execution failed for ${task.type}:`, taskError?.message || taskError);
-                    console.error(`[SyncService] ✖ Full task payload:`, JSON.stringify(task.payload));
-                    console.error(`[SyncService] ✖ Error type: ${taskError?.name}, Stack: ${taskError?.stack?.substring(0, 300)}`);
+                    console.log(`[SyncService] ✖ Task execution failed for ${task.type}:`, taskError?.message || taskError);
+                    console.log(`[SyncService] ✖ Full task payload:`, JSON.stringify(task.payload));
+                    console.log(`[SyncService] ✖ Error type: ${taskError?.name}, Stack: ${taskError?.stack?.substring(0, 300)}`);
                 }
 
                 if (success) {
@@ -507,17 +518,12 @@ class SyncService {
                     queue.shift();
                     await this.saveQueue(queue);
                 } else {
-                    // Network/Server error — increment attempts and wait (stop processing queue for now)
+                    // Network/Server error — increment attempts and wait (stop processing queue for now).
+                    // We DO NOT drop tasks on network/server errors to prevent permanent data loss.
                     task.attempts += 1;
-                    if (task.attempts >= 5) {
-                        console.warn(`[SyncService] Task ${task.type} exceeded retry count. Dropping.`);
-                        queue.shift();
-                    } else {
-                        // Resave queue with updated attempts count
-                        await this.saveQueue(queue);
-                        console.log('[SyncService] Network/Server failure. Halting queue processing.');
-                        break;
-                    }
+                    await this.saveQueue(queue);
+                    console.log(`[SyncService] Network/Server failure (Attempt ${task.attempts}). Halting queue processing to retry later.`);
+                    break;
                 }
             }
         } catch (queueError) {

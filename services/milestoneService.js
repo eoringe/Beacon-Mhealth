@@ -63,6 +63,12 @@ export const milestoneService = {
     // Get milestone responses for a specific child, age, and category
     getMilestoneResponses: async (childId, ageMonths, category, forceRefresh = false) => {
         try {
+            // Skip server fetch for offline-only children (temp IDs)
+            if (childId && childId.startsWith('temp_')) {
+                console.log(`[milestoneService] Skipping server fetch for temp child: ${childId}`);
+                const cached = await cacheService.get(`milestones_${childId}_${ageMonths}_${category}`);
+                return cached || null;
+            }
             const headers = await getHeaders();
             const cacheKey = `milestones_${childId}_${ageMonths}_${category}`;
 
@@ -108,6 +114,12 @@ export const milestoneService = {
     // Get all milestone responses for a child
     getAllMilestoneResponsesForChild: async (childId, forceRefresh = false) => {
         try {
+            // Skip server fetch for offline-only children (temp IDs)
+            if (childId && childId.startsWith('temp_')) {
+                console.log(`[milestoneService] Skipping server fetch for temp child: ${childId}`);
+                const cached = await cacheService.get(`milestones_${childId}_all`);
+                return cached || [];
+            }
             const headers = await getHeaders();
             const cacheKey = `milestones_${childId}_all`;
 

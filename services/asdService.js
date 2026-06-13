@@ -62,6 +62,12 @@ const asdService = {
    */
   getAsdScreeningsForChild: async (childId, forceRefresh = false) => {
     try {
+      // Skip server fetch for offline-only children (temp IDs)
+      if (childId && childId.startsWith('temp_')) {
+        console.log(`[asdService] Skipping server fetch for temp child: ${childId}`);
+        const cached = await cacheService.get(`asd_${childId}`);
+        return cached || [];
+      }
       const token = await authService.getToken();
       if (!token) throw new Error('No authentication token');
       

@@ -55,7 +55,7 @@ export default function MilestoneChecklist() {
         if (!selectedChild?.id) return;
         setLoading(true);
         try {
-          const data = await milestoneService.getAllMilestoneResponsesForChild(selectedChild.id, true);
+          const data = await milestoneService.getAllMilestoneResponsesForChild(selectedChild.id, false);
           if (active) {
             setAllResponses(data || []);
           }
@@ -90,7 +90,7 @@ export default function MilestoneChecklist() {
 
     const categoryStats = MILESTONE_CATEGORIES.reduce((acc, cat) => {
       const milestonesList = milestoneDataForAge[cat.id] || [];
-      const savedRow = allResponses.find(r => r.category === cat.id && r.age_months === selectedAge);
+      const savedRow = allResponses.find(r => r.category === cat.id && Number(r.age_months) === Number(selectedAge));
       const catResponses = savedRow?.responses || {};
 
       let catAchieved = 0;

@@ -55,7 +55,7 @@ export const resilientFetch = async (
         } catch (error: any) {
             clearTimeout(timeoutId);
             const errorMessage = error?.message || '';
-            console.error(`[ResilientFetch]   ✖ Attempt ${i + 1} failed: [${error?.name}] ${errorMessage}`);
+            console.log(`[ResilientFetch]   ✖ Attempt ${i + 1} failed: [${error?.name}] ${errorMessage}`);
             
             const isNetworkError = 
                 error instanceof TypeError || 
@@ -69,11 +69,11 @@ export const resilientFetch = async (
 
             if (isNetworkError && i < retries) {
                 const backoffDelay = delay * Math.pow(2, i);
-                console.warn(`[ResilientFetch]   ↻ Retrying in ${backoffDelay}ms... (Attempt ${i + 1}/${retries})`);
+                console.log(`[ResilientFetch]   ↻ Retrying in ${backoffDelay}ms... (Attempt ${i + 1}/${retries})`);
                 await new Promise(resolve => setTimeout(resolve, backoffDelay));
                 continue;
             }
-            console.error(`[ResilientFetch]   ✖ FINAL FAILURE after ${i + 1} attempts: ${errorMessage}`);
+            console.log(`[ResilientFetch]   ✖ FINAL FAILURE after ${i + 1} attempts: ${errorMessage}`);
             throw error;
         }
     }

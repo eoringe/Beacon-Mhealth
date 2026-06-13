@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -91,6 +91,7 @@ export default function MilestoneCategory() {
   const [selectedAge, setSelectedAge] = useState(defaultAge);
   const [milestoneResponses, setMilestoneResponses] = useState({});
   const [loading, setLoading] = useState(false);
+  const hasChanges = useRef(false);
   const [scrollViewRef, setScrollViewRef] = useState(null);
   const [scrollPosition, setScrollPosition] = useState(0);
   const [contentWidth, setContentWidth] = useState(0);
@@ -154,7 +155,7 @@ export default function MilestoneCategory() {
           selectedAge,
           category
         );
-        setMilestoneResponses(data.responses || {});
+        setMilestoneResponses(data?.responses || {});
       } catch (error) {
         console.error('Error loading milestone responses:', error);
         setMilestoneResponses({});

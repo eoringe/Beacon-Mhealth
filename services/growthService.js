@@ -76,6 +76,12 @@ class GrowthService {
     // Get all growth measurements for a child
     async getMeasurements(childId, forceRefresh = false) {
         try {
+            // Skip server fetch for offline-only children (temp IDs)
+            if (childId && childId.startsWith('temp_')) {
+                console.log(`[GrowthService] Skipping server fetch for temp child: ${childId}`);
+                const cached = await cacheService.get(`growth_${childId}`);
+                return cached || [];
+            }
             const token = await this.getToken();
             if (!token) throw new Error('No authentication token');
 

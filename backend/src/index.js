@@ -42,8 +42,15 @@ app.use(requestLogger);          // Request logging
 app.use(cors({
     origin: function (origin, callback) {
         const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
-        // Allow requests with no origin (mobile apps, curl), localhost, or explicitly allowed origins
-        if (!origin || origin.startsWith('http://localhost:') || allowedOrigins.includes(origin) || allowedOrigins.includes('*') || allowedOrigins.length === 0) {
+        const isLocal = !origin || 
+            origin.startsWith('http://localhost:') || 
+            origin.startsWith('http://127.0.0.1:') || 
+            origin.startsWith('http://192.168.') || 
+            origin.startsWith('http://10.') || 
+            origin.startsWith('http://172.') || 
+            origin.startsWith('exp://');
+
+        if (isLocal || allowedOrigins.includes(origin) || allowedOrigins.includes('*') || allowedOrigins.length === 0 || allowedOrigins[0] === '') {
             callback(null, true);
         } else {
             callback(new Error('Not allowed by CORS'));
