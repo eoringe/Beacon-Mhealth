@@ -168,6 +168,10 @@ export default function FeedingTrackerScreen() {
     const breastCount = todayLogs.filter(l => l.type === 'breast').length;
     const bottleCount = todayLogs.filter(l => l.type === 'bottle').length;
     const solidCount = todayLogs.filter(l => l.type === 'solid').length;
+    const uniqueSolidCategoriesToday = new Set(
+        todayLogs.filter(l => l.type === 'solid' && l.foodCategory).map(l => l.foodCategory)
+    );
+    const solidDiversityCount = uniqueSolidCategoriesToday.size;
 
     const formatTime = (isoString) => {
         const d = new Date(isoString);
@@ -243,14 +247,9 @@ export default function FeedingTrackerScreen() {
                 title="Feeding Tracker"
                 showBack={true}
                 rightComponent={
-                    <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
-                        <TouchableOpacity onPress={() => setShowAdviceModal(true)}>
-                            <MaterialIcons name="info-outline" size={24} color="#FFFFFF" />
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => setShowAddModal(true)}>
-                            <MaterialIcons name="add" size={24} color="#FFFFFF" />
-                        </TouchableOpacity>
-                    </View>
+                    <TouchableOpacity onPress={() => setShowAdviceModal(true)}>
+                        <MaterialIcons name="info-outline" size={24} color="#FFFFFF" />
+                    </TouchableOpacity>
                 }
             />
 
@@ -318,31 +317,41 @@ export default function FeedingTrackerScreen() {
                 contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl }}
                 showsVerticalScrollIndicator={false}
             >
-                <View style={[styles.logSection, { marginTop: Spacing.lg }]}>
-                    <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>Log Feeding</Text>
-                    <View style={styles.quickLogContainer}>
-                        {FEEDING_TYPES.map((type) => (
-                            <TouchableOpacity
-                                key={type.id}
-                                style={[styles.quickLogItem, { backgroundColor: colorScheme.surface }]}
-                                onPress={() => {
-                                    setFeedingType(type.id);
-                                    setShowAddModal(true);
-                                }}
-                            >
-                                <View style={[styles.quickLogIcon, { backgroundColor: `${type.color}15` }]}>
-                                    <MaterialIcons name={type.icon} size={24} color={type.color} />
-                                </View>
-                                <Text 
-                                    style={[styles.quickLogLabel, { color: colorScheme.textPrimary }]}
-                                    numberOfLines={1}
-                                    adjustsFontSizeToFit
-                                >
-                                    {type.label}
-                                </Text>
-                            </TouchableOpacity>
-                        ))}
+                {/* Instruction Header */}
+                <View style={[styles.instructionBox, { backgroundColor: '#EEF2F6', borderColor: '#CFD8DC', borderWidth: 1, margin: Spacing.lg, padding: Spacing.md, borderRadius: BorderRadius.md }]}>
+                    <View style={{ flexDirection: 'row', gap: Spacing.xs, alignItems: 'center', marginBottom: 4 }}>
+                        <MaterialIcons name="lightbulb-outline" size={18} color="#37474F" />
+                        <Text style={{ fontWeight: 'bold', color: '#37474F', fontSize: 13 }}>Why track feeding?</Text>
                     </View>
+                    <Text style={{ color: '#455A64', fontSize: 12, lineHeight: 16 }}>
+                        Tracking what your baby eats helps ensure they get enough nutrients to grow strong. It also helps you spot patterns in their appetite.
+                    </Text>
+                    
+                    <View style={{ height: 1, backgroundColor: '#CFD8DC', marginVertical: Spacing.sm }} />
+                    
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
+                        <MaterialIcons name="restaurant" size={16} color={solidDiversityCount >= 4 ? '#10B981' : '#F59E0B'} />
+                        <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#37474F' }}>
+                            WHO Nutrition Goal: >= 4 food groups/day
+                        </Text>
+                    </View>
+                    <Text style={{ fontSize: 12, color: '#455A64', marginTop: 2 }}>
+                        Today your child has eaten <Text style={{ fontWeight: 'bold', color: solidDiversityCount >= 4 ? '#10B981' : '#F59E0B' }}>{solidDiversityCount} / 7</Text> groups. {solidDiversityCount >= 4 ? "Excellent diversity!" : "Try to include at least 4 different food groups for healthy development."}
+                    </Text>
+                </View>
+
+                {/* Add Entry Button */}
+                <View style={{ paddingHorizontal: Spacing.lg, marginBottom: Spacing.md }}>
+                    <TouchableOpacity
+                        style={[styles.addEntryBtnLarge, { backgroundColor: colorScheme.primary }]}
+                        onPress={() => {
+                            resetForm();
+                            setShowAddModal(true);
+                        }}
+                    >
+                        <MaterialIcons name="add" size={20} color="#FFFFFF" />
+                        <Text style={styles.addEntryBtnLargeText}>Add Feeding Entry</Text>
+                    </TouchableOpacity>
                 </View>
 
                 {/* Today's Summary */}
@@ -604,7 +613,7 @@ export default function FeedingTrackerScreen() {
                             {/* Solid Fields */}
                             {feedingType === 'solid' && (
                                 <>
-                                    <Text style={[styles.fieldLabel, { color: colorScheme.textPrimary }]}>Category</Text>
+                                    <Text style={[styles.fieldLabel, { color: colorScheme.textPrimary }]}>Food Category</Text>
                                     <View style={styles.durationRow}>
                                         {FOOD_CATEGORIES.map((cat) => (
                                             <TouchableOpacity
@@ -629,14 +638,14 @@ export default function FeedingTrackerScreen() {
                                         ))}
                                     </View>
 
-                                    <Text style={[styles.fieldLabel, { color: colorScheme.textPrimary }]}>Food Name</Text>
+                                    <Text style={[styles.fieldLabel, { color: colorScheme.textPrimary }]}>Food Type</Text>
                                     <TextInput
                                         style={[styles.textInput, {
                                             backgroundColor: colorScheme.surface,
                                             color: colorScheme.textPrimary,
                                             borderColor: colorScheme.border,
                                         }]}
-                                        placeholder="e.g. Mashed banana"
+                                        placeholder="e.g. Mashed banana, oats porridge"
                                         placeholderTextColor={colorScheme.textTertiary}
                                         value={foodName}
                                         onChangeText={setFoodName}
@@ -994,5 +1003,19 @@ const styles = StyleSheet.create({
         marginTop: Spacing.xl,
         fontStyle: 'italic',
         paddingHorizontal: Spacing.lg,
+    },
+    addEntryBtnLarge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: Spacing.xs,
+        paddingVertical: Spacing.md,
+        borderRadius: BorderRadius.md,
+        ...Shadow.md,
+    },
+    addEntryBtnLargeText: {
+        color: '#FFFFFF',
+        fontSize: Typography.fontSize.md,
+        fontWeight: Typography.fontWeight.semibold,
     },
 });

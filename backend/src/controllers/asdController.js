@@ -19,13 +19,34 @@ exports.saveAsdScreening = async (req, res) => {
             return res.status(404).json({ error: 'Child not found or unauthorized' });
         }
 
-        // Insert new record
-        const insertQuery = `
-            INSERT INTO asd_screenings (child_id, responses, score, risk_level)
-            VALUES ($1, $2, $3, $4)
-            RETURNING *
+        // Check for existing screening today (prevent duplicates from double-taps or network retries)
+        const todayCheck = `
+            SELECT id FROM asd_screenings
+            WHERE child_id = $1 AND DATE(created_at) = CURRENT_DATE
         `;
-        const result = await client.query(insertQuery, [childId, JSON.stringify(responses), score, riskLevel]);
+        const existingToday = await client.query(todayCheck, [childId]);
+
+        let result;
+        if (existingToday.rows.length > 0) {
+            // Update existing today's record instead of creating a duplicate
+            const updateQuery = `
+                UPDATE asd_screenings 
+                SET responses = $1, score = $2, risk_level = $3, updated_at = NOW()
+                WHERE id = $4
+                RETURNING *
+            `;
+            result = await client.query(updateQuery, [
+                JSON.stringify(responses), score, riskLevel, existingToday.rows[0].id
+            ]);
+        } else {
+            // Insert new record
+            const insertQuery = `
+                INSERT INTO asd_screenings (child_id, responses, score, risk_level)
+                VALUES ($1, $2, $3, $4)
+                RETURNING *
+            `;
+            result = await client.query(insertQuery, [childId, JSON.stringify(responses), score, riskLevel]);
+        }
 
         res.json(result.rows[0]);
     } catch (error) {

@@ -20,6 +20,7 @@ interface SafeHeaderProps {
     showMenu?: boolean;
     onBackPress?: () => void;
     rightComponent?: React.ReactNode;
+    backIconName?: string;
 }
 
 export function SafeHeader({
@@ -28,6 +29,7 @@ export function SafeHeader({
     showMenu = false,
     onBackPress,
     rightComponent,
+    backIconName,
 }: SafeHeaderProps) {
     const insets = useSafeAreaInsets();
     const router = useRouter();
@@ -79,7 +81,7 @@ export function SafeHeader({
                             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                         >
                             <MaterialIcons
-                                name="arrow-back"
+                                name={backIconName || "arrow-back"}
                                 size={24}
                                 color="#FFFFFF"
                             />

@@ -134,11 +134,6 @@ export default function GrowthChartScreen() {
             <SafeHeader
                 title="Growth Tracker"
                 showBack={true}
-                rightComponent={
-                    <TouchableOpacity onPress={() => router.push({ pathname: '/dashboard/growth-chart/add-measurement', params: { childId: activeChildId } })}>
-                        <MaterialIcons name="add" size={24} color="#FFFFFF" />
-                    </TouchableOpacity>
-                }
             />
 
             <ScrollView
@@ -155,13 +150,13 @@ export default function GrowthChartScreen() {
                 }
             >
                 {/* Introduction Instruction */}
-                <View style={[styles.introCard, { backgroundColor: `${colorScheme.primary}08`, borderColor: `${colorScheme.primary}20` }]}>
-                    <View style={styles.introHeader}>
-                        <MaterialIcons name="info" size={20} color={colorScheme.primary} />
-                        <Text style={[styles.introTitle, { color: colorScheme.textPrimary }]}>How to start tracking</Text>
+                <View style={[styles.introCard, { backgroundColor: '#EEF2F6', borderColor: '#CFD8DC', borderWidth: 1, margin: Spacing.lg, padding: Spacing.md, borderRadius: BorderRadius.md }]}>
+                    <View style={{ flexDirection: 'row', gap: Spacing.xs, alignItems: 'center', marginBottom: 4 }}>
+                        <MaterialIcons name="lightbulb-outline" size={18} color="#37474F" />
+                        <Text style={{ fontWeight: 'bold', color: '#37474F', fontSize: 13 }}>Why track growth?</Text>
                     </View>
-                    <Text style={[styles.introText, { color: colorScheme.textSecondary }]}>
-                        Enter your child's growth measurements (Height, Weight, or Head Circumference) to start tracking their development against WHO global standards.
+                    <Text style={{ color: '#455A64', fontSize: 12, lineHeight: 16 }}>
+                        Regular growth checks show if your child is getting taller, heavier, and their brain is growing at a healthy rate.
                     </Text>
                 </View>
 
@@ -233,6 +228,9 @@ export default function GrowthChartScreen() {
                     <View style={styles.chartContainer}>
                         <WHOChart
                             childData={currentData}
+                            heightData={heightData}
+                            weightData={weightData}
+                            headData={headCircData}
                             gender={child?.gender || selectedChild?.gender}
                             type={selectedTab}
                             color={getCurrentColor()}
@@ -247,10 +245,17 @@ export default function GrowthChartScreen() {
 
                 {/* Measurement History */}
                 <View style={styles.historySection}>
-                    <View style={styles.sectionHeader}>
-                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md }}>
+                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, marginBottom: 0 }]}>
                             Measurement History
                         </Text>
+                        <TouchableOpacity
+                            style={[styles.addEntryButton, { backgroundColor: colorScheme.primary }]}
+                            onPress={() => router.push({ pathname: '/dashboard/growth-chart/add-measurement', params: { childId: activeChildId } })}
+                        >
+                            <MaterialIcons name="add" size={18} color="#FFFFFF" />
+                            <Text style={styles.addEntryButtonText}>Add Entry</Text>
+                        </TouchableOpacity>
                     </View>
 
                     {currentData.length === 0 ? (
@@ -446,5 +451,19 @@ const styles = StyleSheet.create({
     whoLinkText: {
         fontSize: Typography.fontSize.sm,
         fontWeight: Typography.fontWeight.medium,
+    },
+    addEntryButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.xs,
+        paddingHorizontal: Spacing.md,
+        paddingVertical: 6,
+        borderRadius: BorderRadius.md,
+        ...Shadow.sm,
+    },
+    addEntryButtonText: {
+        color: '#FFFFFF',
+        fontSize: Typography.fontSize.sm,
+        fontWeight: Typography.fontWeight.semibold,
     },
 });

@@ -91,7 +91,6 @@ export default function MilestoneCategory() {
   const [selectedAge, setSelectedAge] = useState(defaultAge);
   const [milestoneResponses, setMilestoneResponses] = useState({});
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [scrollViewRef, setScrollViewRef] = useState(null);
   const [scrollPosition, setScrollPosition] = useState(0);
   const [contentWidth, setContentWidth] = useState(0);
@@ -142,6 +141,7 @@ export default function MilestoneCategory() {
   // Load saved milestone responses when component mounts or age/category changes
   useEffect(() => {
     // Clear responses immediately when age or category changes
+    hasChanges.current = false;
     setMilestoneResponses({});
 
     const loadMilestoneResponses = async () => {
@@ -166,48 +166,6 @@ export default function MilestoneCategory() {
     loadMilestoneResponses();
   }, [selectedChild?.id, selectedAge, category]);
 
-  // Save milestone responses to database whenever they change
-  useEffect(() => {
-    const saveMilestoneResponses = async () => {
-      // Validate all required parameters before attempting to save
-      if (!selectedChild?.id) {
-        console.log('[Milestone] No child selected, skipping save');
-        return;
-      }
-      if (!selectedAge && selectedAge !== 0) {
-        console.log('[Milestone] No age selected, skipping save');
-        return;
-      }
-      if (!category) {
-        console.log('[Milestone] No category selected, skipping save');
-        return;
-      }
-      if (!milestoneResponses || Object.keys(milestoneResponses).length === 0) {
-        console.log('[Milestone] No responses to save, skipping');
-        return;
-      }
-
-      setSaving(true);
-      try {
-        await milestoneService.saveMilestoneResponses(
-          selectedChild.id,
-          selectedAge,
-          category,
-          milestoneResponses
-        );
-        // Note: Milestone progress warning is now shown on Dashboard instead
-      } catch (error) {
-        console.error('Error saving milestone responses:', error);
-      } finally {
-        setSaving(false);
-      }
-    };
-
-    // Debounce saving to avoid too many API calls
-    const timeoutId = setTimeout(saveMilestoneResponses, 500);
-    return () => clearTimeout(timeoutId);
-  }, [milestoneResponses, selectedChild?.id, selectedAge, category]);
-
   const handleResponse = (milestoneIndex, response) => {
     if (isReadOnly) return;
 
@@ -218,6 +176,18 @@ export default function MilestoneCategory() {
 
     setMilestoneResponses(updatedResponses);
 
+    // Save milestone responses immediately (offline-first local write + background sync queue)
+    if (selectedChild?.id && (selectedAge || selectedAge === 0) && category) {
+      milestoneService.saveMilestoneResponses(
+        selectedChild.id,
+        selectedAge,
+        category,
+        updatedResponses
+      ).catch(error => {
+        console.error('Error triggered during offline-first saveMilestoneResponses:', error);
+      });
+    }
+
     // Check if all milestones are answered - add completion notification (silent, no modal)
     if (Object.keys(updatedResponses).length === milestones.length && Object.keys(milestoneResponses).length < milestones.length) {
       addNotification({
@@ -225,7 +195,6 @@ export default function MilestoneCategory() {
         title: 'Checklist Completed',
         message: `You've completed the ${selectedAge}-month milestone checklist for ${categoryInfo?.title || 'this category'}.`,
       });
-
     }
   };
 
@@ -502,13 +471,18 @@ export default function MilestoneCategory() {
             <MaterialIcons name="arrow-forward" size={20} color="#FFFFFF" />
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity
-            style={[styles.nextCategoryButton, { backgroundColor: colorScheme.success }]}
-            onPress={() => router.push('/dashboard/milestone-checklist')}
-          >
-            <Text style={styles.nextCategoryButtonText}>Finish Checklist</Text>
-            <MaterialIcons name="check-circle" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
+          <View style={{ marginVertical: Spacing.md, paddingHorizontal: Spacing.sm }}>
+            <Text style={{ fontSize: Typography.fontSize.sm, color: colorScheme.textSecondary, textAlign: 'center', marginBottom: Spacing.sm, fontStyle: 'italic' }}>
+              This is the final category for this age group. Click 'Finish Checklist' below to save responses and view your overall milestones report.
+            </Text>
+            <TouchableOpacity
+              style={[styles.nextCategoryButton, { backgroundColor: colorScheme.success }]}
+              onPress={() => router.push('/dashboard/milestone-checklist')}
+            >
+              <Text style={styles.nextCategoryButtonText}>Finish Checklist</Text>
+              <MaterialIcons name="check-circle" size={20} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
         )}
       </ScrollView>
     </View>

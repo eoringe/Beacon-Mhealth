@@ -11,17 +11,36 @@ exports.addMeasurement = async (req, res) => {
             return res.status(400).json({ error: 'Date is required' });
         }
 
-        const result = await pool.query(
-            `INSERT INTO growth_measurements 
-            (child_id, recorded_date, weight, height, head_circumference, notes) 
-            VALUES ($1, $2, $3, $4, $5, $6) 
-            RETURNING *`,
-            [childId, date, weight, height, headCircumference, notes]
+        // Check for existing measurement on the same date to prevent duplicates
+        const existingCheck = await pool.query(
+            `SELECT id FROM growth_measurements WHERE child_id = $1 AND recorded_date = $2`,
+            [childId, date]
         );
 
-        res.status(201).json(result.rows[0]);
+        let result;
+        if (existingCheck.rows.length > 0) {
+            // Update existing measurement
+            result = await pool.query(
+                `UPDATE growth_measurements 
+                SET weight = $1, height = $2, head_circumference = $3, notes = $4
+                WHERE id = $5 
+                RETURNING *`,
+                [weight, height, headCircumference, notes, existingCheck.rows[0].id]
+            );
+            res.status(200).json(result.rows[0]);
+        } else {
+            // Insert new measurement
+            result = await pool.query(
+                `INSERT INTO growth_measurements 
+                (child_id, recorded_date, weight, height, head_circumference, notes) 
+                VALUES ($1, $2, $3, $4, $5, $6) 
+                RETURNING *`,
+                [childId, date, weight, height, headCircumference, notes]
+            );
+            res.status(201).json(result.rows[0]);
+        }
     } catch (error) {
-        console.error('Error adding growth measurement:', error);
+        console.error('Error adding/updating growth measurement:', error);
         res.status(500).json({ error: 'Internal server error', details: error.message });
     }
 };

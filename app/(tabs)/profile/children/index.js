@@ -8,7 +8,7 @@ import {
     ActivityIndicator,
     Image
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons, FontAwesome5 } from '@expo/vector-icons';
 import { useChild } from '@/contexts/ChildContext';
@@ -16,9 +16,12 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Spacing, Typography, BorderRadius } from '@/constants/theme';
 import { useAlert } from '@/contexts/AlertContext';
 import { SafeHeader } from '@/components/SafeHeader';
+import { LoadingScreen } from '@/components/LoadingComponents';
 
 export default function ChildrenListScreen() {
     const router = useRouter();
+    const { from } = useLocalSearchParams();
+    const isFromDashboard = from === 'dashboard';
     const insets = useSafeAreaInsets();
     const { colorScheme, isDark } = useTheme();
     const { children, loading, selectChild, selectedChild, refreshChildren, deleteChild } = useChild();
@@ -92,6 +95,34 @@ export default function ChildrenListScreen() {
         return `${age} years`;
     };
 
+    const renderPlaceholderCard = (label) => (
+        <TouchableOpacity
+            style={[
+                styles.childCard,
+                {
+                    backgroundColor: 'transparent',
+                    borderColor: colorScheme.border,
+                    borderStyle: 'dashed',
+                    borderWidth: 2,
+                    padding: Spacing.lg,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minHeight: 110,
+                    marginBottom: Spacing.md,
+                }
+            ]}
+            onPress={() => router.push('/profile/children/add')}
+        >
+            <MaterialIcons name="add-circle-outline" size={32} color={colorScheme.textSecondary} />
+            <Text style={{ color: colorScheme.textSecondary, marginTop: Spacing.xs, fontWeight: 'bold', fontSize: Typography.fontSize.sm }}>
+                Add {label}
+            </Text>
+            <Text style={{ color: colorScheme.textTertiary, fontSize: 11, marginTop: 2, textAlign: 'center' }}>
+                Register more than one child to manage records separately
+            </Text>
+        </TouchableOpacity>
+    );
+
     const renderChildItem = ({ item }) => (
         <View style={[
             styles.childCard,
@@ -155,28 +186,52 @@ export default function ChildrenListScreen() {
         </View>
     );
 
+    const handleBack = () => {
+        if (isFromDashboard) {
+            router.replace('/');
+        } else {
+            if (router.canGoBack()) {
+                router.back();
+            } else {
+                router.replace('/profile');
+            }
+        }
+    };
+
     return (
         <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
-            <SafeHeader title="My Children" showBack onBackPress={() => router.replace('/profile')} rightComponent={
-                <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
-                    <TouchableOpacity onPress={() => router.push('/profile/children/lookup')} style={styles.headerButton}>
-                        <MaterialIcons name="search" size={24} color="#FFFFFF" />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => router.push('/profile/children/add')} style={styles.headerButton}>
-                        <MaterialIcons name="add" size={28} color="#FFFFFF" />
-                    </TouchableOpacity>
-                </View>
-            } />
+            <SafeHeader 
+                title="My Children" 
+                showBack 
+                backIconName={isFromDashboard ? "close" : "arrow-back"} 
+                onBackPress={handleBack} 
+                rightComponent={
+                    <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+                        <TouchableOpacity onPress={() => router.push('/profile/children/lookup')} style={styles.headerButton}>
+                            <MaterialIcons name="search" size={24} color="#FFFFFF" />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => router.push('/profile/children/add')} style={styles.headerButton}>
+                            <MaterialIcons name="add" size={28} color="#FFFFFF" />
+                        </TouchableOpacity>
+                    </View>
+                } 
+            />
 
             {loading && children.length === 0 ? (
                 <LoadingScreen text="Loading children..." />
             ) : children.length === 0 ? (
-                <View style={styles.emptyContainer}>
+                <ScrollView contentContainerStyle={styles.emptyContainer}>
                     <FontAwesome5 name="baby-carriage" size={64} color={colorScheme.textSecondary} />
                     <Text style={[styles.emptyText, { color: colorScheme.textSecondary }]}>No children added yet</Text>
                     <Text style={[styles.emptySubtext, { color: colorScheme.textTertiary }]}>
                         Find your child from Beacon Children Center or add manually
                     </Text>
+
+                    <View style={{ width: '100%', marginBottom: Spacing.lg }}>
+                        {renderPlaceholderCard("Child 1")}
+                        {renderPlaceholderCard("Child 2")}
+                    </View>
+
                     <TouchableOpacity
                         style={[styles.addButton, { backgroundColor: colorScheme.primary }]}
                         onPress={() => router.push('/profile/children/lookup')}
@@ -191,7 +246,7 @@ export default function ChildrenListScreen() {
                         <MaterialIcons name="edit" size={20} color={colorScheme.primary} />
                         <Text style={[styles.secondaryButtonText, { color: colorScheme.primary }]}>Add Manually</Text>
                     </TouchableOpacity>
-                </View>
+                </ScrollView>
             ) : (
                 <FlatList
                     data={children}
@@ -200,6 +255,11 @@ export default function ChildrenListScreen() {
                     contentContainerStyle={styles.listContent}
                     refreshing={loading}
                     onRefresh={refreshChildren}
+                    ListFooterComponent={() => (
+                        <View style={{ marginTop: Spacing.sm }}>
+                            {children.length === 1 && renderPlaceholderCard("Child 2")}
+                        </View>
+                    )}
                 />
             )}
         </View>

@@ -1,7 +1,8 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { childService } from '@/services/childService';
 import asdService from '@/services/asdService';
+import syncService from '@/services/syncService';
 import { useAuth } from './AuthContext';
 
 const ChildContext = createContext({});
@@ -16,6 +17,23 @@ export const ChildProvider = ({ children }) => {
     const [error, setError] = useState(null);
     const [asdScreenings, setAsdScreenings] = useState([]);
     const [asdLoading, setAsdLoading] = useState(false);
+
+    // Guards to prevent double-submission (sync/duplicate fix)
+    const isSavingAsd = useRef(false);
+    const isAddingChild = useRef(false);
+
+    // Subscribe to sync service to update temp IDs with real database UUIDs when background sync succeeds
+    useEffect(() => {
+        const unsubscribe = syncService.subscribe((event, data) => {
+            if (event === 'CHILD_ID_RESOLVED') {
+                const { tempId, realId } = data;
+                console.log(`[ChildContext] Resolving temp ID ${tempId} to real ID ${realId} in state`);
+                setChildrenList(prev => prev.map(c => c.id === tempId ? { ...c, id: realId } : c));
+                setSelectedChild(prev => prev && prev.id === tempId ? { ...prev, id: realId } : prev);
+            }
+        });
+        return unsubscribe;
+    }, []);
 
     // Load children when user logs in
     useEffect(() => {
@@ -79,6 +97,12 @@ export const ChildProvider = ({ children }) => {
     };
 
     const saveAsdScreening = async (childId, screeningData) => {
+        // Prevent double-submission
+        if (isSavingAsd.current) {
+            console.log('[ChildContext] ASD save already in progress, skipping duplicate call');
+            return;
+        }
+        isSavingAsd.current = true;
         setAsdLoading(true);
         try {
             const result = await asdService.saveAsdScreening(childId, screeningData);
@@ -88,6 +112,7 @@ export const ChildProvider = ({ children }) => {
             console.error('Error saving ASD screening:', err);
             throw err;
         } finally {
+            isSavingAsd.current = false;
             setAsdLoading(false);
         }
     };
@@ -123,6 +148,12 @@ export const ChildProvider = ({ children }) => {
     };
 
     const addChild = async (childData) => {
+        // Prevent double-submission (fixes duplicate child creation on network errors)
+        if (isAddingChild.current) {
+            console.log('[ChildContext] Child creation already in progress, skipping duplicate call');
+            return;
+        }
+        isAddingChild.current = true;
         setLoading(true);
         try {
             // Check for potential duplicates if registration number is provided
@@ -135,6 +166,16 @@ export const ChildProvider = ({ children }) => {
                 }
             }
 
+            // Also check for name + DOB duplicates to prevent accidental re-creation
+            const nameMatch = childrenList.some(
+                child => child.first_name?.toLowerCase() === childData.firstName?.toLowerCase()
+                    && child.last_name?.toLowerCase() === childData.lastName?.toLowerCase()
+                    && child.date_of_birth === childData.dateOfBirth
+            );
+            if (nameMatch) {
+                throw new Error('A child with the same name and date of birth already exists.');
+            }
+
             const newChild = await childService.addChild(childData);
             setChildrenList(prev => [newChild, ...prev]);
             // Automatically select the new child
@@ -144,6 +185,7 @@ export const ChildProvider = ({ children }) => {
             setError(err.message);
             throw err;
         } finally {
+            isAddingChild.current = false;
             setLoading(false);
         }
     };

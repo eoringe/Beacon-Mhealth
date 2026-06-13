@@ -133,6 +133,20 @@ export default function TeethingChartScreen() {
         );
     };
 
+    const getTeethingStatus = (childAgeAtEruption, eruptionMonthsStr) => {
+        if (childAgeAtEruption === null || childAgeAtEruption === undefined) return null;
+        const parts = eruptionMonthsStr.split('-');
+        const min = parseInt(parts[0], 10);
+        const max = parseInt(parts[1], 10);
+        if (childAgeAtEruption < min) {
+            return { text: 'Early', color: '#10B981', label: 'Erupted early' };
+        } else if (childAgeAtEruption > max) {
+            return { text: 'Delayed', color: '#F59E0B', label: 'Erupted later than typical' };
+        } else {
+            return { text: 'Typical', color: '#3B82F6', label: 'Erupted on time' };
+        }
+    };
+
     return (
         <View style={[styles.container, { backgroundColor: colorScheme.background }]}>
             <SafeHeader title="Teething Chart" showBack={true} />
@@ -142,6 +156,17 @@ export default function TeethingChartScreen() {
                 contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl }}
                 showsVerticalScrollIndicator={false}
             >
+                {/* Instruction Header */}
+                <View style={{ backgroundColor: '#EEF2F6', borderColor: '#CFD8DC', borderWidth: 1, margin: Spacing.lg, padding: Spacing.md, borderRadius: BorderRadius.md }}>
+                    <View style={{ flexDirection: 'row', gap: Spacing.xs, alignItems: 'center', marginBottom: 4 }}>
+                        <MaterialIcons name="lightbulb-outline" size={18} color="#37474F" />
+                        <Text style={{ fontWeight: 'bold', color: '#37474F', fontSize: 13 }}>Why track teething?</Text>
+                    </View>
+                    <Text style={{ color: '#455A64', fontSize: 12, lineHeight: 16 }}>
+                        Tracking when teeth come in helps you make sure your child's mouth is developing well. It also explains why they might be fussy or drooling more.
+                    </Text>
+                </View>
+
                 {/* Progress */}
                 <View style={[styles.progressCard, { backgroundColor: '#FFE082' }]}>
                     <View style={styles.progressHeader}>
@@ -200,6 +225,49 @@ export default function TeethingChartScreen() {
                         <Text style={[styles.sideLabel, { color: colorScheme.textTertiary }]}>R</Text>
                     </View>
                 </View>
+
+                {/* Erupted Teeth Timeline */}
+                {eruptedCount > 0 && (
+                    <View style={styles.timelineSection}>
+                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
+                            Teething Timeline & Milestones
+                        </Text>
+                        <View style={[styles.timelineCard, { backgroundColor: colorScheme.surface }]}>
+                            {PRIMARY_TEETH.filter(t => eruptedTeeth[t.id]).map((tooth) => {
+                                const log = eruptedTeeth[tooth.id];
+                                const eruptionDate = new Date(log.date);
+                                const childAgeAtEruption = selectedChild?.date_of_birth
+                                    ? Math.floor((eruptionDate.getTime() - new Date(selectedChild.date_of_birth).getTime()) / (1000 * 60 * 60 * 24 * 30.44))
+                                    : null;
+                                const status = getTeethingStatus(childAgeAtEruption, tooth.eruptionMonths);
+                                
+                                return (
+                                    <View key={tooth.id} style={styles.timelineItem}>
+                                        <View style={styles.timelineDot} />
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={[styles.timelineToothName, { color: colorScheme.textPrimary }]}>
+                                                {tooth.name}
+                                            </Text>
+                                            <Text style={{ fontSize: 11, color: colorScheme.textSecondary }}>
+                                                Erupted: {eruptionDate.toLocaleDateString()} (at {childAgeAtEruption ?? '?'} months)
+                                            </Text>
+                                            <Text style={{ fontSize: 11, color: colorScheme.textTertiary }}>
+                                                Typical window: {tooth.eruptionMonths} months
+                                            </Text>
+                                        </View>
+                                        {status && (
+                                            <View style={{ backgroundColor: `${status.color}20`, paddingHorizontal: Spacing.sm, paddingVertical: 2, borderRadius: BorderRadius.sm }}>
+                                                <Text style={{ color: status.color, fontSize: 10, fontWeight: 'bold' }}>
+                                                    {status.text}
+                                                </Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                );
+                            })}
+                        </View>
+                    </View>
+                )}
 
                 {/* Legend */}
                 <View style={styles.legendSection}>
@@ -366,5 +434,33 @@ const styles = StyleSheet.create({
     legendText: {
         fontSize: Typography.fontSize.sm,
         flex: 1,
+    },
+    timelineSection: {
+        paddingHorizontal: Spacing.lg,
+        marginBottom: Spacing.lg,
+    },
+    timelineCard: {
+        padding: Spacing.md,
+        borderRadius: BorderRadius.lg,
+        ...Shadow.sm,
+        gap: Spacing.sm,
+    },
+    timelineItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.md,
+        paddingVertical: Spacing.sm,
+        borderBottomWidth: 1,
+        borderBottomColor: '#ECEFF1',
+    },
+    timelineDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: '#1E3A8A',
+    },
+    timelineToothName: {
+        fontSize: Typography.fontSize.sm,
+        fontWeight: Typography.fontWeight.semibold,
     },
 });

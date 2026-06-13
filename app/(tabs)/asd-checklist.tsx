@@ -20,6 +20,9 @@ import { SafeHeader } from '@/components/SafeHeader';
 import { Spacing, Typography, BorderRadius, Shadow, Colors as ThemeColors } from '@/constants/theme';
 import LinearGradient from 'react-native-linear-gradient';
 import { SUPPORT_ACTIVITIES, SUPPORT_HEADER } from '@/constants/asdSupportActivities';
+import { reportService } from '@/services/reportService';
+import { milestoneService } from '@/services/milestoneService';
+import { calculateAgeInMonths as calculateAgeHelper } from '@/constants/milestones';
 
 const VIBRANT = {
     indigo: ['#6366F1', '#4F46E5'],
@@ -75,11 +78,58 @@ export default function AsdChecklistScreen() {
     const [showSupportModal, setShowSupportModal] = useState(false);
     const [selectedCategory, setSelectedCategory] = useState<any>(null);
 
+    const [milestoneResponses, setMilestoneResponses] = useState<any[]>([]);
+    const [downloadingReport, setDownloadingReport] = useState<string | null>(null);
+
     useEffect(() => {
         if (selectedChild?.id) {
             refreshAsdScreenings(selectedChild.id);
+            // Fetch milestone responses too
+            milestoneService.getAllMilestoneResponsesForChild(selectedChild.id, true)
+                .then(data => setMilestoneResponses(data || []))
+                .catch(err => console.error('Failed fetching milestones in ASD', err));
         }
     }, [selectedChild]);
+
+    const handleDownloadReport = async (type: 'milestone' | 'asd' | 'comprehensive', screeningItem: any) => {
+        if (!selectedChild || !screeningItem) return;
+        
+        // Find child's milestone age
+        const childAge = selectedChild.date_of_birth ? calculateAgeHelper(selectedChild.date_of_birth) : 18;
+        const allAges = [2, 4, 6, 9, 12, 15, 18, 24, 30, 36, 48, 60, 72];
+        let closestMilestoneAge = allAges[0];
+        for (const a of allAges) {
+            if (childAge >= a) closestMilestoneAge = a;
+            else break;
+        }
+
+        setDownloadingReport(type);
+        try {
+            if (type === 'milestone') {
+                if (milestoneResponses.length === 0) {
+                    Alert.alert("No Milestone Records", "Please complete some milestone checks first to generate a report.");
+                    return;
+                }
+                await reportService.generateMilestoneReport(selectedChild, closestMilestoneAge, milestoneResponses);
+            } else if (type === 'asd') {
+                await reportService.generateAsdReport(selectedChild, screeningItem);
+            } else if (type === 'comprehensive') {
+                if (milestoneResponses.length === 0) {
+                    Alert.alert(
+                        "Milestone Report Incomplete",
+                        "Milestone checklist responses are required to generate the comprehensive report. Please complete some milestones first."
+                    );
+                    return;
+                }
+                await reportService.generateComprehensiveReport(selectedChild, closestMilestoneAge, milestoneResponses, screeningItem);
+            }
+        } catch (err) {
+            console.error('Failed to generate report PDF:', err);
+            Alert.alert("Error", "Failed to generate the PDF report.");
+        } finally {
+            setDownloadingReport(null);
+        }
+    };
 
     // Calculate lockout status (30 days)
     const lastScreening = asdScreenings && asdScreenings.length > 0 ? asdScreenings[0] : null;
@@ -279,28 +329,15 @@ export default function AsdChecklistScreen() {
                     </View>
 
                     <View style={styles.resultBody}>
-                        <Text style={[styles.infoText, { color: colorScheme.textSecondary, marginBottom: Spacing.md }]}>
+                        <Text style={[styles.infoText, { color: colorScheme.textSecondary, marginBottom: Spacing.xs }]}>
                             Screened on {new Date(selectedHistory.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}
                         </Text>
-                        {(selectedHistory.risk_level === 'High' || selectedHistory.risk_level === 'Moderate') && (
-                            <TouchableOpacity
-                                style={[styles.gradientButtonWrapper, { marginTop: Spacing.sm }]}
-                                onPress={() => setShowSupportModal(true)}
-                            >
-                                <LinearGradient colors={VIBRANT.indigo} style={[styles.primaryButton, { paddingVertical: Spacing.md }]}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: Spacing.sm }}>
-                                        <MaterialIcons name="volunteer-activism" size={20} color="#FFF" />
-                                        <Text style={styles.primaryButtonText} numberOfLines={1} adjustsFontSizeToFit>Caregiver Support</Text>
-                                    </View>
-                                </LinearGradient>
-                            </TouchableOpacity>
-                        )}
                     </View>
                 </View>
 
                 <View style={styles.responsesContainer}>
                     <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, paddingHorizontal: Spacing.lg }]}>
-                        Responses
+                        Summary Responses
                     </Text>
                     {QUESTIONS.map((q, idx) => {
                         const answer = selectedHistory.responses[q.id];
@@ -344,6 +381,113 @@ export default function AsdChecklistScreen() {
                             </View>
                         );
                     })}
+
+                    {/* Caregiver Support & Report Generation */}
+                    <View style={{ padding: Spacing.lg, borderTopWidth: 1, borderTopColor: colorScheme.border, marginTop: Spacing.lg }}>
+                        
+                        {(selectedHistory.risk_level === 'High' || selectedHistory.risk_level === 'Moderate') && (
+                            <View style={{ marginBottom: Spacing.xl }}>
+                                <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, paddingHorizontal: 0, marginBottom: Spacing.sm, marginTop: 0 }]}>
+                                    Caregiver Support
+                                </Text>
+                                <Text style={{ fontSize: 13, color: colorScheme.textSecondary, marginBottom: Spacing.sm }}>
+                                    Based on this screening result, we recommend exploring specific caregiver activities and tips to support developmental milestones.
+                                </Text>
+                                <TouchableOpacity
+                                    style={styles.gradientButtonWrapper}
+                                    onPress={() => setShowSupportModal(true)}
+                                >
+                                    <LinearGradient colors={['#9333EA', '#7E22CE']} style={styles.primaryButton}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: Spacing.sm }}>
+                                            <MaterialIcons name="volunteer-activism" size={20} color="#FFF" />
+                                            <Text style={styles.primaryButtonText}>Caregiver Support Activities</Text>
+                                        </View>
+                                    </LinearGradient>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+
+                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, paddingHorizontal: 0, marginBottom: Spacing.sm, marginTop: 0 }]}>
+                            Download Reports
+                        </Text>
+                        <Text style={{ fontSize: 13, color: colorScheme.textSecondary, marginBottom: Spacing.md }}>
+                            Generate clinical-grade PDF reports for this screening.
+                        </Text>
+                        
+                        <View style={{ gap: Spacing.sm }}>
+                            {/* Download ASD Report */}
+                            <TouchableOpacity
+                                style={[styles.reportOptionBtn, { backgroundColor: colorScheme.surface, borderColor: colorScheme.border }]}
+                                onPress={() => handleDownloadReport('asd', selectedHistory)}
+                                disabled={downloadingReport !== null}
+                            >
+                                <MaterialIcons name="picture-as-pdf" size={22} color="#EF4444" />
+                                <Text style={[styles.reportOptionText, { color: colorScheme.textPrimary }]}>
+                                    {downloadingReport === 'asd' ? 'Generating...' : 'Download ASD Report'}
+                                </Text>
+                            </TouchableOpacity>
+
+                            {/* Download Milestone Report */}
+                            <TouchableOpacity
+                                style={[
+                                    styles.reportOptionBtn, 
+                                    { 
+                                        backgroundColor: colorScheme.surface, 
+                                        borderColor: colorScheme.border,
+                                        opacity: milestoneResponses.length > 0 ? 1 : 0.5 
+                                    }
+                                ]}
+                                onPress={() => handleDownloadReport('milestone', selectedHistory)}
+                                disabled={downloadingReport !== null || milestoneResponses.length === 0}
+                            >
+                                <MaterialIcons name="picture-as-pdf" size={22} color="#3B82F6" />
+                                <Text style={[styles.reportOptionText, { color: colorScheme.textPrimary }]}>
+                                    {downloadingReport === 'milestone' ? 'Generating...' : 'Download Milestone Report'}
+                                </Text>
+                            </TouchableOpacity>
+
+                            {/* Download Comprehensive Report */}
+                            <TouchableOpacity
+                                style={[
+                                    styles.reportOptionBtn, 
+                                    { 
+                                        backgroundColor: colorScheme.surface, 
+                                        borderColor: colorScheme.border,
+                                        opacity: milestoneResponses.length > 0 ? 1 : 0.5 
+                                    }
+                                ]}
+                                onPress={() => handleDownloadReport('comprehensive', selectedHistory)}
+                                disabled={downloadingReport !== null || milestoneResponses.length === 0}
+                            >
+                                <MaterialIcons name="picture-as-pdf" size={22} color="#8B5CF6" />
+                                <Text style={[styles.reportOptionText, { color: colorScheme.textPrimary }]}>
+                                    {downloadingReport === 'comprehensive' ? 'Generating...' : 'Download Comprehensive Report'}
+                                </Text>
+                            </TouchableOpacity>
+                            
+                            {milestoneResponses.length === 0 && (
+                                <Text style={{ fontSize: 11, color: '#EF4444', fontStyle: 'italic', marginTop: 4 }}>
+                                    * Milestone checklist must be completed to download Milestone and Comprehensive reports.
+                                </Text>
+                            )}
+                        </View>
+
+                        {/* Directions Box */}
+                        <View style={[styles.directionBox, { marginTop: Spacing.xl, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#ECFDF5', borderColor: '#A7F3D0', borderWidth: 1, padding: Spacing.md, borderRadius: BorderRadius.md, flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start' }]}>
+                            <MaterialIcons name="directions" size={20} color="#059669" />
+                            <View style={{ flex: 1, gap: 2 }}>
+                                <Text style={{ fontWeight: 'bold', color: '#047857', fontSize: 13 }}>What's Next?</Text>
+                                <Text style={{ fontSize: 12, color: '#065F46', lineHeight: 16 }}>
+                                    {selectedHistory.risk_level === 'High'
+                                        ? "Since risk is High, we recommend scheduling an appointment with a pediatrician. In the meantime, use the Caregiver Support exercises daily."
+                                        : selectedHistory.risk_level === 'Moderate'
+                                            ? "For Moderate risk, continue with caregiver exercises and monitor closely. Repeat the screening in 4 weeks."
+                                            : "Keep monitoring milestones on the main dashboard. Repeat this ASD screening in 30 days."
+                                    }
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
                 </View>
             </ScrollView>
         );
@@ -393,6 +537,105 @@ export default function AsdChecklistScreen() {
                 )}
 
                 {renderHistory()}
+
+                {lastScreening && (
+                    <View style={{ width: '100%', borderTopWidth: 1, borderTopColor: colorScheme.border, marginTop: Spacing.xl, paddingTop: Spacing.lg }}>
+                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, fontSize: 16, marginBottom: Spacing.sm, marginTop: 0 }]}>
+                            Caregiver Support & Activities
+                        </Text>
+                        <Text style={{ fontSize: 13, color: colorScheme.textSecondary, marginBottom: Spacing.md, textAlign: 'center' }}>
+                            Based on your child's screening, use these exercises to support their learning and communication.
+                        </Text>
+                        <TouchableOpacity
+                            style={[styles.gradientButtonWrapper, { marginBottom: Spacing.xl }]}
+                            onPress={() => setShowSupportModal(true)}
+                        >
+                            <LinearGradient colors={['#9333EA', '#7E22CE']} style={styles.primaryButton}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                    <MaterialIcons name="volunteer-activism" size={20} color="#FFF" />
+                                    <Text style={styles.primaryButtonText}>Access Support Activities</Text>
+                                </View>
+                            </LinearGradient>
+                        </TouchableOpacity>
+
+                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, fontSize: 16, marginBottom: Spacing.sm, marginTop: 0 }]}>
+                            Reports & Downloads
+                        </Text>
+                        <View style={{ gap: Spacing.sm, width: '100%' }}>
+                            {/* Download ASD Report */}
+                            <TouchableOpacity
+                                style={[styles.reportOptionBtn, { backgroundColor: colorScheme.surface, borderColor: colorScheme.border }]}
+                                onPress={() => handleDownloadReport('asd', lastScreening)}
+                                disabled={downloadingReport !== null}
+                            >
+                                <MaterialIcons name="picture-as-pdf" size={22} color="#EF4444" />
+                                <Text style={[styles.reportOptionText, { color: colorScheme.textPrimary }]}>
+                                    {downloadingReport === 'asd' ? 'Generating...' : 'Download ASD Report'}
+                                </Text>
+                            </TouchableOpacity>
+
+                            {/* Download Milestone Report */}
+                            <TouchableOpacity
+                                style={[
+                                    styles.reportOptionBtn, 
+                                    { 
+                                        backgroundColor: colorScheme.surface, 
+                                        borderColor: colorScheme.border,
+                                        opacity: milestoneResponses.length > 0 ? 1 : 0.5 
+                                    }
+                                ]}
+                                onPress={() => handleDownloadReport('milestone', lastScreening)}
+                                disabled={downloadingReport !== null || milestoneResponses.length === 0}
+                            >
+                                <MaterialIcons name="picture-as-pdf" size={22} color="#3B82F6" />
+                                <Text style={[styles.reportOptionText, { color: colorScheme.textPrimary }]}>
+                                    {downloadingReport === 'milestone' ? 'Generating...' : 'Download Milestone Report'}
+                                </Text>
+                            </TouchableOpacity>
+
+                            {/* Download Comprehensive Report */}
+                            <TouchableOpacity
+                                style={[
+                                    styles.reportOptionBtn, 
+                                    { 
+                                        backgroundColor: colorScheme.surface, 
+                                        borderColor: colorScheme.border,
+                                        opacity: milestoneResponses.length > 0 ? 1 : 0.5 
+                                    }
+                                ]}
+                                onPress={() => handleDownloadReport('comprehensive', lastScreening)}
+                                disabled={downloadingReport !== null || milestoneResponses.length === 0}
+                            >
+                                <MaterialIcons name="picture-as-pdf" size={22} color="#8B5CF6" />
+                                <Text style={[styles.reportOptionText, { color: colorScheme.textPrimary }]}>
+                                    {downloadingReport === 'comprehensive' ? 'Generating...' : 'Download Comprehensive Report'}
+                                </Text>
+                            </TouchableOpacity>
+                            
+                            {milestoneResponses.length === 0 && (
+                                <Text style={{ fontSize: 11, color: '#EF4444', fontStyle: 'italic', marginTop: 4, textAlign: 'center' }}>
+                                    * Milestone checklist must be completed to download Milestone and Comprehensive reports.
+                                </Text>
+                            )}
+                        </View>
+
+                        {/* Directions Box */}
+                        <View style={[styles.directionBox, { marginTop: Spacing.xl, backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : '#ECFDF5', borderColor: '#A7F3D0', borderWidth: 1, padding: Spacing.md, borderRadius: BorderRadius.md, flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start' }]}>
+                            <MaterialIcons name="directions" size={20} color="#059669" />
+                            <View style={{ flex: 1, gap: 2 }}>
+                                <Text style={{ fontWeight: 'bold', color: '#047857', fontSize: 13 }}>Action Plan</Text>
+                                <Text style={{ fontSize: 12, color: '#065F46', lineHeight: 16 }}>
+                                    {lastScreening.risk_level === 'High'
+                                        ? "Pediatric clinic consultation is recommended. Use the caregiver exercises above to support your child daily."
+                                        : lastScreening.risk_level === 'Moderate'
+                                            ? "Focus on caregiver exercises daily and monitor progress closely. Re-evaluate in 4 weeks."
+                                            : "Screening completed with typical indicators. Keep tracking growth/sleep, and repeat this check-in in 30 days."
+                                    }
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+                )}
             </View>
         </ScrollView>
     );
@@ -1182,5 +1425,22 @@ const styles = StyleSheet.create({
     },
     backToGridText: {
         fontWeight: 'bold',
+    },
+    reportOptionBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.md,
+        padding: Spacing.md,
+        borderRadius: BorderRadius.md,
+        borderWidth: 1,
+    },
+    reportOptionText: {
+        fontSize: Typography.fontSize.sm,
+        fontWeight: '600',
+    },
+    directionBox: {
+        flexDirection: 'row',
+        gap: Spacing.sm,
+        alignItems: 'flex-start',
     },
 });

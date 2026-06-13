@@ -16,12 +16,13 @@ export const BREAST_SIDES = [
 ];
 
 export const FOOD_CATEGORIES = [
-    { id: 'fruits', label: 'Fruits', icon: '🍎', examples: 'Banana, Avocado, Mango, Apple' },
-    { id: 'vegetables', label: 'Vegetables', icon: '🥕', examples: 'Sweet potato, Peas, Carrots, Spinach' },
-    { id: 'grains', label: 'Grains', icon: '🌾', examples: 'Rice cereal, Oatmeal, Bread, Pasta' },
-    { id: 'protein', label: 'Protein', icon: '🍗', examples: 'Chicken, Fish, Eggs, Beans' },
-    { id: 'dairy', label: 'Dairy', icon: '🧀', examples: 'Yogurt, Cheese, Milk' },
-    { id: 'other', label: 'Other', icon: '🍽️', examples: 'Mixed meals, Snacks' },
+    { id: 'grains', label: 'Grains, roots, tubers', icon: '🌾', examples: 'Rice, Potato, Cassava, Oats, Wheat' },
+    { id: 'legumes', label: 'Legumes and nuts', icon: '🥜', examples: 'Beans, Peas, Lentils, Groundnuts, Cashews' },
+    { id: 'dairy', label: 'Dairy products', icon: '🥛', examples: 'Yogurt, Cheese, Breast milk, Cow milk' },
+    { id: 'flesh', label: 'Flesh foods', icon: '🍗', examples: 'Chicken, Fish, Beef, Mutton, Liver' },
+    { id: 'eggs', label: 'Eggs', icon: '🥚', examples: 'Boiled egg, Scrambled egg' },
+    { id: 'vitaminA', label: 'Vitamin A-rich fruits/veggies', icon: '🥕', examples: 'Carrots, Pumpkin, Sweet potato (orange), Mango, Papaya' },
+    { id: 'other_fruits_veggies', label: 'Other fruits/vegetables', icon: '🍏', examples: 'Banana, Apple, Cabbage, Avocado, Spinach' },
 ];
 
 export const COMMON_ALLERGENS = [

@@ -88,7 +88,17 @@ exports.getMilestoneResponses = async (req, res) => {
             return res.json({ responses: {} });
         }
 
-        res.json(result.rows[0]);
+        const row = result.rows[0];
+        if (typeof row.responses === 'string') {
+            try {
+                row.responses = JSON.parse(row.responses);
+            } catch (e) {
+                console.error('Error parsing responses string:', e);
+                row.responses = {};
+            }
+        }
+
+        res.json(row);
     } catch (error) {
         console.error('Error fetching milestone responses:', error);
         res.status(500).json({ error: 'Server error fetching milestone responses' });
@@ -118,7 +128,19 @@ exports.getAllMilestoneResponsesForChild = async (req, res) => {
         `;
         const result = await client.query(query, [childId]);
 
-        res.json(result.rows);
+        const rows = result.rows.map(row => {
+            if (typeof row.responses === 'string') {
+                try {
+                    row.responses = JSON.parse(row.responses);
+                } catch (e) {
+                    console.error('Error parsing row responses string:', e);
+                    row.responses = {};
+                }
+            }
+            return row;
+        });
+
+        res.json(rows);
     } catch (error) {
         console.error('Error fetching all milestone responses:', error);
         res.status(500).json({ error: 'Server error fetching milestone responses' });

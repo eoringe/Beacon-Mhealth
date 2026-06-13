@@ -17,6 +17,7 @@ import { useAlert } from '@/contexts/AlertContext';
 import { SafeHeader } from '@/components/SafeHeader';
 import { SleepChart } from '@/components/SleepChart';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const STORAGE_KEY = 'sleep_logs';
 
@@ -27,11 +28,19 @@ const SLEEP_TYPES = [
 
 // Recommended sleep by age (hours per day)
 const RECOMMENDED_SLEEP = [
-    { maxMonths: 3, hours: 17, label: '14-17 hrs' },
-    { maxMonths: 11, hours: 15, label: '12-15 hrs' },
-    { maxMonths: 24, hours: 14, label: '11-14 hrs' },
-    { maxMonths: 60, hours: 13, label: '10-13 hrs' },
+    { maxMonths: 3, minHours: 14, maxHours: 17, label: '14-17 hrs (AASM/NSF)' },
+    { maxMonths: 11, minHours: 12, maxHours: 16, label: '12-16 hrs (AASM)' }, // 4-11 months
+    { maxMonths: 24, minHours: 11, maxHours: 14, label: '11-14 hrs (AASM)' }, // 12-24 months
+    { maxMonths: 60, minHours: 10, maxHours: 13, label: '10-13 hrs (AASM)' }, // 3-5 years
 ];
+
+const getSleepInterpretation = (totalMinutes, recommendedRange) => {
+    const hrs = totalMinutes / 60;
+    if (totalMinutes === 0) return { text: 'No entry', color: '#9CA3AF', description: 'Log today\'s sleep sessions to see developmental interpretation.' };
+    if (hrs < recommendedRange.minHours) return { text: 'Short', color: '#F59E0B', description: 'Sleeping less than the AASM recommended range for this age.' };
+    if (hrs > recommendedRange.maxHours) return { text: 'Long', color: '#8B5CF6', description: 'Sleeping more than the AASM recommended range for this age.' };
+    return { text: 'Recommended', color: '#10B981', description: 'Perfect! Total sleep is within the AASM recommended range.' };
+};
 
 const HOUR_OPTIONS = Array.from({ length: 13 }, (_, i) => i); // 0-12
 const MINUTE_OPTIONS = [0, 15, 30, 45];
@@ -47,6 +56,8 @@ export default function SleepTrackerScreen() {
     const [sleepType, setSleepType] = useState('nap');
     const [hours, setHours] = useState(1);
     const [minutes, setMinutes] = useState(0);
+    const [logDate, setLogDate] = useState(new Date());
+    const [showDatePicker, setShowDatePicker] = useState(false);
 
     const childId = selectedChild?.id;
 
@@ -79,9 +90,9 @@ export default function SleepTrackerScreen() {
     const handleAddEntry = () => {
         if (hours === 0 && minutes === 0) return;
         
-        const todayStr = new Date().toDateString();
+        const dateStr = logDate.toDateString();
         const existingNightIndex = sleepType === 'night' 
-            ? logs.findIndex(l => l.type === 'night' && new Date(l.timestamp).toDateString() === todayStr)
+            ? logs.findIndex(l => l.type === 'night' && new Date(l.timestamp).toDateString() === dateStr)
             : -1;
 
         const entry = {
@@ -90,7 +101,7 @@ export default function SleepTrackerScreen() {
             hours,
             minutes,
             totalMinutes: hours * 60 + minutes,
-            timestamp: existingNightIndex >= 0 ? logs[existingNightIndex].timestamp : new Date().toISOString(),
+            timestamp: existingNightIndex >= 0 ? logs[existingNightIndex].timestamp : logDate.toISOString(),
         };
 
         let updated;
@@ -107,6 +118,7 @@ export default function SleepTrackerScreen() {
         setSleepType('nap');
         setHours(1);
         setMinutes(0);
+        setLogDate(new Date());
     };
 
     const handleDeleteEntry = (entryId) => {
@@ -140,7 +152,8 @@ export default function SleepTrackerScreen() {
         ? Math.floor((Date.now() - new Date(selectedChild.date_of_birth).getTime()) / (1000 * 60 * 60 * 24 * 30.44))
         : 12;
     const recommended = RECOMMENDED_SLEEP.find(r => childAgeMonths <= r.maxMonths) || RECOMMENDED_SLEEP[RECOMMENDED_SLEEP.length - 1];
-    const progressPercent = Math.min(100, Math.round((todayTotalMinutes / (recommended.hours * 60)) * 100));
+    const progressPercent = Math.min(100, Math.round((todayTotalMinutes / (recommended.minHours * 60)) * 100));
+    const interpretation = getSleepInterpretation(todayTotalMinutes, recommended);
 
     const formatTime = (isoString) => {
         const d = new Date(isoString);
@@ -211,11 +224,6 @@ export default function SleepTrackerScreen() {
             <SafeHeader
                 title="Sleep Tracker"
                 showBack={true}
-                rightComponent={
-                    <TouchableOpacity onPress={() => setShowAddModal(true)}>
-                        <MaterialIcons name="add" size={24} color="#FFFFFF" />
-                    </TouchableOpacity>
-                }
             />
 
             <ScrollView
@@ -223,6 +231,17 @@ export default function SleepTrackerScreen() {
                 contentContainerStyle={{ paddingBottom: insets.bottom + Spacing.xl }}
                 showsVerticalScrollIndicator={false}
             >
+                {/* Instruction Header */}
+                <View style={[styles.instructionBox, { backgroundColor: '#EEF2F6', borderColor: '#CFD8DC', borderWidth: 1, margin: Spacing.lg, padding: Spacing.md, borderRadius: BorderRadius.md }]}>
+                    <View style={{ flexDirection: 'row', gap: Spacing.xs, alignItems: 'center', marginBottom: 4 }}>
+                        <MaterialIcons name="lightbulb-outline" size={18} color="#37474F" />
+                        <Text style={{ fontWeight: 'bold', color: '#37474F', fontSize: 13 }}>Why track sleep?</Text>
+                    </View>
+                    <Text style={{ color: '#455A64', fontSize: 12, lineHeight: 16 }}>
+                        Sleep helps your baby's brain and body grow strong. It keeps them happy and gives them energy to learn.
+                    </Text>
+                </View>
+
                 {/* Today's Summary */}
                 <View style={[styles.summaryCard, { backgroundColor: '#5C6BC0' }]}>
                     <MaterialIcons name="bedtime" size={32} color="#FFFFFF" />
@@ -232,6 +251,18 @@ export default function SleepTrackerScreen() {
                     </Text>
                     <Text style={styles.summaryRecommended}>
                         Recommended: {recommended.label}
+                    </Text>
+
+                    {/* Interpretation Badge */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginTop: Spacing.sm }}>
+                        <View style={{ backgroundColor: interpretation.color, paddingHorizontal: Spacing.md, paddingVertical: 4, borderRadius: BorderRadius.md }}>
+                            <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase' }}>
+                                Status: {interpretation.text}
+                            </Text>
+                        </View>
+                    </View>
+                    <Text style={{ color: 'rgba(255,255,255,0.9)', fontSize: 11, textAlign: 'center', marginTop: Spacing.xs, paddingHorizontal: Spacing.md, fontStyle: 'italic' }}>
+                        {interpretation.description}
                     </Text>
 
                     {/* Progress Bar */}
@@ -258,9 +289,21 @@ export default function SleepTrackerScreen() {
 
                 {/* Log List */}
                 <View style={styles.logSection}>
-                    <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
-                        Sleep Log
-                    </Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md }}>
+                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, marginBottom: 0 }]}>
+                            Sleep Log
+                        </Text>
+                        <TouchableOpacity
+                            style={[styles.addEntryButton, { backgroundColor: colorScheme.primary }]}
+                            onPress={() => {
+                                setLogDate(new Date());
+                                setShowAddModal(true);
+                            }}
+                        >
+                            <MaterialIcons name="add" size={18} color="#FFFFFF" />
+                            <Text style={styles.addEntryButtonText}>Add Entry</Text>
+                        </TouchableOpacity>
+                    </View>
                     {logs.length === 0 ? (
                         <View style={[styles.emptyState, { backgroundColor: colorScheme.surface }]}>
                             <MaterialIcons name="bedtime" size={48} color={colorScheme.textTertiary} />
@@ -326,6 +369,31 @@ export default function SleepTrackerScreen() {
                         </TouchableOpacity>
                     </View>
                     <ScrollView style={styles.modalContent} contentContainerStyle={{ paddingBottom: 40 }}>
+                        {/* Date Picker */}
+                        <Text style={[styles.fieldLabel, { color: colorScheme.textPrimary, marginTop: 0 }]}>Date</Text>
+                        <TouchableOpacity
+                            style={[styles.dateSelectBtn, { backgroundColor: colorScheme.surface, borderColor: colorScheme.border, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, marginBottom: Spacing.sm }]}
+                            onPress={() => setShowDatePicker(true)}
+                        >
+                            <MaterialIcons name="calendar-today" size={18} color={colorScheme.primary} />
+                            <Text style={{ fontSize: Typography.fontSize.sm, color: colorScheme.textPrimary }}>
+                                {logDate.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                            </Text>
+                        </TouchableOpacity>
+
+                        {showDatePicker && (
+                            <DateTimePicker
+                                value={logDate}
+                                mode="date"
+                                display="default"
+                                maximumDate={new Date()}
+                                onChange={(event, selectedDate) => {
+                                    setShowDatePicker(false);
+                                    if (selectedDate) setLogDate(selectedDate);
+                                }}
+                            />
+                        )}
+
                         {/* Type */}
                         <Text style={[styles.fieldLabel, { color: colorScheme.textPrimary }]}>Type</Text>
                         <View style={styles.typeRow}>
@@ -612,6 +680,20 @@ const styles = StyleSheet.create({
     saveButtonText: {
         color: '#FFFFFF',
         fontSize: Typography.fontSize.md,
+        fontWeight: Typography.fontWeight.semibold,
+    },
+    addEntryButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.xs,
+        paddingHorizontal: Spacing.md,
+        paddingVertical: 6,
+        borderRadius: BorderRadius.md,
+        ...Shadow.sm,
+    },
+    addEntryButtonText: {
+        color: '#FFFFFF',
+        fontSize: Typography.fontSize.sm,
         fontWeight: Typography.fontWeight.semibold,
     },
 });

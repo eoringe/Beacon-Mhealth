@@ -200,7 +200,7 @@ export default function DashboardScreen() {
 
         // 3. Milestone Progress
         if (milestoneProgress != null) {
-            slides.push({ icon: '📊', title: 'Milestones', tip: `${name} has achieved ${milestoneProgress}% of tracked milestones.${milestoneProgress > 0 ? ' Excellent progress!' : ''}`, bg: SLIDING_CARD_COLORS[3], route: '/dashboard/milestone-checklist' });
+            slides.push({ icon: '📊', title: 'Attained Milestones', tip: `${name} has achieved ${milestoneProgress}% of tracked milestones.${milestoneProgress > 0 ? ' Excellent progress!' : ''}`, bg: SLIDING_CARD_COLORS[3], route: '/dashboard/milestone-checklist' });
         } else {
             slides.push({ icon: '📋', title: 'Development', tip: `Start tracking ${name}'s milestones to get personalized developmental insights.`, bg: SLIDING_CARD_COLORS[3], route: '/dashboard/milestone-checklist' });
         }
@@ -428,7 +428,7 @@ export default function DashboardScreen() {
                         </View>
                     )}
                     {selectedChild ? (
-                        <TouchableOpacity style={[styles.childCard, { backgroundColor: isDark ? colorScheme.surface : '#FFFFFF' }]} onPress={() => router.push('/profile/children')}>
+                        <TouchableOpacity style={[styles.childCard, { backgroundColor: isDark ? colorScheme.surface : '#FFFFFF' }]} onPress={() => router.push('/profile/children?from=dashboard')}>
                             <View style={[styles.avatarContainer, { backgroundColor: isDark ? `${colorScheme.primary}25` : `${colorScheme.primary}10`, overflow: 'hidden' }]}>
                                 {selectedChild.photo_url ? (
                                     <Image source={{ uri: selectedChild.photo_url }} style={{ width: '100%', height: '100%' }} />
@@ -546,7 +546,7 @@ export default function DashboardScreen() {
                             <View style={[styles.progressRing, { borderColor: milestoneProgress != null ? colorScheme.primary : colorScheme.border, width: 56, height: 56, borderRadius: 28 }]}>
                                 <Text style={[styles.progressText, { color: colorScheme.primary, fontSize: 16 }]} adjustsFontSizeToFit numberOfLines={1}>{milestoneProgress != null ? `${milestoneProgress}%` : '—'}</Text>
                             </View>
-                            <Text style={[styles.statLabel, { color: colorScheme.primary }]}>Milestones</Text>
+                            <Text style={[styles.statLabel, { color: colorScheme.primary }]} numberOfLines={1} adjustsFontSizeToFit>Attained Milestones</Text>
                             <Text style={[styles.statSub, { color: colorScheme.textTertiary }]}>{milestoneProgress != null ? 'achieved' : 'Get started'}</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={[styles.statCard, { backgroundColor: colorScheme.surface }]} onPress={() => router.push('/(tabs)/appointments')}>

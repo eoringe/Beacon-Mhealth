@@ -15,6 +15,7 @@ import { ChildProvider } from '@/contexts/ChildContext';
 import { NotificationProvider } from '@/contexts/NotificationContext';
 import { AlertProvider } from '@/contexts/AlertContext';
 import { Colors } from '@/constants/theme';
+import syncService from '@/services/syncService';
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -52,6 +53,14 @@ function NavigationWrapper() {
   const { user, loading, authLoading, initializing } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+
+  useEffect(() => {
+    // Start background sync listener on app mount
+    syncService.start();
+    return () => {
+      syncService.stop();
+    };
+  }, []);
 
   useEffect(() => {
     // Hide splash screen once auth is initialized

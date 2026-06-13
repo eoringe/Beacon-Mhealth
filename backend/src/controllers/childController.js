@@ -16,12 +16,41 @@ exports.addChild = async (req, res) => {
             return res.status(400).json({ error: 'First name, date of birth, and gender are required' });
         }
 
+        // 1. If registration number is provided, check if it's already linked to this user
+        if (registrationNumber) {
+            const regCheck = await client.query(
+                'SELECT * FROM children WHERE parent_id = $1 AND registration_number = $2',
+                [userId, registrationNumber]
+            );
+            if (regCheck.rows.length > 0) {
+                return res.status(400).json({ error: 'This child record is already linked to your account.' });
+            }
+        }
+
+        // 2. Check for duplicate name + DOB under the same parent to prevent double-submissions on network retries
+        const cleanDob = dateOfBirth.split('T')[0];
+        const nameCheck = await client.query(
+            `SELECT * FROM children 
+             WHERE parent_id = $1 
+               AND LOWER(first_name) = LOWER($2) 
+               AND (
+                 (last_name IS NULL AND ($3 IS NULL OR $3 = '')) OR 
+                 (LOWER(last_name) = LOWER($3))
+               )
+               AND date_of_birth = $4::date`,
+            [userId, firstName, lastName || null, cleanDob]
+        );
+        if (nameCheck.rows.length > 0) {
+            console.log('[ChildController] Child already exists, returning existing child profile:', nameCheck.rows[0].id);
+            return res.status(200).json(nameCheck.rows[0]);
+        }
+
         const query = `
             INSERT INTO children (parent_id, first_name, last_name, date_of_birth, gender, registration_number, photo_url)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING *
         `;
-        const values = [userId, firstName, lastName, dateOfBirth, gender, registrationNumber, req.body.photoUrl || null];
+        const values = [userId, firstName, lastName || null, cleanDob, gender, registrationNumber || null, req.body.photoUrl || null];
 
         const result = await client.query(query, values);
         console.log('[ChildController] Child added successfully:', result.rows[0].id);

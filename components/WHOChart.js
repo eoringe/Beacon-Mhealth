@@ -4,7 +4,7 @@ import Svg, { G, Line, Circle, Path, Text as SvgText, Rect, Polygon } from 'reac
 import { WHO_STANDARDS } from '@/constants/whoGrowthStandards';
 import { Spacing, Typography } from '@/constants/theme';
 
-export function WHOChart({ childData, gender, type, color, unit, isDark }) {
+export function WHOChart({ childData, heightData = [], weightData = [], headData = [], gender, type, color, unit, isDark }) {
     const screenWidth = Dimensions.get('window').width - (Spacing.lg * 2);
     const chartHeight = 350;
     const padding = { top: 20, bottom: 50, left: 50, right: 20 };
@@ -31,10 +31,27 @@ export function WHOChart({ childData, gender, type, color, unit, isDark }) {
     const scaleX = (x) => (x / xMax) * width;
     const scaleY = (y) => height - ((y - yMin) / (yMax - yMin)) * height;
 
+    // Helper to get scaler and values for any type
+    const getScalersForType = (t) => {
+        const tKey = t === 'head' ? 'head_circumference' : t;
+        const std = WHO_STANDARDS[genderKey][tKey] || [];
+        const vals = std.flatMap(d => [d.p3, d.p97]);
+        const min = Math.floor(Math.min(...vals) * 0.9);
+        const max = Math.ceil(Math.max(...vals) * 1.1);
+        return {
+            scale: (val) => height - ((val - min) / (max - min)) * height,
+            unit: t === 'weight' ? 'kg' : 'cm'
+        };
+    };
+
+    const heightScaler = getScalersForType('height');
+    const weightScaler = getScalersForType('weight');
+    const headScaler = getScalersForType('head');
+
     // Helper to build Path string (Natural/Smooth)
-    const buildPath = (points) => {
+    const buildPath = (points, scaler = scaleY) => {
         if (!points || points.length === 0) return "";
-        return points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${scaleX(p.x)} ${scaleY(p.y)}`).join(" ");
+        return points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${scaleX(p.x)} ${scaler(p.y)}`).join(" ");
     };
 
     // Helper to build Shaded Area string
@@ -55,11 +72,14 @@ export function WHOChart({ childData, gender, type, color, unit, isDark }) {
     const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
     const textColor = isDark ? '#9AA0A6' : '#666666';
     
-    // Vibrant Color Palette
+    // Colors for the 3 metrics
+    const heightColor = '#2196F3'; // Blue
+    const weightColor = '#4CAF50'; // Green
+    const headColor = '#9C27B0'; // Purple
+
     const medianColor = '#4CAF50'; // Green
     const innerBand = isDark ? 'rgba(255, 193, 7, 0.15)' : 'rgba(255, 193, 7, 0.1)'; // Amber
     const outerBand = isDark ? 'rgba(255, 82, 82, 0.1)' : 'rgba(255, 82, 82, 0.05)'; // Soft Red/Pink
-    const childLineColor = color || (isDark ? '#FFF' : '#333');
 
     return (
         <View style={styles.container}>
@@ -88,10 +108,67 @@ export function WHOChart({ childData, gender, type, color, unit, isDark }) {
                     <Path d={buildAreaPath(p85, p15)} fill={innerBand} />
                     <Path d={buildPath(p50)} fill="none" stroke={medianColor} strokeWidth={1} strokeDasharray="5,5" />
 
-                    {/* Child Data */}
-                    {childData && childData.length > 0 && (
+                    {/* Combined Child Data (All 3 lines) */}
+                    {heightData && heightData.length > 0 && (
                         <G>
-                            <Path d={buildPath(childData)} fill="none" stroke={color} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+                            <Path d={buildPath(heightData, heightScaler.scale)} fill="none" stroke={heightColor} strokeWidth={type === 'height' ? 3.5 : 2} strokeLinecap="round" strokeLinejoin="round" opacity={type === 'height' ? 1 : 0.6} />
+                            {heightData.map((p, i) => (
+                                <Circle 
+                                    key={`h-${i}`} 
+                                    cx={scaleX(p.x)} 
+                                    cy={heightScaler.scale(p.y)} 
+                                    r={type === 'height' ? 5 : 3.5} 
+                                    fill={heightColor} 
+                                    stroke={isDark ? '#121212' : '#FFF'} 
+                                    strokeWidth={1.5}
+                                    onPress={() => setTooltip({ ...p, metricType: 'height', displayY: p.y, displayScaler: heightScaler.scale })}
+                                />
+                            ))}
+                        </G>
+                    )}
+
+                    {/* Child Weight Data */}
+                    {weightData && weightData.length > 0 && (
+                        <G>
+                            <Path d={buildPath(weightData, weightScaler.scale)} fill="none" stroke={weightColor} strokeWidth={type === 'weight' ? 3.5 : 2} strokeLinecap="round" strokeLinejoin="round" opacity={type === 'weight' ? 1 : 0.6} />
+                            {weightData.map((p, i) => (
+                                <Circle 
+                                    key={`w-${i}`} 
+                                    cx={scaleX(p.x)} 
+                                    cy={weightScaler.scale(p.y)} 
+                                    r={type === 'weight' ? 5 : 3.5} 
+                                    fill={weightColor} 
+                                    stroke={isDark ? '#121212' : '#FFF'} 
+                                    strokeWidth={1.5}
+                                    onPress={() => setTooltip({ ...p, metricType: 'weight', displayY: p.y, displayScaler: weightScaler.scale })}
+                                />
+                            ))}
+                        </G>
+                    )}
+
+                    {/* Child Head Circ. Data */}
+                    {headData && headData.length > 0 && (
+                        <G>
+                            <Path d={buildPath(headData, headScaler.scale)} fill="none" stroke={headColor} strokeWidth={type === 'head' ? 3.5 : 2} strokeLinecap="round" strokeLinejoin="round" opacity={type === 'head' ? 1 : 0.6} />
+                            {headData.map((p, i) => (
+                                <Circle 
+                                    key={`hc-${i}`} 
+                                    cx={scaleX(p.x)} 
+                                    cy={headScaler.scale(p.y)} 
+                                    r={type === 'head' ? 5 : 3.5} 
+                                    fill={headColor} 
+                                    stroke={isDark ? '#121212' : '#FFF'} 
+                                    strokeWidth={1.5}
+                                    onPress={() => setTooltip({ ...p, metricType: 'head', displayY: p.y, displayScaler: headScaler.scale })}
+                                />
+                            ))}
+                        </G>
+                    )}
+
+                    {/* Fallback Child Data (Single line if arrays are empty) */}
+                    {!heightData.length && !weightData.length && !headData.length && childData && childData.length > 0 && (
+                        <G>
+                            <Path d={buildPath(childData, scaleY)} fill="none" stroke={color} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
                             {childData.map((p, i) => (
                                 <Circle 
                                     key={i} 
@@ -101,7 +178,7 @@ export function WHOChart({ childData, gender, type, color, unit, isDark }) {
                                     fill={color} 
                                     stroke={isDark ? '#121212' : '#FFF'} 
                                     strokeWidth={2}
-                                    onPress={() => setTooltip(p)}
+                                    onPress={() => setTooltip({ ...p, displayY: p.y, displayScaler: scaleY })}
                                 />
                             ))}
                         </G>
@@ -111,35 +188,41 @@ export function WHOChart({ childData, gender, type, color, unit, isDark }) {
                     {tooltip && (
                         <G>
                             <Rect 
-                                x={scaleX(tooltip.x) - 40} 
-                                y={scaleY(tooltip.y) - 45} 
-                                width={80} 
+                                x={scaleX(tooltip.x) - 45} 
+                                y={(tooltip.displayScaler ? tooltip.displayScaler(tooltip.displayY) : scaleY(tooltip.displayY || tooltip.y)) - 45} 
+                                width={90} 
                                 height={35} 
                                 rx={8} 
                                 fill={isDark ? '#333' : '#FFF'} 
-                                stroke={color} 
-                                strokeWidth={1}
+                                stroke={tooltip.metricType === 'weight' ? weightColor : tooltip.metricType === 'height' ? heightColor : tooltip.metricType === 'head' ? headColor : color} 
+                                strokeWidth={1.5}
                             />
                             <SvgText 
                                 x={scaleX(tooltip.x)} 
-                                y={scaleY(tooltip.y) - 30} 
+                                y={(tooltip.displayScaler ? tooltip.displayScaler(tooltip.displayY) : scaleY(tooltip.displayY || tooltip.y)) - 30} 
                                 fontSize="10" 
                                 fontWeight="bold" 
                                 fill={isDark ? '#FFF' : '#333'} 
                                 textAnchor="middle"
                             >
-                                {tooltip.y} {unit}
+                                {tooltip.displayY || tooltip.y} {tooltip.metricType === 'weight' ? 'kg' : 'cm'}
                             </SvgText>
                             <SvgText 
                                 x={scaleX(tooltip.x)} 
-                                y={scaleY(tooltip.y) - 20} 
+                                y={(tooltip.displayScaler ? tooltip.displayScaler(tooltip.displayY) : scaleY(tooltip.displayY || tooltip.y)) - 20} 
                                 fontSize="8" 
                                 fill={textColor} 
                                 textAnchor="middle"
                             >
                                 {tooltip.x} months
                             </SvgText>
-                            <Circle cx={scaleX(tooltip.x)} cy={scaleY(tooltip.y)} r={6} fill="transparent" onPress={() => setTooltip(null)} />
+                            <Circle 
+                                cx={scaleX(tooltip.x)} 
+                                cy={tooltip.displayScaler ? tooltip.displayScaler(tooltip.displayY) : scaleY(tooltip.displayY || tooltip.y)} 
+                                r={12} 
+                                fill="transparent" 
+                                onPress={() => setTooltip(null)} 
+                            />
                         </G>
                     )}
                 </G>
@@ -149,15 +232,23 @@ export function WHOChart({ childData, gender, type, color, unit, isDark }) {
             <View style={[styles.legendContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }]}>
                 <View style={styles.legendRow}>
                     <View style={styles.legendItem}>
-                        <View style={[styles.legendIndicator, { backgroundColor: color, height: 3, borderRadius: 2 }]} />
-                        <Text style={[styles.legendText, { color: textColor }]}>Child Growth</Text>
+                        <View style={[styles.legendIndicator, { backgroundColor: heightColor, height: 3, borderRadius: 2 }]} />
+                        <Text style={[styles.legendText, { color: textColor }]}>Height (cm)</Text>
                     </View>
+                    <View style={styles.legendItem}>
+                        <View style={[styles.legendIndicator, { backgroundColor: weightColor, height: 3, borderRadius: 2 }]} />
+                        <Text style={[styles.legendText, { color: textColor }]}>Weight (kg)</Text>
+                    </View>
+                    <View style={styles.legendItem}>
+                        <View style={[styles.legendIndicator, { backgroundColor: headColor, height: 3, borderRadius: 2 }]} />
+                        <Text style={[styles.legendText, { color: textColor }]}>Head Circ (cm)</Text>
+                    </View>
+                </View>
+                <View style={styles.legendRow}>
                     <View style={styles.legendItem}>
                         <View style={[styles.legendIndicator, { borderBottomWidth: 1.5, borderColor: medianColor, borderStyle: 'dashed', backgroundColor: 'transparent' }]} />
                         <Text style={[styles.legendText, { color: textColor }]}>WHO Median (50th)</Text>
                     </View>
-                </View>
-                <View style={styles.legendRow}>
                     <View style={styles.legendItem}>
                         <View style={[styles.legendIndicator, { backgroundColor: innerBand, opacity: 1, borderWidth: 1, borderColor: 'rgba(255, 193, 7, 0.3)' }]} />
                         <Text style={[styles.legendText, { color: textColor }]}>Normal (15th-85th)</Text>

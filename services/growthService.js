@@ -3,6 +3,7 @@ import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import cacheService from './cacheService';
 import { API_URL } from './authService';
+import syncService from './syncService';
 
 class GrowthService {
     // Get auth token
@@ -15,33 +16,59 @@ class GrowthService {
         }
     }
 
-    // Add a new growth measurement
+    // Add a new growth measurement using offline-first caching and sync queue
     async addMeasurement(childId, measurementData) {
         try {
-            const token = await this.getToken();
-            if (!token) throw new Error('No authentication token');
+            console.log(`[GrowthService] Offline-first add: childId=${childId}, date=${measurementData.date}`);
+            const cacheKey = `growth_${childId}`;
+            let measurements = await cacheService.get(cacheKey) || [];
+            const dateStr = measurementData.date;
+            const existingIndex = measurements.findIndex(m => m.recorded_date === dateStr);
+            
+            let localItem;
+            if (existingIndex > -1) {
+                // Update existing local record
+                localItem = {
+                    ...measurements[existingIndex],
+                    weight: measurementData.weight,
+                    height: measurementData.height,
+                    head_circumference: measurementData.headCircumference,
+                    notes: measurementData.notes || null,
+                    updated_at: new Date().toISOString()
+                };
+                measurements[existingIndex] = localItem;
+            } else {
+                // Create new local record with a temp ID
+                const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                localItem = {
+                    id: tempId,
+                    child_id: childId,
+                    recorded_date: dateStr,
+                    weight: measurementData.weight,
+                    height: measurementData.height,
+                    head_circumference: measurementData.headCircumference,
+                    notes: measurementData.notes || null,
+                    created_at: new Date().toISOString()
+                };
+                measurements.push(localItem);
+            }
+            
+            // Save to local cache immediately so it renders on chart instantly
+            await cacheService.set(cacheKey, measurements);
 
-            const response = await fetch(`${API_URL}/growth/${childId}`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify(measurementData)
+            // Queue background sync task
+            await syncService.enqueue('ADD_GROWTH', {
+                tempId: localItem.id,
+                childId,
+                date: measurementData.date,
+                weight: measurementData.weight,
+                height: measurementData.height,
+                headCircumference: measurementData.headCircumference
             });
 
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                console.error(`Add measurement failed: ${response.status}`, errorData);
-                throw new Error(errorData.error || `Failed to add measurement: ${response.status}`);
-            }
-
-            // Invalidate cache on mutation
-            await cacheService.invalidate(`growth_${childId}`);
-
-            return await response.json();
+            return localItem;
         } catch (error) {
-            console.error('Error adding measurement:', error);
+            console.error('Error in offline-first addMeasurement:', error);
             throw error;
         }
     }
@@ -86,33 +113,24 @@ class GrowthService {
         }
     }
 
-    // Delete a growth measurement
+    // Delete a growth measurement using offline-first caching and sync queue
     async deleteMeasurement(id, childId) {
         try {
-            const token = await this.getToken();
-            if (!token) throw new Error('No authentication token');
-
-            const response = await fetch(`${API_URL}/growth/${id}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                console.error(`Delete measurement failed: ${response.status}`, errorData);
-                throw new Error(errorData.error || `Failed to delete measurement: ${response.status}`);
-            }
-
-            // Invalidate cache on mutation
+            console.log(`[GrowthService] Offline-first delete: id=${id}, childId=${childId}`);
+            
             if (childId) {
-                await cacheService.invalidate(`growth_${childId}`);
+                const cacheKey = `growth_${childId}`;
+                let measurements = await cacheService.get(cacheKey) || [];
+                measurements = measurements.filter(m => m.id !== id);
+                await cacheService.set(cacheKey, measurements);
             }
 
-            return await response.json();
+            // Queue background sync task
+            await syncService.enqueue('DELETE_GROWTH', { id, childId });
+
+            return { success: true, message: 'Measurement deleted successfully (offline)' };
         } catch (error) {
-            console.error('Error deleting measurement:', error);
+            console.error('Error in offline-first deleteMeasurement:', error);
             throw error;
         }
     }

@@ -1,10 +1,10 @@
-import { API_URL } from './authService';
-import { getAuth } from 'firebase/auth';
+import { API_URL, resilientFetch } from '@/config/api';
+import authService from './authService';
 import cacheService from './cacheService';
+import syncService from './syncService';
 
 const getHeaders = async () => {
-    const auth = getAuth();
-    const token = await auth.currentUser?.getIdToken();
+    const token = await authService.getToken();
     return {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
@@ -12,31 +12,50 @@ const getHeaders = async () => {
 };
 
 export const milestoneService = {
-    // Save milestone responses for a child
+    // Save milestone responses for a child using offline-first caching and sync queue
     saveMilestoneResponses: async (childId, ageMonths, category, responses) => {
         try {
-            const headers = await getHeaders();
-            const response = await fetch(`${API_URL}/milestones/${childId}`, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({
-                    ageMonths,
-                    category,
-                    responses
-                })
-            });
+            console.log(`[MilestoneService] Offline-first save: childId=${childId}, age=${ageMonths}, category=${category}`);
 
-            const data = await response.json();
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to save milestone responses');
+            // 1. Update individual category cache immediately
+            const catCacheKey = `milestones_${childId}_${ageMonths}_${category}`;
+            const localData = {
+                child_id: childId,
+                age_months: ageMonths,
+                category,
+                responses
+            };
+            await cacheService.set(catCacheKey, localData);
+
+            // 2. Update all-milestones list cache immediately
+            const allCacheKey = `milestones_${childId}_all`;
+            let allResponses = await cacheService.get(allCacheKey);
+            if (!allResponses) {
+                allResponses = [];
+            }
+            if (Array.isArray(allResponses)) {
+                const existingIndex = allResponses.findIndex(
+                    row => row.category === category && Number(row.age_months) === Number(ageMonths)
+                );
+                if (existingIndex > -1) {
+                    allResponses[existingIndex].responses = responses;
+                } else {
+                    allResponses.push(localData);
+                }
+                await cacheService.set(allCacheKey, allResponses);
             }
 
-            // Invalidate milestone caches on save
-            await cacheService.invalidatePattern(`milestones_${childId}`);
+            // 3. Queue synchronization task in the background
+            await syncService.enqueue('SAVE_MILESTONE', {
+                childId,
+                ageMonths,
+                category,
+                responses
+            });
 
-            return data;
+            return localData;
         } catch (error) {
-            console.error('Error saving milestone responses:', error);
+            console.error('Error in offline-first saveMilestoneResponses:', error);
             throw error;
         }
     },
@@ -50,7 +69,7 @@ export const milestoneService = {
             const result = await cacheService.fetchWithCache(
                 cacheKey,
                 async () => {
-                    const response = await fetch(
+                    const response = await resilientFetch(
                         `${API_URL}/milestones/${childId}?ageMonths=${ageMonths}&category=${category}`,
                         { headers }
                     );
@@ -65,6 +84,18 @@ export const milestoneService = {
 
             if (result.fromCache) {
                 console.log(`[milestoneService] Loaded from cache: ${cacheKey}`);
+            }
+
+            // Safe parsing of responses if returned as string
+            if (result.data) {
+                if (typeof result.data.responses === 'string') {
+                    try {
+                        result.data.responses = JSON.parse(result.data.responses);
+                    } catch (e) {
+                        console.error('[milestoneService] Error parsing responses string:', e);
+                        result.data.responses = {};
+                    }
+                }
             }
 
             return result.data;
@@ -83,7 +114,7 @@ export const milestoneService = {
             const result = await cacheService.fetchWithCache(
                 cacheKey,
                 async () => {
-                    const response = await fetch(`${API_URL}/milestones/${childId}/all`, {
+                    const response = await resilientFetch(`${API_URL}/milestones/${childId}/all`, {
                         headers
                     });
                     const data = await response.json();
@@ -97,6 +128,21 @@ export const milestoneService = {
 
             if (result.fromCache) {
                 console.log(`[milestoneService] Loaded all milestones from cache for child ${childId}`);
+            }
+
+            // Safe parsing of responses in array
+            if (Array.isArray(result.data)) {
+                result.data = result.data.map(row => {
+                    if (row && typeof row.responses === 'string') {
+                        try {
+                            row.responses = JSON.parse(row.responses);
+                        } catch (e) {
+                            console.error('[milestoneService] Error parsing row responses string:', e);
+                            row.responses = {};
+                        }
+                    }
+                    return row;
+                });
             }
 
             return result.data;

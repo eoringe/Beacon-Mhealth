@@ -74,6 +74,7 @@ export default function AddChildScreen() {
     };
 
     const handleAddChild = async () => {
+        if (loading) return;
         if (!firstName || !lastName || !dateOfBirth || !gender) {
             showAlert('Error', 'Please fill in all required fields', [], 'error');
             return;
@@ -106,6 +107,7 @@ export default function AddChildScreen() {
     };
 
     const handleVerifyAndAdd = async () => {
+        if (loading) return;
         if (!verifyRegNumber) {
             showAlert('Error', 'Please enter the Registration Number', [], 'error');
             return;
