@@ -4,7 +4,87 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MILESTONE_CATEGORIES, getMilestonesForAge } from '@/constants/milestones';
 import { getVaccinationStatus } from '@/constants/vaccinationSchedule';
 import { PRIMARY_TEETH } from '@/constants/teethData';
+import { WHO_STANDARDS } from '@/constants/whoGrowthStandards';
 import growthService from './growthService';
+
+// Helper to calculate age in months between DOB and record date
+const calculateAgeInMonths = (birthDate, recordDate) => {
+  if (!birthDate || !recordDate) return 0;
+  const dob = new Date(birthDate);
+  const record = new Date(recordDate);
+  const yearsDiff = record.getFullYear() - dob.getFullYear();
+  const monthsDiff = record.getMonth() - dob.getMonth();
+  const months = yearsDiff * 12 + monthsDiff;
+  return Math.max(0, months);
+};
+
+// Helper to calculate Z-score based on WHO percentiles using linear interpolation
+const getZScore = (gender, metricType, ageMonths, value) => {
+  if (!gender || !metricType || ageMonths === undefined || ageMonths === null || isNaN(value)) {
+    return null;
+  }
+  const genderKey = gender.toLowerCase() === 'female' || gender.toLowerCase() === 'girl' ? 'girls' : 'boys';
+  const typeKey = metricType === 'head' ? 'head_circumference' : metricType;
+  const standards = WHO_STANDARDS[genderKey]?.[typeKey];
+  if (!standards || standards.length === 0) return null;
+
+  let lower = null;
+  let upper = null;
+
+  for (let i = 0; i < standards.length; i++) {
+    const s = standards[i];
+    if (s.month === ageMonths) {
+      lower = s;
+      upper = s;
+      break;
+    }
+    if (s.month < ageMonths) {
+      lower = s;
+    }
+    if (s.month > ageMonths && upper === null) {
+      upper = s;
+    }
+  }
+
+  if (lower === null) {
+    lower = standards[0];
+    upper = standards[0];
+  } else if (upper === null) {
+    upper = standards[standards.length - 1];
+    lower = standards[standards.length - 1];
+  }
+
+  let p3, p50, p97;
+  if (lower.month === upper.month) {
+    p3 = lower.p3;
+    p50 = lower.p50;
+    p97 = lower.p97;
+  } else {
+    const fraction = (ageMonths - lower.month) / (upper.month - lower.month);
+    p3 = lower.p3 + fraction * (upper.p3 - lower.p3);
+    p50 = lower.p50 + fraction * (upper.p50 - lower.p50);
+    p97 = lower.p97 + fraction * (upper.p97 - lower.p97);
+  }
+
+  let zScore;
+  if (value >= p50) {
+    if (p97 === p50) return 0;
+    zScore = ((value - p50) / (p97 - p50)) * 2;
+  } else {
+    if (p50 === p3) return 0;
+    zScore = ((value - p50) / (p50 - p3)) * 2;
+  }
+
+  return zScore;
+};
+
+// Helper to format Z-score string
+const formatZScore = (z) => {
+  if (z === null || z === undefined || isNaN(z)) return '--';
+  const sign = z >= 0 ? '+' : '';
+  return `${sign}${z.toFixed(2)}`;
+};
+
 
 const ADDITIONAL_VACCINES = [
     { id: 'influenza', name: 'Influenza' },
@@ -324,7 +404,7 @@ export const reportService = {
         `).join('')}
 
         <div class="disclaimer">
-          This report is based on developmental checklist information completed by the caregiver. It is a screening aid, not a diagnostic clinical evaluation. Consult a pediatrician or specialist for professional developmental assessment.
+          This report is based on the parent feedback. Further assessment by a healthcare professional is needed.
         </div>
       </body>
       </html>
@@ -448,7 +528,7 @@ export const reportService = {
         ${adviceHTML}
 
         <div class="disclaimer">
-          This rapid ASD screener is designed to identify potential indicators of autism. It is a screening questionnaire, NOT a medical diagnosis. A high or moderate score warrants referrals for standard comprehensive diagnostic testing. Always discuss results with a clinician.
+          This report is based on the parent feedback. Further assessment by a healthcare professional is needed.
         </div>
       </body>
       </html>
@@ -668,40 +748,74 @@ export const reportService = {
     const completedCount = completedVaccines.length;
     const skippedCount = skippedVaccines.length;
     const missedCount = vacStatus ? vacStatus.overdueVaccines.length : 0;
-    const vacStatusText = missedCount > 0 ? 'Overdue' : (vacStatus && vacStatus.dueVaccines.length > 0 ? 'Due' : 'Up-to-date');
-    const vacStatusColor = missedCount > 0 ? '#EF4444' : (vacStatus && vacStatus.dueVaccines.length > 0 ? '#F59E0B' : '#10B981');
 
-    // Growth highlights
-    let growthHighlight = '';
+    // --- 1. GROWTH TRACKER (Z-score calculation & styling) ---
+    let latestWeightStr = '--';
+    let latestHeightStr = '--';
+    let latestHeadCircStr = '--';
+    let growthConclusion = 'Suboptimal - Needs counseling';
+    let growthEntriesCount = 0;
+    let latestMeasurementDateStr = 'N/A';
+
     if (growthEntries && growthEntries.length > 0) {
-      const sorted = [...growthEntries].sort((a, b) => new Date(b.date) - new Date(a.date));
+      const sorted = [...growthEntries].sort((a, b) => new Date(b.recorded_date || b.date) - new Date(a.recorded_date || a.date));
       const latest = sorted[0];
-      const earliest = sorted[sorted.length - 1];
-      growthHighlight = `
-        <div style="padding: 12px 0;">
-          <div style="display: flex; gap: 10px; margin-bottom: 8px;">
-            <div style="flex: 1; background: #F0F9FF; padding: 10px; border-radius: 6px; text-align: center;">
-              <div style="font-size: 18px; font-weight: 700; color: #0369A1;">${latest.weight ? latest.weight + ' kg' : '—'}</div>
-              <div style="font-size: 10px; color: #6B7280;">Latest Weight</div>
-            </div>
-            <div style="flex: 1; background: #F0FDF4; padding: 10px; border-radius: 6px; text-align: center;">
-              <div style="font-size: 18px; font-weight: 700; color: #15803D;">${latest.height ? latest.height + ' cm' : '—'}</div>
-              <div style="font-size: 10px; color: #6B7280;">Latest Height</div>
-            </div>
-            <div style="flex: 1; background: #FDF4FF; padding: 10px; border-radius: 6px; text-align: center;">
-              <div style="font-size: 18px; font-weight: 700; color: #7E22CE;">${latest.head_circumference ? latest.head_circumference + ' cm' : '—'}</div>
-              <div style="font-size: 10px; color: #6B7280;">Head Circ.</div>
-            </div>
-          </div>
-          <p style="font-size: 11px; color: #6B7280; margin: 4px 0 0 0;">${sorted.length} measurement(s) recorded • Latest: ${formatDate(latest.date)}${sorted.length > 1 ? ' • First: ' + formatDate(earliest.date) : ''}</p>
-        </div>
-      `;
-    } else {
-      growthHighlight = `<p style="color: #9CA3AF; font-style: italic; font-size: 12px; margin: 8px 0;">No growth measurements recorded yet.</p>`;
+      growthEntriesCount = sorted.length;
+      latestMeasurementDateStr = formatDate(latest.recorded_date || latest.date);
+
+      const birthDate = child.date_of_birth;
+      const recordDate = latest.recorded_date || latest.date || latest.created_at;
+      const ageAtRecordMonths = calculateAgeInMonths(birthDate, recordDate);
+
+      let weightZ = null;
+      let heightZ = null;
+      let headZ = null;
+      let allMetricsOptimal = true;
+      let metricsCount = 0;
+
+      if (latest.weight !== undefined && latest.weight !== null && latest.weight !== '') {
+        const val = parseFloat(latest.weight);
+        weightZ = getZScore(child.gender, 'weight', ageAtRecordMonths, val);
+        latestWeightStr = `${val} kg`;
+        if (weightZ !== null) {
+          latestWeightStr += ` (${formatZScore(weightZ)} Z-score)`;
+          if (weightZ < -2 || weightZ > 2) allMetricsOptimal = false;
+          metricsCount++;
+        }
+      }
+      if (latest.height !== undefined && latest.height !== null && latest.height !== '') {
+        const val = parseFloat(latest.height);
+        heightZ = getZScore(child.gender, 'height', ageAtRecordMonths, val);
+        latestHeightStr = `${val} cm`;
+        if (heightZ !== null) {
+          latestHeightStr += ` (${formatZScore(heightZ)} Z-score)`;
+          if (heightZ < -2 || heightZ > 2) allMetricsOptimal = false;
+          metricsCount++;
+        }
+      }
+      if (latest.head_circumference !== undefined && latest.head_circumference !== null && latest.head_circumference !== '') {
+        const val = parseFloat(latest.head_circumference);
+        headZ = getZScore(child.gender, 'head_circumference', ageAtRecordMonths, val);
+        latestHeadCircStr = `${val} cm`;
+        if (headZ !== null) {
+          latestHeadCircStr += ` (${formatZScore(headZ)} Z-score)`;
+          if (headZ < -2 || headZ > 2) allMetricsOptimal = false;
+          metricsCount++;
+        }
+      }
+
+      if (metricsCount > 0 && allMetricsOptimal) {
+        growthConclusion = 'Optimal.';
+      } else {
+        growthConclusion = 'Suboptimal - Needs counseling';
+      }
     }
 
-    // Sleep highlights
+    // --- 2. SLEEP TRACKER ---
     let sleepHighlight = '';
+    let recPct = 0;
+    let sleepConclusion = 'Suboptimal - Needs counseling';
+
     if (sleepLogs && sleepLogs.length > 0) {
       const totalMinutes = sleepLogs.reduce((acc, log) => {
         const mins = log.totalMinutes !== undefined ? log.totalMinutes : ((parseFloat(log.hours) || 0) * 60 + (parseFloat(log.minutes) || 0));
@@ -737,7 +851,13 @@ export const reportService = {
           recommendedDaysCount++;
         }
       });
-      const recPct = totalDays > 0 ? Math.round((recommendedDaysCount / totalDays) * 100) : 0;
+      recPct = totalDays > 0 ? Math.round((recommendedDaysCount / totalDays) * 100) : 0;
+
+      if (recPct >= 50) {
+        sleepConclusion = 'Optimal.';
+      } else {
+        sleepConclusion = 'Suboptimal - Needs counseling';
+      }
 
       sleepHighlight = `
         <div style="padding: 12px 0;">
@@ -765,11 +885,13 @@ export const reportService = {
       sleepHighlight = `<p style="color: #9CA3AF; font-style: italic; font-size: 12px; margin: 8px 0;">No sleep logs recorded yet.</p>`;
     }
 
-    // Feeding highlights
+    // --- 3. NUTRITION (FEEDING) ---
     let feedingHighlight = '';
+    const allGroups = new Set();
+    let nutritionConclusion = 'Suboptimal - Needs counseling';
+
     if (feedingLogs && feedingLogs.length > 0) {
       const mealTypes = {};
-      const allGroups = new Set();
       feedingLogs.forEach(log => {
         const mt = log.type === 'breast' ? 'Breast' : (log.type === 'bottle' ? 'Bottle' : 'Solid');
         mealTypes[mt] = (mealTypes[mt] || 0) + 1;
@@ -777,6 +899,13 @@ export const reportService = {
           allGroups.add(log.foodCategory);
         }
       });
+
+      if (allGroups.size >= 4) {
+        nutritionConclusion = 'Optimal.';
+      } else {
+        nutritionConclusion = 'Suboptimal - Needs counseling';
+      }
+
       const topMeals = Object.entries(mealTypes).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k} (${v})`).join(', ');
       feedingHighlight = `
         <div style="padding: 12px 0;">
@@ -797,9 +926,11 @@ export const reportService = {
       feedingHighlight = `<p style="color: #9CA3AF; font-style: italic; font-size: 12px; margin: 8px 0;">No feeding logs recorded yet.</p>`;
     }
 
-    // Teething highlights
+    // --- 4. TEETHING TRACKER ---
     let teethingHighlight = '';
     const teethEntries = Object.entries(teethingData);
+    let teethingConclusion = 'Optimal.';
+
     if (teethEntries.length > 0) {
       const sortedTeeth = teethEntries
         .map(([id, item]) => ({ id, ...item }))
@@ -830,40 +961,116 @@ export const reportService = {
     // Build consolidated daily trackers page
     const trackersHTML = `
       <div class="page-break"></div>
-      <h2 style="color: #5813f9; text-align: center; margin-bottom: 6px;">Part 3: Daily Trackers & Health Overview</h2>
-      <p style="text-align: center; color: #6B7280; font-size: 12px; margin-bottom: 18px;">Summary of growth, sleep, nutrition, immunization, and teething data for ${child.first_name}.</p>
+      
+      <!-- Part 3: Growth Tracker -->
+      <h2 style="color: #5813f9; margin-top: 30px;">Part 3: Growth Tracker</h2>
+      <div style="border: 1px solid #E5E7EB; border-radius: 8px; margin-bottom: 25px; overflow: hidden; background-color: #FFF;">
+        <div style="background: #F8FAFC; padding: 12px 16px; border-bottom: 1px solid #E5E7EB; font-weight: bold; font-size: 14px; color: #1E293B;">Latest Values</div>
+        <div style="padding: 16px;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr style="border-bottom: 1px solid #F0F0F0;">
+              <td style="padding: 10px 0; font-weight: 600; color: #555; width: 40%;">Weight-for-age</td>
+              <td style="padding: 10px 0; color: #222;">is ${latestWeightStr}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #F0F0F0;">
+              <td style="padding: 10px 0; font-weight: 600; color: #555;">Height for age</td>
+              <td style="padding: 10px 0; color: #222;">is ${latestHeightStr}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0; font-weight: 600; color: #555;">Head circumference</td>
+              <td style="padding: 10px 0; color: #222;">is ${latestHeadCircStr}</td>
+            </tr>
+          </table>
+          ${growthEntriesCount > 0 ? `<p style="font-size: 11px; color: #6B7280; margin: 10px 0 0 0;">${growthEntriesCount} measurement(s) recorded • Latest: ${latestMeasurementDateStr}</p>` : ''}
 
-      <!-- Immunization Status Banner -->
-      <div style="background-color: ${vacStatusColor}15; border: 1px solid ${vacStatusColor}40; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
-        <div>
-          <span style="font-weight: 600; color: #333; font-size: 13px;">🛡️ Immunization Status</span>
-          <span style="margin-left: 8px; background: ${vacStatusColor}; color: white; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">${vacStatusText}</span>
+          <div style="margin-top: 20px; padding: 12px 16px; border-radius: 6px; font-weight: bold; font-size: 13px; display: flex; align-items: center; justify-content: space-between; 
+            ${growthConclusion.startsWith('Optimal') 
+              ? 'background-color: #ECFDF5; color: #065F46; border: 1px solid #10B981;' 
+              : 'background-color: #FEF2F2; color: #991B1B; border: 1px solid #EF4444;'
+            }">
+            <span>Conclusion:</span>
+            <span>${growthConclusion}</span>
+          </div>
         </div>
-        <div style="font-size: 12px; color: #555;">${completedCount} given · ${skippedCount} skipped · ${missedCount} overdue</div>
       </div>
 
-      <!-- Growth -->
-      <div style="border: 1px solid #E5E7EB; border-radius: 8px; margin-bottom: 12px; overflow: hidden;">
-        <div style="background: #F8FAFC; padding: 10px 14px; border-bottom: 1px solid #E5E7EB; font-weight: 600; font-size: 13px; color: #1E293B;">📏 Growth Measurements</div>
-        <div style="padding: 2px 14px;">${growthHighlight}</div>
+      <!-- Part 4: Immunization Tracker -->
+      <h2 style="color: #5813f9; margin-top: 30px;">Part 4: Immunization Tracker</h2>
+      <div style="border: 1px solid #E5E7EB; border-radius: 8px; margin-bottom: 25px; overflow: hidden; background-color: #FFF;">
+        <div style="background: #F8FAFC; padding: 12px 16px; border-bottom: 1px solid #E5E7EB; font-weight: bold; font-size: 14px; color: #1E293B;">Immunization Status</div>
+        <div style="padding: 16px;">
+          <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+            <div style="flex: 1; background: #F0FDF4; padding: 10px; border-radius: 6px; text-align: center;">
+              <div style="font-size: 18px; font-weight: 700; color: #15803D;">${completedCount}</div>
+              <div style="font-size: 10px; color: #6B7280;">Vaccines Given</div>
+            </div>
+            <div style="flex: 1; background: #F8FAFC; padding: 10px; border-radius: 6px; text-align: center;">
+              <div style="font-size: 18px; font-weight: 700; color: #475569;">${skippedCount}</div>
+              <div style="font-size: 10px; color: #6B7280;">Vaccines Skipped</div>
+            </div>
+            <div style="flex: 1; background: #FEF2F2; padding: 10px; border-radius: 6px; text-align: center;">
+              <div style="font-size: 18px; font-weight: 700; color: #991B1B;">${missedCount}</div>
+              <div style="font-size: 10px; color: #6B7280;">Vaccines Overdue</div>
+            </div>
+          </div>
+
+          <div style="padding: 12px 16px; border-radius: 6px; font-weight: bold; font-size: 13px; display: flex; align-items: center; justify-content: space-between; 
+            ${missedCount === 0 
+              ? 'background-color: #ECFDF5; color: #065F46; border: 1px solid #10B981;' 
+              : 'background-color: #FEF2F2; color: #991B1B; border: 1px solid #EF4444;'
+            }">
+            <span>Conclusion:</span>
+            <span>${missedCount === 0 ? 'Vaccines uptodate.' : 'Vaccine-not update.'}</span>
+          </div>
+        </div>
       </div>
 
-      <!-- Sleep -->
-      <div style="border: 1px solid #E5E7EB; border-radius: 8px; margin-bottom: 12px; overflow: hidden;">
-        <div style="background: #F8FAFC; padding: 10px 14px; border-bottom: 1px solid #E5E7EB; font-weight: 600; font-size: 13px; color: #1E293B;">😴 Sleep Tracker</div>
-        <div style="padding: 2px 14px;">${sleepHighlight}</div>
+      <!-- Part 5: General Health Trackers -->
+      <div class="page-break"></div>
+      <h2 style="color: #5813f9; margin-top: 30px;">Part 5: General Health Trackers</h2>
+      
+      <!-- 1. Nutrition -->
+      <div style="border: 1px solid #E5E7EB; border-radius: 8px; margin-bottom: 20px; overflow: hidden; background-color: #FFF;">
+        <div style="background: #F8FAFC; padding: 12px 16px; border-bottom: 1px solid #E5E7EB; font-weight: bold; font-size: 14px; color: #1E293B;">1. Nutrition</div>
+        <div style="padding: 16px;">
+          ${feedingHighlight}
+          <div style="margin-top: 15px; padding: 12px 16px; border-radius: 6px; font-weight: bold; font-size: 13px; display: flex; align-items: center; justify-content: space-between; 
+            ${allGroups.size >= 4 
+              ? 'background-color: #ECFDF5; color: #065F46; border: 1px solid #10B981;' 
+              : 'background-color: #FEF2F2; color: #991B1B; border: 1px solid #EF4444;'
+            }">
+            <span>Conclusion:</span>
+            <span>${nutritionConclusion}</span>
+          </div>
+        </div>
       </div>
 
-      <!-- Feeding -->
-      <div style="border: 1px solid #E5E7EB; border-radius: 8px; margin-bottom: 12px; overflow: hidden;">
-        <div style="background: #F8FAFC; padding: 10px 14px; border-bottom: 1px solid #E5E7EB; font-weight: 600; font-size: 13px; color: #1E293B;">🍽️ Feeding & Nutrition</div>
-        <div style="padding: 2px 14px;">${feedingHighlight}</div>
+      <!-- 2. Sleep tracker -->
+      <div style="border: 1px solid #E5E7EB; border-radius: 8px; margin-bottom: 20px; overflow: hidden; background-color: #FFF;">
+        <div style="background: #F8FAFC; padding: 12px 16px; border-bottom: 1px solid #E5E7EB; font-weight: bold; font-size: 14px; color: #1E293B;">2. Sleep Tracker</div>
+        <div style="padding: 16px;">
+          ${sleepHighlight}
+          <div style="margin-top: 15px; padding: 12px 16px; border-radius: 6px; font-weight: bold; font-size: 13px; display: flex; align-items: center; justify-content: space-between; 
+            ${recPct >= 50 
+              ? 'background-color: #ECFDF5; color: #065F46; border: 1px solid #10B981;' 
+              : 'background-color: #FEF2F2; color: #991B1B; border: 1px solid #EF4444;'
+            }">
+            <span>Conclusion:</span>
+            <span>${sleepConclusion}</span>
+          </div>
+        </div>
       </div>
 
-      <!-- Teething -->
-      <div style="border: 1px solid #E5E7EB; border-radius: 8px; margin-bottom: 12px; overflow: hidden;">
-        <div style="background: #F8FAFC; padding: 10px 14px; border-bottom: 1px solid #E5E7EB; font-weight: 600; font-size: 13px; color: #1E293B;">🦷 Teething Progress</div>
-        <div style="padding: 2px 14px;">${teethingHighlight}</div>
+      <!-- 3. Teething tracker -->
+      <div style="border: 1px solid #E5E7EB; border-radius: 8px; margin-bottom: 20px; overflow: hidden; background-color: #FFF;">
+        <div style="background: #F8FAFC; padding: 12px 16px; border-bottom: 1px solid #E5E7EB; font-weight: bold; font-size: 14px; color: #1E293B;">3. Teething Tracker</div>
+        <div style="padding: 16px;">
+          ${teethingHighlight}
+          <div style="margin-top: 15px; padding: 12px 16px; border-radius: 6px; font-weight: bold; font-size: 13px; display: flex; align-items: center; justify-content: space-between; background-color: #ECFDF5; color: #065F46; border: 1px solid #10B981;">
+            <span>Conclusion:</span>
+            <span>${teethingConclusion}</span>
+          </div>
+        </div>
       </div>
     `;
 
@@ -920,7 +1127,7 @@ export const reportService = {
         ${trackersHTML}
 
         <div class="disclaimer">
-          This comprehensive developmental report is a compilation of caregiver screenings. It is intended for informational purposes and clinical review. It is not a clinical diagnosis. Please consult a pediatrician or pediatric development specialist for professional diagnostic evaluation.
+          This report is based on the parent feedback. Further assessment by a healthcare professional is needed.
         </div>
       </body>
       </html>
