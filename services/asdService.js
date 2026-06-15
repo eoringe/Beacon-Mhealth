@@ -108,6 +108,46 @@ const asdService = {
         });
       }
 
+      // Apply pending SAVE_ASD tasks from sync queue on top of result data
+      try {
+        const queue = await syncService.getQueue();
+        const childPendingSaves = queue.filter(t => 
+          t.type === 'SAVE_ASD' &&
+          t.payload.childId === childId
+        );
+
+        if (childPendingSaves.length > 0) {
+          console.log(`[asdService] Merging ${childPendingSaves.length} pending ASD screening task(s) from sync queue`);
+          let screenings = Array.isArray(result.data) ? [...result.data] : [];
+          
+          childPendingSaves.forEach(task => {
+            const { tempId, responses, score, riskLevel } = task.payload;
+            const existingIndex = screenings.findIndex(s => s.id === tempId || (s.created_at && s.created_at.startsWith(new Date(task.createdAt || Date.now()).toISOString().split('T')[0])));
+            const localItem = {
+              id: tempId,
+              child_id: childId,
+              responses,
+              score,
+              risk_level: riskLevel,
+              created_at: task.createdAt || new Date().toISOString()
+            };
+            if (existingIndex > -1) {
+              screenings[existingIndex] = {
+                ...screenings[existingIndex],
+                ...localItem
+              };
+            } else {
+              screenings.push(localItem);
+            }
+          });
+          
+          screenings.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); // Descending order (latest first)
+          result.data = screenings;
+        }
+      } catch (err) {
+        console.error('[asdService] Error merging pending ASD tasks:', err);
+      }
+
       return result.data;
     } catch (error) {
       console.error('Error fetching ASD screenings:', error);

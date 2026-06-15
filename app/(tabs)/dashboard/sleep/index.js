@@ -238,14 +238,28 @@ export default function SleepTrackerScreen() {
                         <Text style={{ fontWeight: 'bold', color: '#37474F', fontSize: 13 }}>Why track sleep?</Text>
                     </View>
                     <Text style={{ color: '#455A64', fontSize: 12, lineHeight: 16 }}>
-                        Sleep helps your baby's brain and body grow strong. It keeps them happy and gives them energy to learn.
+                        {"Sleep helps your baby's brain and body grow strong. It keeps them happy and gives them energy to learn."}
                     </Text>
+                </View>
+
+                {/* Add Entry Button */}
+                <View style={{ paddingHorizontal: Spacing.lg, marginBottom: Spacing.md }}>
+                    <TouchableOpacity
+                        style={[styles.addEntryBtnLarge, { backgroundColor: colorScheme.primary }]}
+                        onPress={() => {
+                            setLogDate(new Date());
+                            setShowAddModal(true);
+                        }}
+                    >
+                        <MaterialIcons name="add" size={20} color="#FFFFFF" />
+                        <Text style={styles.addEntryBtnLargeText}>Add Sleep Entry</Text>
+                    </TouchableOpacity>
                 </View>
 
                 {/* Today's Summary */}
                 <View style={[styles.summaryCard, { backgroundColor: '#5C6BC0' }]}>
                     <MaterialIcons name="bedtime" size={32} color="#FFFFFF" />
-                    <Text style={styles.summaryTitle}>Today's Sleep</Text>
+                    <Text style={styles.summaryTitle}>{"Today's Sleep"}</Text>
                     <Text style={styles.summaryBig}>
                         {todayHours}h {todayMins}m
                     </Text>
@@ -289,21 +303,9 @@ export default function SleepTrackerScreen() {
 
                 {/* Log List */}
                 <View style={styles.logSection}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md }}>
-                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, marginBottom: 0 }]}>
-                            Sleep Log
-                        </Text>
-                        <TouchableOpacity
-                            style={[styles.addEntryButton, { backgroundColor: colorScheme.primary }]}
-                            onPress={() => {
-                                setLogDate(new Date());
-                                setShowAddModal(true);
-                            }}
-                        >
-                            <MaterialIcons name="add" size={18} color="#FFFFFF" />
-                            <Text style={styles.addEntryButtonText}>Add Entry</Text>
-                        </TouchableOpacity>
-                    </View>
+                    <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, marginBottom: Spacing.md }]}>
+                        Recent Sleep Logs
+                    </Text>
                     {logs.length === 0 ? (
                         <View style={[styles.emptyState, { backgroundColor: colorScheme.surface }]}>
                             <MaterialIcons name="bedtime" size={48} color={colorScheme.textTertiary} />
@@ -694,6 +696,20 @@ const styles = StyleSheet.create({
     addEntryButtonText: {
         color: '#FFFFFF',
         fontSize: Typography.fontSize.sm,
-        fontWeight: Typography.fontWeight.semibold,
+        fontWeight: '600',
+    },
+    addEntryBtnLarge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: Spacing.sm,
+        paddingVertical: Spacing.md,
+        borderRadius: BorderRadius.md,
+        ...Shadow.sm,
+    },
+    addEntryBtnLargeText: {
+        color: '#FFFFFF',
+        fontSize: Typography.fontSize.sm,
+        fontWeight: 'bold',
     },
 });

@@ -104,6 +104,34 @@ export const milestoneService = {
                 }
             }
 
+            // Apply pending sync tasks on top of the result
+            try {
+                const queue = await syncService.getQueue();
+                const pendingSave = queue.find(t => 
+                    t.type === 'SAVE_MILESTONE' &&
+                    t.payload.childId === childId &&
+                    Number(t.payload.ageMonths) === Number(ageMonths) &&
+                    t.payload.category === category
+                );
+                if (pendingSave) {
+                    console.log(`[milestoneService] Merging pending SAVE_MILESTONE responses from sync queue for category: ${category}`);
+                    if (!result.data) {
+                        result.data = {
+                            child_id: childId,
+                            age_months: ageMonths,
+                            category,
+                            responses: {}
+                        };
+                    }
+                    result.data.responses = {
+                        ...result.data.responses,
+                        ...pendingSave.payload.responses
+                    };
+                }
+            } catch (err) {
+                console.error('[milestoneService] Error merging pending responses:', err);
+            }
+
             return result.data;
         } catch (error) {
             console.error('Error fetching milestone responses:', error);
@@ -155,6 +183,43 @@ export const milestoneService = {
                     }
                     return row;
                 });
+            }
+
+            // Apply all pending SAVE_MILESTONE tasks for this child from sync queue on top of result data
+            try {
+                const queue = await syncService.getQueue();
+                const childPendingSaves = queue.filter(t => 
+                    t.type === 'SAVE_MILESTONE' &&
+                    t.payload.childId === childId
+                );
+
+                if (childPendingSaves.length > 0) {
+                    console.log(`[milestoneService] Merging ${childPendingSaves.length} pending SAVE_MILESTONE task(s) from sync queue`);
+                    if (!Array.isArray(result.data)) {
+                        result.data = [];
+                    }
+                    childPendingSaves.forEach(task => {
+                        const { ageMonths, category, responses } = task.payload;
+                        const existingIndex = result.data.findIndex(row => 
+                            row.category === category && Number(row.age_months) === Number(ageMonths)
+                        );
+                        if (existingIndex > -1) {
+                            result.data[existingIndex].responses = {
+                                ...result.data[existingIndex].responses,
+                                ...responses
+                            };
+                        } else {
+                            result.data.push({
+                                child_id: childId,
+                                age_months: ageMonths,
+                                category,
+                                responses
+                            });
+                        }
+                    });
+                }
+            } catch (err) {
+                console.error('[milestoneService] Error merging pending saves:', err);
             }
 
             return result.data;

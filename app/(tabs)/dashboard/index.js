@@ -10,6 +10,7 @@ import {
     Animated,
     Easing,
     Image,
+    ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -25,6 +26,7 @@ import { useChild } from '@/contexts/ChildContext';
 import { useDrawer } from '@/contexts/DrawerContext';
 import appointmentService from '@/services/appointmentService';
 import { milestoneService } from '@/services/milestoneService';
+import { reportService } from '@/services/reportService';
 import { getDailyPick } from '@/constants/activitiesData';
 import { calculateAgeInMonths, getMilestonesForAge, MILESTONE_AGES } from '@/constants/milestones';
 import { getVaccinationStatus } from '@/constants/vaccinationSchedule';
@@ -130,6 +132,7 @@ export default function DashboardScreen() {
     const [upcomingAppointments, setUpcomingAppointments] = useState([]);
     const [milestoneProgress, setMilestoneProgress] = useState(null);
     const [vaccineActionNeeded, setVaccineActionNeeded] = useState(false);
+    const [downloading, setDownloading] = useState(false);
 
     // Tracker Stats for Dynamic Insights
     const [trackerStats, setTrackerStats] = useState({
@@ -386,6 +389,68 @@ export default function DashboardScreen() {
 
     useFocusEffect(React.useCallback(() => { fetchUpcomingAppointments(); }, []));
 
+    // PDF Report Download Handler
+    const handleDownloadReport = async () => {
+        if (!selectedChild) return;
+        
+        const childAge = ageInMonths || 12;
+        const isOver18Months = childAge >= 18;
+        
+        // Find closest age group to child's actual age
+        const allAges = MILESTONE_AGES.map(a => a.value);
+        let closestAge = allAges[0];
+        for (const a of allAges) {
+            if (childAge >= a) closestAge = a;
+            else break;
+        }
+
+        if (isOver18Months) {
+            // Must finish ASD screener to download the report
+            const hasAsd = asdScreenings && asdScreenings.length > 0;
+            if (!hasAsd) {
+                showAlert(
+                    'Requirements Not Met',
+                    'Children over 18 months must complete both the Milestones Checklist and the ASD Screener to download the Comprehensive Report.',
+                    [
+                        { text: 'Cancel' },
+                        { text: 'Go to ASD Screener', onPress: () => router.push('/(tabs)/asd-checklist') }
+                    ],
+                    'info'
+                );
+                return;
+            }
+            
+            setDownloading(true);
+            try {
+                // Fetch latest responses
+                const responses = await milestoneService.getAllMilestoneResponsesForChild(selectedChild.id, false);
+                await reportService.generateComprehensiveReport(
+                    selectedChild,
+                    closestAge,
+                    responses || [],
+                    asdScreenings[0]
+                );
+            } catch (err) {
+                console.error(err);
+                showAlert('Error', 'Failed to generate comprehensive report PDF.', [], 'error');
+            } finally {
+                setDownloading(false);
+            }
+        } else {
+            // Under 18 months - download milestone summary
+            setDownloading(true);
+            try {
+                const responses = await milestoneService.getAllMilestoneResponsesForChild(selectedChild.id, false);
+                await reportService.generateMilestoneReport(selectedChild, closestAge, responses || []);
+            } catch (err) {
+                console.error(err);
+                showAlert('Error', 'Failed to generate milestone summary PDF.', [], 'error');
+            } finally {
+                setDownloading(false);
+            }
+        }
+    };
+
     // Nav helper
     const isNavigating = useRef(false);
     const navigateTo = (route, params) => {
@@ -572,6 +637,47 @@ export default function DashboardScreen() {
                                 </>
                             )}
                         </TouchableOpacity>
+                    </View>
+                )}
+
+                {/* 📄 PDF Report Generation Card */}
+                {selectedChild && (
+                    <View style={styles.section}>
+                        <View style={[styles.reportCard, { backgroundColor: isDark ? colorScheme.surface : '#F1F5F9', borderColor: colorScheme.border }]}>
+                            <View style={styles.reportHeader}>
+                                <View style={[styles.reportIconContainer, { backgroundColor: `${colorScheme.primary}15` }]}>
+                                    <MaterialIcons name="picture-as-pdf" size={24} color={colorScheme.primary} />
+                                </View>
+                                <View style={styles.reportTextContainer}>
+                                    <Text style={[styles.reportTitle, { color: colorScheme.textPrimary }]}>
+                                        {ageInMonths >= 18 ? 'Comprehensive Report' : 'Milestone Summary Report'}
+                                    </Text>
+                                    <Text style={[styles.reportSubtitle, { color: colorScheme.textSecondary }]}>
+                                        {ageInMonths >= 18 
+                                            ? 'Includes Milestones and ASD Screener results' 
+                                            : 'Includes full milestones tracking history'
+                                        }
+                                    </Text>
+                                </View>
+                            </View>
+                            <TouchableOpacity 
+                                style={[styles.reportDownloadButton, { backgroundColor: colorScheme.primary }]}
+                                onPress={handleDownloadReport}
+                                disabled={downloading}
+                                activeOpacity={0.8}
+                            >
+                                {downloading ? (
+                                    <ActivityIndicator size="small" color="#FFFFFF" />
+                                ) : (
+                                    <>
+                                        <MaterialIcons name="file-download" size={20} color="#FFFFFF" />
+                                        <Text style={styles.reportDownloadButtonText}>
+                                            Download Report
+                                        </Text>
+                                    </>
+                                )}
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 )}
 
@@ -876,4 +982,13 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderColor: '#FFFFFF',
     },
+    // PDF Report Card
+    reportCard: { padding: Spacing.md, borderRadius: BorderRadius.lg, borderWidth: 1, ...Shadow.sm },
+    reportHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.md, gap: Spacing.md },
+    reportIconContainer: { width: 44, height: 44, borderRadius: BorderRadius.md, justifyContent: 'center', alignItems: 'center' },
+    reportTextContainer: { flex: 1 },
+    reportTitle: { fontSize: Typography.fontSize.md, fontWeight: Typography.fontWeight.bold, marginBottom: 2 },
+    reportSubtitle: { fontSize: Typography.fontSize.xs, lineHeight: 16 },
+    reportDownloadButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.md, borderRadius: BorderRadius.md, gap: Spacing.sm, ...Shadow.sm },
+    reportDownloadButtonText: { color: '#FFF', fontSize: Typography.fontSize.sm, fontWeight: Typography.fontWeight.semibold },
 });

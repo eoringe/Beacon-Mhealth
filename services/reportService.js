@@ -3,6 +3,7 @@ import * as Sharing from 'expo-sharing';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MILESTONE_CATEGORIES, getMilestonesForAge } from '@/constants/milestones';
 import { getVaccinationStatus } from '@/constants/vaccinationSchedule';
+import { PRIMARY_TEETH } from '@/constants/teethData';
 import growthService from './growthService';
 
 const ADDITIONAL_VACCINES = [
@@ -87,7 +88,7 @@ const pdfStyles = `
       width: 30%;
     }
     .summary-card {
-      background: linear-gradient(135deg, #6366F1 0%, #4F46E5 100%);
+      background-color: #5813f9;
       color: white;
       padding: 20px;
       border-radius: 8px;
@@ -300,7 +301,7 @@ export const reportService = {
 
         ${getChildInfoTableHTML(child, ageStr)}
 
-        <div class="summary-card" style="background: linear-gradient(135deg, #5813f9 0%, #3f0bb2 100%);">
+        <div class="summary-card" style="background-color: #5813f9;">
           <h3>Overall Completion Summary</h3>
           <div class="summary-score">${totalAchieved} / ${totalMilestones} Milestones Achieved</div>
           <div class="summary-desc">
@@ -345,42 +346,57 @@ export const reportService = {
   generateAsdReport: async (child, screening) => {
     if (!screening) return false;
     
-    const QUESTIONS = [
-      { id: 1, text: "Does your child look at you when you call their name?", type: 'reverse' },
-      { id: 2, text: "Does your child make eye contact during interaction? (brief eye contact counts)", type: 'reverse' },
-      { id: 3, text: "Does your child point to show you something interesting?", type: 'reverse' },
-      { id: 4, text: "Does your child try to share enjoyment with you? (e.g., brings or shows objects)", type: 'reverse' },
-      { id: 5, text: "Does your child copy your actions? (e.g., clapping, waving, high-5)", type: 'reverse' },
-      { id: 6, text: "Does your child use words, sounds, or gestures to communicate needs?", type: 'reverse' },
-      { id: 7, text: "Does your child respond when spoken to (even if not using words)?", type: 'reverse' },
-      { id: 8, text: "Does your child engage in simple back-and-forth interaction? (e.g., taking turns in play or sounds)", type: 'reverse' },
-      { id: 9, text: "Does your child understand simple instructions? (e.g., “bring the cup”)", type: 'reverse' },
-      { id: 10, text: "Does your child repeat the same sounds, actions, or movements over and over? (e.g., humming, hand flapping, lining objects)", type: 'normal' },
-      { id: 11, text: "Does your child play with toys or objects unusually? (e.g., spinning wheels repeatedly)", type: 'normal' },
-      { id: 12, text: "Does your child become very upset by small changes in routine or environment?", type: 'normal' },
-      { id: 13, text: "Does your child show unusual reactions to sounds, textures, or touch? (e.g., covering ears, avoiding certain clothes/foods)", type: 'normal' },
-    ];
-
     const responses = screening.responses || {};
     const riskColors = { Low: '#10B981', Moderate: '#F59E0B', High: '#EF4444' };
     const currentRiskColor = riskColors[screening.risk_level] || '#555';
 
-    const questionsHTML = QUESTIONS.map(q => {
-      const ans = responses[q.id];
-      const isAtRisk = q.type === 'reverse' ? ans === false : ans === true;
-      const displayAnswer = ans === true ? 'Yes' : (ans === false ? 'No' : 'Unanswered');
-      const ansStyle = isAtRisk ? 'color: #C62828; font-weight: bold;' : 'color: #2E7D32;';
-      const riskText = isAtRisk ? '<span style="color: #C62828; font-weight: bold;">⚠️ Risk Factor</span>' : 'Typical';
-      
-      return `
-        <tr>
-          <td>${q.id}</td>
-          <td>${q.text}</td>
-          <td style="${ansStyle}">${displayAnswer}</td>
-          <td>${riskText}</td>
-        </tr>
+    // Count risk factors from responses
+    const QUESTION_TYPES = [
+      'reverse','reverse','reverse','reverse','reverse','reverse','reverse','reverse','reverse',
+      'normal','normal','normal','normal'
+    ];
+    let riskFactorCount = 0;
+    QUESTION_TYPES.forEach((type, idx) => {
+      const ans = responses[idx + 1];
+      const isAtRisk = type === 'reverse' ? ans === false : ans === true;
+      if (isAtRisk) riskFactorCount++;
+    });
+
+    // Generate advice based on risk level
+    let adviceHTML = '';
+    if (screening.risk_level === 'Low') {
+      adviceHTML = `
+        <div style="background: #ECFDF5; border-left: 4px solid #10B981; padding: 14px 18px; border-radius: 6px; margin-top: 15px;">
+          <p style="margin: 0 0 8px 0; font-weight: 600; color: #065F46; font-size: 14px;">✅ Low Risk — No Immediate Concerns</p>
+          <p style="margin: 0; color: #047857; font-size: 12px; line-height: 1.6;">
+            Your child's screening results suggest typical development at this time. Continue monitoring developmental milestones and engage in interactive play, reading, and social activities. 
+            Re-screen again in 3–6 months or if any new concerns arise. If you notice changes in social interaction, communication, or behavior patterns, consult your pediatrician.
+          </p>
+        </div>
       `;
-    }).join('');
+    } else if (screening.risk_level === 'Moderate') {
+      adviceHTML = `
+        <div style="background: #FFFBEB; border-left: 4px solid #F59E0B; padding: 14px 18px; border-radius: 6px; margin-top: 15px;">
+          <p style="margin: 0 0 8px 0; font-weight: 600; color: #92400E; font-size: 14px;">⚠️ Moderate Risk — Follow-Up Recommended</p>
+          <p style="margin: 0; color: #B45309; font-size: 12px; line-height: 1.6;">
+            Some areas of concern were identified. This does <strong>not</strong> mean your child has autism — it means further evaluation is recommended.
+            We advise scheduling a developmental assessment with a pediatrician or child development specialist. Early intervention services can significantly support your child's development.
+            Continue engaging your child in social play, eye contact activities, and language-rich interactions while awaiting evaluation.
+          </p>
+        </div>
+      `;
+    } else {
+      adviceHTML = `
+        <div style="background: #FEF2F2; border-left: 4px solid #EF4444; padding: 14px 18px; border-radius: 6px; margin-top: 15px;">
+          <p style="margin: 0 0 8px 0; font-weight: 600; color: #991B1B; font-size: 14px;">🔴 High Risk — Professional Evaluation Strongly Recommended</p>
+          <p style="margin: 0; color: #B91C1C; font-size: 12px; line-height: 1.6;">
+            Multiple areas of concern were identified in this screening. Please schedule a comprehensive diagnostic evaluation with a developmental pediatrician, child psychologist, or autism specialist as soon as possible.
+            Early diagnosis and intervention can make a significant positive difference. In the meantime, focus on structured routines, sensory-friendly activities, and responsive communication with your child.
+            Your healthcare provider can guide you to appropriate early intervention programs and support services.
+          </p>
+        </div>
+      `;
+    }
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -401,11 +417,11 @@ export const reportService = {
           </div>
         </div>
 
-        <h2 style="color: #5813f9; text-align: center; margin-bottom: 25px;">Rapid ASD Screening Report</h2>
+        <h2 style="color: #5813f9; text-align: center; margin-bottom: 25px;">ASD Screening Results</h2>
 
         ${getChildInfoTableHTML(child, '18–60 Months')}
 
-        <div class="summary-card" style="background: linear-gradient(135deg, ${currentRiskColor} 0%, #333 100%);">
+        <div class="summary-card" style="background-color: ${currentRiskColor};">
           <h3>Screening Date: ${formatDate(screening.created_at || new Date())}</h3>
           <div class="summary-score">Score: ${screening.score} / 13</div>
           <div class="summary-desc" style="font-size: 16px; margin-top: 10px;">
@@ -413,20 +429,23 @@ export const reportService = {
           </div>
         </div>
 
-        <h2 class="section-title">Questionnaire Responses</h2>
-        <table class="question-table">
-          <thead>
-            <tr>
-              <th style="width: 5%;">No.</th>
-              <th style="width: 65%;">Question</th>
-              <th style="width: 15%;">Response</th>
-              <th style="width: 15%;">Interpretation</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${questionsHTML}
-          </tbody>
-        </table>
+        <div style="display: flex; gap: 12px; margin-top: 18px; margin-bottom: 10px;">
+          <div style="flex: 1; background: #F8F9FA; border-radius: 8px; padding: 14px; text-align: center; border: 1px solid #E5E7EB;">
+            <div style="font-size: 28px; font-weight: 700; color: ${currentRiskColor};">${riskFactorCount}</div>
+            <div style="font-size: 11px; color: #6B7280; margin-top: 4px;">Risk Factors Identified</div>
+          </div>
+          <div style="flex: 1; background: #F8F9FA; border-radius: 8px; padding: 14px; text-align: center; border: 1px solid #E5E7EB;">
+            <div style="font-size: 28px; font-weight: 700; color: #10B981;">${13 - riskFactorCount}</div>
+            <div style="font-size: 11px; color: #6B7280; margin-top: 4px;">Typical Responses</div>
+          </div>
+          <div style="flex: 1; background: #F8F9FA; border-radius: 8px; padding: 14px; text-align: center; border: 1px solid #E5E7EB;">
+            <div style="font-size: 28px; font-weight: 700; color: #6366F1;">13</div>
+            <div style="font-size: 11px; color: #6B7280; margin-top: 4px;">Questions Assessed</div>
+          </div>
+        </div>
+
+        <h2 class="section-title">Clinical Guidance</h2>
+        ${adviceHTML}
 
         <div class="disclaimer">
           This rapid ASD screener is designed to identify potential indicators of autism. It is a screening questionnaire, NOT a medical diagnosis. A high or moderate score warrants referrals for standard comprehensive diagnostic testing. Always discuss results with a clinician.
@@ -497,50 +516,65 @@ export const reportService = {
       };
     });
 
-    // ASD Section (if exists)
+    // ASD Section — Results & Advice ONLY (no questions/responses)
     let asdHTML = '';
     if (asdScreening) {
-      const QUESTIONS = [
-        { id: 1, text: "Does your child look at you when you call their name?", type: 'reverse' },
-        { id: 2, text: "Does your child make eye contact during interaction? (brief eye contact counts)", type: 'reverse' },
-        { id: 3, text: "Does your child point to show you something interesting?", type: 'reverse' },
-        { id: 4, text: "Does your child try to share enjoyment with you? (e.g., brings or shows objects)", type: 'reverse' },
-        { id: 5, text: "Does your child copy your actions? (e.g., clapping, waving, high-5)", type: 'reverse' },
-        { id: 6, text: "Does your child use words, sounds, or gestures to communicate needs?", type: 'reverse' },
-        { id: 7, text: "Does your child respond when spoken to (even if not using words)?", type: 'reverse' },
-        { id: 8, text: "Does your child engage in simple back-and-forth interaction? (e.g., taking turns in play or sounds)", type: 'reverse' },
-        { id: 9, text: "Does your child understand simple instructions? (e.g., “bring the cup”)", type: 'reverse' },
-        { id: 10, text: "Does your child repeat the same sounds, actions, or movements over and over? (e.g., humming, hand flapping, lining objects)", type: 'normal' },
-        { id: 11, text: "Does your child play with toys or objects unusually? (e.g., spinning wheels repeatedly)", type: 'normal' },
-        { id: 12, text: "Does your child become very upset by small changes in routine or environment?", type: 'normal' },
-        { id: 13, text: "Does your child show unusual reactions to sounds, textures, or touch? (e.g., covering ears, avoiding certain clothes/foods)", type: 'normal' },
-      ];
-
-      const responses = asdScreening.responses || {};
       const riskColors = { Low: '#10B981', Moderate: '#F59E0B', High: '#EF4444' };
       const currentRiskColor = riskColors[asdScreening.risk_level] || '#555';
 
-      const questionsHTML = QUESTIONS.map(q => {
-        const ans = responses[q.id];
-        const isAtRisk = q.type === 'reverse' ? ans === false : ans === true;
-        const displayAnswer = ans === true ? 'Yes' : (ans === false ? 'No' : 'Unanswered');
-        const ansStyle = isAtRisk ? 'color: #C62828; font-weight: bold;' : 'color: #2E7D32;';
-        const riskText = isAtRisk ? '<span style="color: #C62828; font-weight: bold;">⚠️ Risk Factor</span>' : 'Typical';
+      // Count risk factors from responses
+      const QUESTION_TYPES = [
+        'reverse','reverse','reverse','reverse','reverse','reverse','reverse','reverse','reverse',
+        'normal','normal','normal','normal'
+      ];
+      const responses = asdScreening.responses || {};
+      let riskFactorCount = 0;
+      QUESTION_TYPES.forEach((type, idx) => {
+        const ans = responses[idx + 1];
+        const isAtRisk = type === 'reverse' ? ans === false : ans === true;
+        if (isAtRisk) riskFactorCount++;
+      });
 
-        return `
-          <tr>
-            <td>${q.id}</td>
-            <td>${q.text}</td>
-            <td style="${ansStyle}">${displayAnswer}</td>
-            <td>${riskText}</td>
-          </tr>
+      // Generate advice based on risk level
+      let adviceHTML = '';
+      if (asdScreening.risk_level === 'Low') {
+        adviceHTML = `
+          <div style="background: #ECFDF5; border-left: 4px solid #10B981; padding: 14px 18px; border-radius: 6px; margin-top: 15px;">
+            <p style="margin: 0 0 8px 0; font-weight: 600; color: #065F46; font-size: 14px;">✅ Low Risk — No Immediate Concerns</p>
+            <p style="margin: 0; color: #047857; font-size: 12px; line-height: 1.6;">
+              Your child's screening results suggest typical development at this time. Continue monitoring developmental milestones and engage in interactive play, reading, and social activities. 
+              Re-screen again in 3–6 months or if any new concerns arise. If you notice changes in social interaction, communication, or behavior patterns, consult your pediatrician.
+            </p>
+          </div>
         `;
-      }).join('');
+      } else if (asdScreening.risk_level === 'Moderate') {
+        adviceHTML = `
+          <div style="background: #FFFBEB; border-left: 4px solid #F59E0B; padding: 14px 18px; border-radius: 6px; margin-top: 15px;">
+            <p style="margin: 0 0 8px 0; font-weight: 600; color: #92400E; font-size: 14px;">⚠️ Moderate Risk — Follow-Up Recommended</p>
+            <p style="margin: 0; color: #B45309; font-size: 12px; line-height: 1.6;">
+              Some areas of concern were identified. This does <strong>not</strong> mean your child has autism — it means further evaluation is recommended.
+              We advise scheduling a developmental assessment with a pediatrician or child development specialist. Early intervention services can significantly support your child's development.
+              Continue engaging your child in social play, eye contact activities, and language-rich interactions while awaiting evaluation.
+            </p>
+          </div>
+        `;
+      } else {
+        adviceHTML = `
+          <div style="background: #FEF2F2; border-left: 4px solid #EF4444; padding: 14px 18px; border-radius: 6px; margin-top: 15px;">
+            <p style="margin: 0 0 8px 0; font-weight: 600; color: #991B1B; font-size: 14px;">🔴 High Risk — Professional Evaluation Strongly Recommended</p>
+            <p style="margin: 0; color: #B91C1C; font-size: 12px; line-height: 1.6;">
+              Multiple areas of concern were identified in this screening. Please schedule a comprehensive diagnostic evaluation with a developmental pediatrician, child psychologist, or autism specialist as soon as possible.
+              Early diagnosis and intervention can make a significant positive difference. In the meantime, focus on structured routines, sensory-friendly activities, and responsive communication with your child.
+              Your healthcare provider can guide you to appropriate early intervention programs and support services.
+            </p>
+          </div>
+        `;
+      }
 
       asdHTML = `
         <div class="page-break"></div>
-        <h2 style="color: #5813f9; text-align: center; margin-bottom: 25px;">Part 2: Rapid ASD Screening Summary</h2>
-        <div class="summary-card" style="background: linear-gradient(135deg, ${currentRiskColor} 0%, #333 100%);">
+        <h2 style="color: #5813f9; text-align: center; margin-bottom: 20px;">Part 2: ASD Screening Results</h2>
+        <div class="summary-card" style="background-color: ${currentRiskColor};">
           <h3>Screening Date: ${formatDate(asdScreening.created_at || new Date())}</h3>
           <div class="summary-score">Score: ${asdScreening.score} / 13</div>
           <div class="summary-desc" style="font-size: 16px; margin-top: 10px;">
@@ -548,20 +582,26 @@ export const reportService = {
           </div>
         </div>
 
-        <h2 class="section-title">Questionnaire Responses</h2>
-        <table class="question-table">
-          <thead>
-            <tr>
-              <th style="width: 5%;">No.</th>
-              <th style="width: 65%;">Question</th>
-              <th style="width: 15%;">Response</th>
-              <th style="width: 15%;">Interpretation</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${questionsHTML}
-          </tbody>
-        </table>
+        <div style="display: flex; gap: 12px; margin-top: 18px; margin-bottom: 10px;">
+          <div style="flex: 1; background: #F8F9FA; border-radius: 8px; padding: 14px; text-align: center; border: 1px solid #E5E7EB;">
+            <div style="font-size: 28px; font-weight: 700; color: ${currentRiskColor};">${riskFactorCount}</div>
+            <div style="font-size: 11px; color: #6B7280; margin-top: 4px;">Risk Factors Identified</div>
+          </div>
+          <div style="flex: 1; background: #F8F9FA; border-radius: 8px; padding: 14px; text-align: center; border: 1px solid #E5E7EB;">
+            <div style="font-size: 28px; font-weight: 700; color: #10B981;">${13 - riskFactorCount}</div>
+            <div style="font-size: 11px; color: #6B7280; margin-top: 4px;">Typical Responses</div>
+          </div>
+          <div style="flex: 1; background: #F8F9FA; border-radius: 8px; padding: 14px; text-align: center; border: 1px solid #E5E7EB;">
+            <div style="font-size: 28px; font-weight: 700; color: #6366F1;">13</div>
+            <div style="font-size: 11px; color: #6B7280; margin-top: 4px;">Questions Assessed</div>
+          </div>
+        </div>
+
+        ${adviceHTML}
+
+        <p style="font-size: 11px; color: #9CA3AF; margin-top: 12px; text-align: center; font-style: italic;">
+          This screening tool assesses social communication, behavioral patterns, and sensory responses. It is a screening aid — not a clinical diagnosis.
+        </p>
       `;
     }
 
@@ -617,230 +657,215 @@ export const reportService = {
       console.log('Error reading teething data:', e);
     }
 
-    // --- RENDER SECTIONS ---
+    // --- CONSOLIDATED DAILY TRACKERS PAGE (Growth + Sleep + Feeding + Teething) ---
 
-    // Part 3: Growth HTML
-    let growthHTML = '';
-    if (growthEntries && growthEntries.length > 0) {
-      const sortedGrowth = [...growthEntries].sort((a, b) => new Date(a.date) - new Date(b.date));
-      const rows = sortedGrowth.map(entry => `
-        <tr>
-          <td>${formatDate(entry.date)}</td>
-          <td>${entry.height ? `${entry.height} cm` : 'N/A'}</td>
-          <td>${entry.weight ? `${entry.weight} kg` : 'N/A'}</td>
-          <td>${entry.head_circumference ? `${entry.head_circumference} cm` : 'N/A'}</td>
-        </tr>
-      `).join('');
-
-      growthHTML = `
-        <div class="page-break"></div>
-        <h2 style="color: #5813f9; text-align: center; margin-bottom: 25px;">Part 3: Growth Measurements History</h2>
-        <table class="question-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Height / Length</th>
-              <th>Weight</th>
-              <th>Head Circumference</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows}
-          </tbody>
-        </table>
-      `;
-    } else {
-      growthHTML = `
-        <div class="page-break"></div>
-        <h2 style="color: #5813f9; text-align: center; margin-bottom: 25px;">Part 3: Growth Measurements History</h2>
-        <p style="text-align: center; color: #666; font-style: italic;">No growth measurements logged yet.</p>
-      `;
-    }
-
-    // Part 4: Sleep HTML
-    let sleepHTML = '';
-    if (sleepLogs && sleepLogs.length > 0) {
-      const totalHours = sleepLogs.reduce((acc, log) => acc + (parseFloat(log.duration) || 0), 0);
-      const avgHours = (totalHours / sleepLogs.length).toFixed(1);
-      
-      const rows = sleepLogs.slice(0, 10).map(log => `
-        <tr>
-          <td>${formatDate(log.timestamp || log.date)}</td>
-          <td>${log.duration} hours</td>
-          <td><span style="font-weight: bold; color: ${log.status === 'Recommended' ? '#2E7D32' : '#EF6C00'}">${log.status || 'N/A'}</span></td>
-          <td>${log.notes || 'N/A'}</td>
-        </tr>
-      `).join('');
-
-      sleepHTML = `
-        <div class="page-break"></div>
-        <h2 style="color: #5813f9; text-align: center; margin-bottom: 25px;">Part 4: Sleep Tracker Summary</h2>
-        <div class="summary-card" style="background: linear-gradient(135deg, #3F51B5 0%, #1A237E 100%); margin-bottom: 20px;">
-          <h3>Sleep Analysis</h3>
-          <div class="summary-score">${avgHours} Hours</div>
-          <div class="summary-desc">Average recorded sleep duration across ${sleepLogs.length} entries.</div>
-        </div>
-        <h4 style="margin-top: 20px; color: #333;">Recent Sleep Logs</h4>
-        <table class="question-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Duration</th>
-              <th>Status</th>
-              <th>Notes</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows}
-          </tbody>
-        </table>
-      `;
-    } else {
-      sleepHTML = `
-        <div class="page-break"></div>
-        <h2 style="color: #5813f9; text-align: center; margin-bottom: 25px;">Part 4: Sleep Tracker Summary</h2>
-        <p style="text-align: center; color: #666; font-style: italic;">No sleep logs recorded yet.</p>
-      `;
-    }
-
-    // Part 5: Feeding HTML
-    let feedingHTML = '';
-    if (feedingLogs && feedingLogs.length > 0) {
-      const rows = feedingLogs.slice(0, 10).map(log => {
-        const groupsText = log.selectedGroups && log.selectedGroups.length > 0 
-          ? log.selectedGroups.join(', ')
-          : 'None / Liquids';
-        return `
-          <tr>
-            <td>${formatDate(log.timestamp || log.date)}</td>
-            <td>${log.mealType || 'Meal'}</td>
-            <td>${groupsText}</td>
-            <td>${log.notes || 'N/A'}</td>
-          </tr>
-        `;
-      }).join('');
-
-      feedingHTML = `
-        <div class="page-break"></div>
-        <h2 style="color: #5813f9; text-align: center; margin-bottom: 25px;">Part 5: Feeding Tracker Summary</h2>
-        <h4 style="margin-top: 20px; color: #333;">Recent Feeding Logs</h4>
-        <table class="question-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Meal Type</th>
-              <th>WHO Food Groups Logged</th>
-              <th>Notes</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows}
-          </tbody>
-        </table>
-      `;
-    } else {
-      feedingHTML = `
-        <div class="page-break"></div>
-        <h2 style="color: #5813f9; text-align: center; margin-bottom: 25px;">Part 5: Feeding Tracker Summary</h2>
-        <p style="text-align: center; color: #666; font-style: italic;">No feeding logs recorded yet.</p>
-      `;
-    }
-
-    // Part 6: Immunization HTML
-    let immunizationHTML = '';
+    // Vaccination summary
     const compIds = completedVaccines.map(v => v.id);
     const skipIds = skippedVaccines.map(v => v.id);
     const vacStatus = child.date_of_birth 
       ? getVaccinationStatus(child.date_of_birth, compIds, skipIds)
       : null;
-
     const completedCount = completedVaccines.length;
     const skippedCount = skippedVaccines.length;
     const missedCount = vacStatus ? vacStatus.overdueVaccines.length : 0;
-    const statusLabelText = missedCount > 0 ? 'Missed Vaccines' : (vacStatus && vacStatus.dueVaccines.length > 0 ? 'Pending Review' : 'Up-to-date');
-    const statusLabelColor = missedCount > 0 ? '#EF4444' : (vacStatus && vacStatus.dueVaccines.length > 0 ? '#F59E0B' : '#10B981');
+    const vacStatusText = missedCount > 0 ? 'Overdue' : (vacStatus && vacStatus.dueVaccines.length > 0 ? 'Due' : 'Up-to-date');
+    const vacStatusColor = missedCount > 0 ? '#EF4444' : (vacStatus && vacStatus.dueVaccines.length > 0 ? '#F59E0B' : '#10B981');
 
-    const completedAdditionalList = Object.entries(additionalVaccines)
-      .filter(([id, data]) => data?.completed)
-      .map(([id, data]) => {
-        const item = ADDITIONAL_VACCINES.find(v => v.id === id) || { name: id };
-        return `
-          <tr>
-            <td>${item.name}</td>
-            <td>Given on: ${formatDate(data.date)}</td>
-            <td>Completed</td>
-          </tr>
-        `;
-      }).join('');
-
-    immunizationHTML = `
-      <div class="page-break"></div>
-      <h2 style="color: #5813f9; text-align: center; margin-bottom: 25px;">Part 6: Immunization & Vaccination History</h2>
-      
-      <div class="summary-card" style="background: linear-gradient(135deg, ${statusLabelColor} 0%, #333 100%); margin-bottom: 20px;">
-        <h3>Immunization Status: ${statusLabelText}</h3>
-        <div class="summary-score">${completedCount} Standard Vaccines Received</div>
-        <div class="summary-desc">
-          ${skippedCount} vaccine(s) marked as skipped. ${missedCount} vaccine(s) currently overdue.
+    // Growth highlights
+    let growthHighlight = '';
+    if (growthEntries && growthEntries.length > 0) {
+      const sorted = [...growthEntries].sort((a, b) => new Date(b.date) - new Date(a.date));
+      const latest = sorted[0];
+      const earliest = sorted[sorted.length - 1];
+      growthHighlight = `
+        <div style="padding: 12px 0;">
+          <div style="display: flex; gap: 10px; margin-bottom: 8px;">
+            <div style="flex: 1; background: #F0F9FF; padding: 10px; border-radius: 6px; text-align: center;">
+              <div style="font-size: 18px; font-weight: 700; color: #0369A1;">${latest.weight ? latest.weight + ' kg' : '—'}</div>
+              <div style="font-size: 10px; color: #6B7280;">Latest Weight</div>
+            </div>
+            <div style="flex: 1; background: #F0FDF4; padding: 10px; border-radius: 6px; text-align: center;">
+              <div style="font-size: 18px; font-weight: 700; color: #15803D;">${latest.height ? latest.height + ' cm' : '—'}</div>
+              <div style="font-size: 10px; color: #6B7280;">Latest Height</div>
+            </div>
+            <div style="flex: 1; background: #FDF4FF; padding: 10px; border-radius: 6px; text-align: center;">
+              <div style="font-size: 18px; font-weight: 700; color: #7E22CE;">${latest.head_circumference ? latest.head_circumference + ' cm' : '—'}</div>
+              <div style="font-size: 10px; color: #6B7280;">Head Circ.</div>
+            </div>
+          </div>
+          <p style="font-size: 11px; color: #6B7280; margin: 4px 0 0 0;">${sorted.length} measurement(s) recorded • Latest: ${formatDate(latest.date)}${sorted.length > 1 ? ' • First: ' + formatDate(earliest.date) : ''}</p>
         </div>
-      </div>
+      `;
+    } else {
+      growthHighlight = `<p style="color: #9CA3AF; font-style: italic; font-size: 12px; margin: 8px 0;">No growth measurements recorded yet.</p>`;
+    }
 
-      <h4 style="margin-top: 20px; color: #333;">Additional / Recommended Vaccines</h4>
-      ${completedAdditionalList.length > 0 ? `
-        <table class="question-table">
-          <thead>
-            <tr>
-              <th>Vaccine Name</th>
-              <th>Date Administered</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${completedAdditionalList}
-          </tbody>
-        </table>
-      ` : `<p style="color: #666; font-style: italic;">No additional vaccines recorded yet.</p>`}
-    `;
+    // Sleep highlights
+    let sleepHighlight = '';
+    if (sleepLogs && sleepLogs.length > 0) {
+      const totalMinutes = sleepLogs.reduce((acc, log) => {
+        const mins = log.totalMinutes !== undefined ? log.totalMinutes : ((parseFloat(log.hours) || 0) * 60 + (parseFloat(log.minutes) || 0));
+        return acc + mins;
+      }, 0);
+      const avgHours = ((totalMinutes / sleepLogs.length) / 60).toFixed(1);
 
-    // Part 7: Teething HTML
-    let teethingHTML = '';
+      // AASM sleep recommendations by child's age in months
+      const RECOMMENDED_SLEEP = [
+        { maxMonths: 3, minHours: 14, maxHours: 17 },
+        { maxMonths: 11, minHours: 12, maxHours: 16 }, // 4-11 months
+        { maxMonths: 24, minHours: 11, maxHours: 14 }, // 12-24 months
+        { maxMonths: 60, minHours: 10, maxHours: 13 }, // 3-5 years
+      ];
+      const childAgeMonths = child.date_of_birth
+        ? Math.floor((Date.now() - new Date(child.date_of_birth).getTime()) / (1000 * 60 * 60 * 24 * 30.44))
+        : selectedAge;
+      const recommendedRange = RECOMMENDED_SLEEP.find(r => childAgeMonths <= r.maxMonths) || RECOMMENDED_SLEEP[RECOMMENDED_SLEEP.length - 1];
+
+      // Group by date to find daily sleep totals
+      const dailySleep = {};
+      sleepLogs.forEach(log => {
+        const dateStr = new Date(log.timestamp).toDateString();
+        const mins = log.totalMinutes !== undefined ? log.totalMinutes : ((parseFloat(log.hours) || 0) * 60 + (parseFloat(log.minutes) || 0));
+        dailySleep[dateStr] = (dailySleep[dateStr] || 0) + mins;
+      });
+
+      const totalDays = Object.keys(dailySleep).length;
+      let recommendedDaysCount = 0;
+      Object.values(dailySleep).forEach(mins => {
+        const hrs = mins / 60;
+        if (hrs >= recommendedRange.minHours && hrs <= recommendedRange.maxHours) {
+          recommendedDaysCount++;
+        }
+      });
+      const recPct = totalDays > 0 ? Math.round((recommendedDaysCount / totalDays) * 100) : 0;
+
+      sleepHighlight = `
+        <div style="padding: 12px 0;">
+          <div style="display: flex; gap: 10px; margin-bottom: 8px;">
+            <div style="flex: 1; background: #EEF2FF; padding: 10px; border-radius: 6px; text-align: center;">
+              <div style="font-size: 18px; font-weight: 700; color: #4338CA;">${avgHours} hrs</div>
+              <div style="font-size: 10px; color: #6B7280;">Avg. Duration</div>
+            </div>
+            <div style="flex: 1; background: #F0FDF4; padding: 10px; border-radius: 6px; text-align: center;">
+              <div style="font-size: 18px; font-weight: 700; color: #15803D;">${recPct}%</div>
+              <div style="font-size: 10px; color: #6B7280;">Within Range</div>
+            </div>
+            <div style="flex: 1; background: #F8FAFC; padding: 10px; border-radius: 6px; text-align: center;">
+              <div style="font-size: 18px; font-weight: 700; color: #334155;">${sleepLogs.length}</div>
+              <div style="font-size: 10px; color: #6B7280;">Total Entries</div>
+            </div>
+          </div>
+          <p style="font-size: 11px; color: #6B7280; margin: 6px 0 0 0; line-height: 1.4;">
+            * <strong>Avg. Duration</strong> is the average length of each individual sleep session (naps and night sleep).<br/>
+            * <strong>Within Range</strong> is the percentage of days where the child's total sleep met the AASM recommended daily range for their age (${recommendedRange.minHours}–${recommendedRange.maxHours} hours/day).
+          </p>
+        </div>
+      `;
+    } else {
+      sleepHighlight = `<p style="color: #9CA3AF; font-style: italic; font-size: 12px; margin: 8px 0;">No sleep logs recorded yet.</p>`;
+    }
+
+    // Feeding highlights
+    let feedingHighlight = '';
+    if (feedingLogs && feedingLogs.length > 0) {
+      const mealTypes = {};
+      const allGroups = new Set();
+      feedingLogs.forEach(log => {
+        const mt = log.type === 'breast' ? 'Breast' : (log.type === 'bottle' ? 'Bottle' : 'Solid');
+        mealTypes[mt] = (mealTypes[mt] || 0) + 1;
+        if (log.type === 'solid' && log.foodCategory) {
+          allGroups.add(log.foodCategory);
+        }
+      });
+      const topMeals = Object.entries(mealTypes).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k} (${v})`).join(', ');
+      feedingHighlight = `
+        <div style="padding: 12px 0;">
+          <div style="display: flex; gap: 10px; margin-bottom: 8px;">
+            <div style="flex: 1; background: #FFF7ED; padding: 10px; border-radius: 6px; text-align: center;">
+              <div style="font-size: 18px; font-weight: 700; color: #C2410C;">${feedingLogs.length}</div>
+              <div style="font-size: 10px; color: #6B7280;">Meals Logged</div>
+            </div>
+            <div style="flex: 1; background: #F0FDF4; padding: 10px; border-radius: 6px; text-align: center;">
+              <div style="font-size: 18px; font-weight: 700; color: #15803D;">${allGroups.size}</div>
+              <div style="font-size: 10px; color: #6B7280;">Food Groups</div>
+            </div>
+          </div>
+          <p style="font-size: 11px; color: #6B7280; margin: 4px 0 0 0;">Top meals: ${topMeals}${allGroups.size > 0 ? ' • Groups: ' + Array.from(allGroups).slice(0, 4).join(', ') : ''}</p>
+        </div>
+      `;
+    } else {
+      feedingHighlight = `<p style="color: #9CA3AF; font-style: italic; font-size: 12px; margin: 8px 0;">No feeding logs recorded yet.</p>`;
+    }
+
+    // Teething highlights
+    let teethingHighlight = '';
     const teethEntries = Object.entries(teethingData);
     if (teethEntries.length > 0) {
       const sortedTeeth = teethEntries
         .map(([id, item]) => ({ id, ...item }))
         .sort((a, b) => new Date(a.eruptionDate) - new Date(b.eruptionDate));
-
-      const rows = sortedTeeth.map(tooth => `
-        <tr>
-          <td>${tooth.name || tooth.id}</td>
-          <td>${formatDate(tooth.eruptionDate)}</td>
-          <td>${tooth.eruptionAgeMonths ? `${tooth.eruptionAgeMonths} months` : 'N/A'}</td>
-        </tr>
-      `).join('');
-
-      teethingHTML = `
-        <div class="page-break"></div>
-        <h2 style="color: #5813f9; text-align: center; margin-bottom: 25px;">Part 7: Teething Tracker Timeline</h2>
-        <table class="question-table">
-          <thead>
-            <tr>
-              <th>Tooth Name</th>
-              <th>Eruption Date</th>
-              <th>Age at Eruption</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows}
-          </tbody>
-        </table>
+      const toothNames = sortedTeeth.map(t => {
+        const toothDef = PRIMARY_TEETH.find(pt => pt.id === t.id);
+        return toothDef ? toothDef.name : t.id;
+      }).join(', ');
+      teethingHighlight = `
+        <div style="padding: 12px 0;">
+          <div style="display: flex; gap: 10px; margin-bottom: 8px;">
+            <div style="flex: 1; background: #FFFBEB; padding: 10px; border-radius: 6px; text-align: center;">
+              <div style="font-size: 18px; font-weight: 700; color: #B45309;">${teethEntries.length} / 20</div>
+              <div style="font-size: 10px; color: #6B7280;">Teeth Erupted</div>
+            </div>
+            <div style="flex: 1; background: #FFF7ED; padding: 10px; border-radius: 6px; text-align: center;">
+              <div style="font-size: 18px; font-weight: 700; color: #C2410C;">${Math.max(0, 20 - teethEntries.length)}</div>
+              <div style="font-size: 10px; color: #6B7280;">Remaining Teeth</div>
+            </div>
+          </div>
+          <p style="font-size: 11px; color: #6B7280; margin: 4px 0 0 0;"><strong>Teeth Erupted:</strong> ${toothNames}</p>
+        </div>
       `;
     } else {
-      teethingHTML = `
-        <div class="page-break"></div>
-        <h2 style="color: #5813f9; text-align: center; margin-bottom: 25px;">Part 7: Teething Tracker Timeline</h2>
-        <p style="text-align: center; color: #666; font-style: italic;">No erupted teeth recorded yet.</p>
-      `;
+      teethingHighlight = `<p style="color: #9CA3AF; font-style: italic; font-size: 12px; margin: 8px 0;">No erupted teeth recorded yet.</p>`;
     }
+
+    // Build consolidated daily trackers page
+    const trackersHTML = `
+      <div class="page-break"></div>
+      <h2 style="color: #5813f9; text-align: center; margin-bottom: 6px;">Part 3: Daily Trackers & Health Overview</h2>
+      <p style="text-align: center; color: #6B7280; font-size: 12px; margin-bottom: 18px;">Summary of growth, sleep, nutrition, immunization, and teething data for ${child.first_name}.</p>
+
+      <!-- Immunization Status Banner -->
+      <div style="background-color: ${vacStatusColor}15; border: 1px solid ${vacStatusColor}40; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <span style="font-weight: 600; color: #333; font-size: 13px;">🛡️ Immunization Status</span>
+          <span style="margin-left: 8px; background: ${vacStatusColor}; color: white; padding: 2px 10px; border-radius: 12px; font-size: 11px; font-weight: 600;">${vacStatusText}</span>
+        </div>
+        <div style="font-size: 12px; color: #555;">${completedCount} given · ${skippedCount} skipped · ${missedCount} overdue</div>
+      </div>
+
+      <!-- Growth -->
+      <div style="border: 1px solid #E5E7EB; border-radius: 8px; margin-bottom: 12px; overflow: hidden;">
+        <div style="background: #F8FAFC; padding: 10px 14px; border-bottom: 1px solid #E5E7EB; font-weight: 600; font-size: 13px; color: #1E293B;">📏 Growth Measurements</div>
+        <div style="padding: 2px 14px;">${growthHighlight}</div>
+      </div>
+
+      <!-- Sleep -->
+      <div style="border: 1px solid #E5E7EB; border-radius: 8px; margin-bottom: 12px; overflow: hidden;">
+        <div style="background: #F8FAFC; padding: 10px 14px; border-bottom: 1px solid #E5E7EB; font-weight: 600; font-size: 13px; color: #1E293B;">😴 Sleep Tracker</div>
+        <div style="padding: 2px 14px;">${sleepHighlight}</div>
+      </div>
+
+      <!-- Feeding -->
+      <div style="border: 1px solid #E5E7EB; border-radius: 8px; margin-bottom: 12px; overflow: hidden;">
+        <div style="background: #F8FAFC; padding: 10px 14px; border-bottom: 1px solid #E5E7EB; font-weight: 600; font-size: 13px; color: #1E293B;">🍽️ Feeding & Nutrition</div>
+        <div style="padding: 2px 14px;">${feedingHighlight}</div>
+      </div>
+
+      <!-- Teething -->
+      <div style="border: 1px solid #E5E7EB; border-radius: 8px; margin-bottom: 12px; overflow: hidden;">
+        <div style="background: #F8FAFC; padding: 10px 14px; border-bottom: 1px solid #E5E7EB; font-weight: 600; font-size: 13px; color: #1E293B;">🦷 Teething Progress</div>
+        <div style="padding: 2px 14px;">${teethingHighlight}</div>
+      </div>
+    `;
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -849,6 +874,10 @@ export const reportService = {
         <meta charset="utf-8">
         <title>Comprehensive Developmental Report</title>
         ${pdfStyles}
+        <style>
+          @page { margin: 18mm 15mm; }
+          body { font-size: 13px; }
+        </style>
       </head>
       <body>
         <div class="header">
@@ -866,7 +895,7 @@ export const reportService = {
         ${getChildInfoTableHTML(child, ageStr)}
 
         <h2 style="color: #5813f9; margin-top: 30px;">Part 1: Developmental Milestones Summary</h2>
-        <div class="summary-card" style="background: linear-gradient(135deg, #5813f9 0%, #3f0bb2 100%); margin-bottom: 25px;">
+        <div class="summary-card" style="background-color: #5813f9; margin-bottom: 25px;">
           <h3>Overall Milestone Summary</h3>
           <div class="summary-score">${totalAchieved} / ${totalMilestones} Milestones Achieved</div>
           <div class="summary-desc">
@@ -888,15 +917,7 @@ export const reportService = {
 
         ${asdHTML}
 
-        ${growthHTML}
-
-        ${sleepHTML}
-
-        ${feedingHTML}
-
-        ${immunizationHTML}
-
-        ${teethingHTML}
+        ${trackersHTML}
 
         <div class="disclaimer">
           This comprehensive developmental report is a compilation of caregiver screenings. It is intended for informational purposes and clinical review. It is not a clinical diagnosis. Please consult a pediatrician or pediatric development specialist for professional diagnostic evaluation.

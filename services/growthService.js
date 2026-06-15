@@ -112,6 +112,52 @@ class GrowthService {
                 console.log(`[GrowthService] Loaded measurements from cache for child ${childId}`);
             }
 
+            // Apply all pending ADD_GROWTH and DELETE_GROWTH tasks from sync queue on top of result data
+            try {
+                const queue = await syncService.getQueue();
+                
+                // Filter tasks for this child
+                const childTasks = queue.filter(t => t.payload && t.payload.childId === childId);
+                
+                if (childTasks.length > 0) {
+                    console.log(`[GrowthService] Merging ${childTasks.length} pending growth task(s) from sync queue`);
+                    let measurements = Array.isArray(result.data) ? [...result.data] : [];
+                    
+                    childTasks.forEach(task => {
+                        if (task.type === 'ADD_GROWTH') {
+                            const { tempId, date, weight, height, headCircumference } = task.payload;
+                            const existingIndex = measurements.findIndex(m => m.recorded_date === date || m.id === tempId);
+                            const localItem = {
+                                id: tempId,
+                                child_id: childId,
+                                recorded_date: date,
+                                weight: weight,
+                                height: height,
+                                head_circumference: headCircumference,
+                                created_at: task.createdAt || new Date().toISOString()
+                            };
+                            if (existingIndex > -1) {
+                                measurements[existingIndex] = {
+                                    ...measurements[existingIndex],
+                                    ...localItem
+                                };
+                            } else {
+                                measurements.push(localItem);
+                            }
+                        } else if (task.type === 'DELETE_GROWTH') {
+                            const { id } = task.payload;
+                            measurements = measurements.filter(m => m.id !== id);
+                        }
+                    });
+                    
+                    // Sort by date ascending to match WHOChart expectation
+                    measurements.sort((a, b) => new Date(a.recorded_date) - new Date(b.recorded_date));
+                    result.data = measurements;
+                }
+            } catch (err) {
+                console.error('[GrowthService] Error merging pending tasks:', err);
+            }
+
             return result.data;
         } catch (error) {
             console.error('Error fetching measurements:', error);

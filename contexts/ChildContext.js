@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { childService } from '@/services/childService';
 import asdService from '@/services/asdService';
@@ -73,16 +73,12 @@ export const ChildProvider = ({ children }) => {
         setSelectedChild(child);
         try {
             await AsyncStorage.setItem('selectedChildId', child.id);
-            // Also refresh ASD screenings for the new child
-            if (child?.id) {
-                refreshAsdScreenings(child.id);
-            }
         } catch (e) {
             console.error('Failed to save selected child', e);
         }
     };
 
-    const refreshAsdScreenings = async (childId) => {
+    const refreshAsdScreenings = useCallback(async (childId) => {
         if (!childId) return;
         setAsdLoading(true);
         try {
@@ -94,7 +90,16 @@ export const ChildProvider = ({ children }) => {
         } finally {
             setAsdLoading(false);
         }
-    };
+    }, []);
+
+    // Automatically load/refresh ASD screenings when selectedChild changes
+    useEffect(() => {
+        if (selectedChild?.id) {
+            refreshAsdScreenings(selectedChild.id);
+        } else {
+            setAsdScreenings([]);
+        }
+    }, [selectedChild?.id, refreshAsdScreenings]);
 
     const saveAsdScreening = async (childId, screeningData) => {
         // Prevent double-submission

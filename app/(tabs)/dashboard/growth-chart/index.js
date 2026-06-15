@@ -160,6 +160,17 @@ export default function GrowthChartScreen() {
                     </Text>
                 </View>
 
+                {/* Add Entry Button */}
+                <View style={{ paddingHorizontal: Spacing.lg, marginBottom: Spacing.md }}>
+                    <TouchableOpacity
+                        style={[styles.addEntryBtnLarge, { backgroundColor: colorScheme.primary }]}
+                        onPress={() => router.push({ pathname: '/dashboard/growth-chart/add-measurement', params: { childId: activeChildId } })}
+                    >
+                        <MaterialIcons name="add" size={20} color="#FFFFFF" />
+                        <Text style={styles.addEntryBtnLargeText}>Add Growth Entry</Text>
+                    </TouchableOpacity>
+                </View>
+
                 {/* Tabs */}
                 <View style={styles.tabsContainer}>
                     {tabs.map((tab) => (
@@ -245,18 +256,9 @@ export default function GrowthChartScreen() {
 
                 {/* Measurement History */}
                 <View style={styles.historySection}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md }}>
-                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, marginBottom: 0 }]}>
-                            Measurement History
-                        </Text>
-                        <TouchableOpacity
-                            style={[styles.addEntryButton, { backgroundColor: colorScheme.primary }]}
-                            onPress={() => router.push({ pathname: '/dashboard/growth-chart/add-measurement', params: { childId: activeChildId } })}
-                        >
-                            <MaterialIcons name="add" size={18} color="#FFFFFF" />
-                            <Text style={styles.addEntryButtonText}>Add Entry</Text>
-                        </TouchableOpacity>
-                    </View>
+                    <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, marginBottom: Spacing.md }]}>
+                        Measurement History
+                    </Text>
 
                     {currentData.length === 0 ? (
                         <Text style={{ color: colorScheme.textSecondary, textAlign: 'center', marginTop: Spacing.lg }}>
@@ -464,6 +466,20 @@ const styles = StyleSheet.create({
     addEntryButtonText: {
         color: '#FFFFFF',
         fontSize: Typography.fontSize.sm,
-        fontWeight: Typography.fontWeight.semibold,
+        fontWeight: '600',
+    },
+    addEntryBtnLarge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: Spacing.sm,
+        paddingVertical: Spacing.md,
+        borderRadius: BorderRadius.md,
+        ...Shadow.sm,
+    },
+    addEntryBtnLargeText: {
+        color: '#FFFFFF',
+        fontSize: Typography.fontSize.sm,
+        fontWeight: 'bold',
     },
 });
