@@ -8,6 +8,7 @@ import { PRIMARY_TEETH } from '@/constants/teethData';
 import { WHO_STANDARDS } from '@/constants/whoGrowthStandards';
 import growthService from './growthService';
 import cacheService from './cacheService';
+import { getGrowthInterpretation } from '../utils/growthHelpers';
 
 // Helper to calculate age in months between DOB and record date
 const calculateAgeInMonths = (birthDate, recordDate) => {
@@ -905,6 +906,19 @@ export const reportService = {
     let growthConclusion = 'Suboptimal';
     let growthEntriesCount = 0;
     let latestMeasurementDateStr = 'N/A';
+    let weightInterpretation = null;
+    let heightInterpretation = null;
+    let headInterpretation = null;
+
+    const getInterpretationHTML = (interp) => {
+      if (!interp) return `<div style="font-size: 7.5px; color: #777; margin-top: 1px; font-style: italic;">No entry recorded yet.</div>`;
+      return `
+        <div style="margin-top: 2px; padding: 2px 4px; border-radius: 3px; font-size: 7.5px; line-height: 1.15;
+          background-color: ${interp.lightBg}; color: ${interp.color}; border: 1px solid ${interp.color}30;">
+          <strong>${interp.status}</strong>: ${interp.description}
+        </div>
+      `;
+    };
 
     if (growthEntries && growthEntries.length > 0) {
       const sorted = [...growthEntries].sort((a, b) => new Date(b.recorded_date || b.date) - new Date(a.recorded_date || a.date));
@@ -947,6 +961,7 @@ export const reportService = {
           if (weightZ < -2 || weightZ > 2) allMetricsOptimal = false;
           metricsCount++;
         }
+        weightInterpretation = getGrowthInterpretation(child.gender || 'boy', 'weight', ageAtRecordMonths, val);
       }
       if (latestHeightEntry) {
         const val = parseFloat(latestHeightEntry.height);
@@ -959,6 +974,7 @@ export const reportService = {
           if (heightZ < -2 || heightZ > 2) allMetricsOptimal = false;
           metricsCount++;
         }
+        heightInterpretation = getGrowthInterpretation(child.gender || 'boy', 'height', ageAtRecordMonths, val);
       }
       if (latestHeadEntry) {
         const val = parseFloat(latestHeadEntry.head_circumference);
@@ -971,6 +987,7 @@ export const reportService = {
           if (headZ < -2 || headZ > 2) allMetricsOptimal = false;
           metricsCount++;
         }
+        headInterpretation = getGrowthInterpretation(child.gender || 'boy', 'head_circumference', ageAtRecordMonths, val);
       }
 
       if (metricsCount > 0 && allMetricsOptimal) {
@@ -1150,17 +1167,32 @@ export const reportService = {
         <div style="background: #F8FAFC; padding: 6px 10px; border-bottom: 1px solid #E5E7EB; font-weight: bold; font-size: 11px; color: #1E293B;">Part 1: Growth Tracker</div>
         <div style="padding: 8px 10px;">
           <table style="width: 100%; border-collapse: collapse;">
-            <tr style="border-bottom: 1px solid #F0F0F0;">
-              <td style="padding: 4px 0; font-weight: 600; color: #555; font-size: 9.5px; width: 45%;">Weight-for-age</td>
-              <td style="padding: 4px 0; color: #222; font-size: 9.5px;">${latestWeightStr}</td>
+            <tr style="border-bottom: 1px solid #F0F0F0; padding-bottom: 4px;">
+              <td style="padding: 4px 0 3px 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                  <span style="font-weight: 600; color: #555; font-size: 9.5px;">Weight-for-age</span>
+                  <span style="color: #222; font-size: 9.5px; font-weight: bold;">${latestWeightStr}</span>
+                </div>
+                ${getInterpretationHTML(weightInterpretation)}
+              </td>
             </tr>
-            <tr style="border-bottom: 1px solid #F0F0F0;">
-              <td style="padding: 4px 0; font-weight: 600; color: #555; font-size: 9.5px;">Height-for-age</td>
-              <td style="padding: 4px 0; color: #222; font-size: 9.5px;">${latestHeightStr}</td>
+            <tr style="border-bottom: 1px solid #F0F0F0; padding-bottom: 4px;">
+              <td style="padding: 4px 0 3px 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                  <span style="font-weight: 600; color: #555; font-size: 9.5px;">Height-for-age</span>
+                  <span style="color: #222; font-size: 9.5px; font-weight: bold;">${latestHeightStr}</span>
+                </div>
+                ${getInterpretationHTML(heightInterpretation)}
+              </td>
             </tr>
-            <tr>
-              <td style="padding: 4px 0; font-weight: 600; color: #555; font-size: 9.5px;">Head circumference</td>
-              <td style="padding: 4px 0; color: #222; font-size: 9.5px;">${latestHeadCircStr}</td>
+            <tr style="padding-bottom: 4px;">
+              <td style="padding: 4px 0 3px 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                  <span style="font-weight: 600; color: #555; font-size: 9.5px;">Head circumference</span>
+                  <span style="color: #222; font-size: 9.5px; font-weight: bold;">${latestHeadCircStr}</span>
+                </div>
+                ${getInterpretationHTML(headInterpretation)}
+              </td>
             </tr>
           </table>
           ${growthEntriesCount > 0 ? `<p style="font-size: 8px; color: #6B7280; margin: 4px 0 0 0;">${growthEntriesCount} measurements • Latest: ${latestMeasurementDateStr}</p>` : ''}
