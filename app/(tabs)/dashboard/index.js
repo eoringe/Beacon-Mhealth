@@ -105,7 +105,7 @@ export default function DashboardScreen() {
     const { colorScheme, isDark } = useTheme();
     const { showAlert } = useAlert();
     const { user } = useAuth();
-    const { selectedChild, asdScreenings } = useChild();
+    const { selectedChild, asdScreenings, children } = useChild();
     const { notifications, clearAll } = useNotifications();
     const { openDrawer } = useDrawer();
 
@@ -133,6 +133,10 @@ export default function DashboardScreen() {
     const [milestoneProgress, setMilestoneProgress] = useState(null);
     const [vaccineActionNeeded, setVaccineActionNeeded] = useState(false);
     const [downloading, setDownloading] = useState(false);
+    const [downloadingHealth, setDownloadingHealth] = useState(false);
+
+    const childIndex = children ? children.findIndex(c => c.id === selectedChild?.id) : -1;
+    const childTag = childIndex !== -1 ? `Child ${childIndex + 1}` : '';
 
     // Tracker Stats for Dynamic Insights
     const [trackerStats, setTrackerStats] = useState({
@@ -153,10 +157,7 @@ export default function DashboardScreen() {
 
     // Time-of-day greeting
     const getGreeting = () => {
-        const hour = new Date().getHours();
-        if (hour < 12) return 'Good morning';
-        if (hour < 17) return 'Good afternoon';
-        return 'Good evening';
+        return 'Good evening, Welcome Back';
     };
 
     // Calculate age display
@@ -389,8 +390,8 @@ export default function DashboardScreen() {
 
     useFocusEffect(React.useCallback(() => { fetchUpcomingAppointments(); }, []));
 
-    // PDF Report Download Handler
-    const handleDownloadReport = async () => {
+    // PDF Report Download Handlers
+    const handleDownloadDevelopmentalReport = async () => {
         if (!selectedChild) return;
         
         const childAge = ageInMonths || 12;
@@ -410,7 +411,7 @@ export default function DashboardScreen() {
             if (!hasAsd) {
                 showAlert(
                     'Requirements Not Met',
-                    'Children over 18 months must complete both the Milestones Checklist and the ASD Screener to download the Comprehensive Report.',
+                    'Children over 18 months must complete both the Milestones Checklist and the ASD Screener to download the Developmental Report.',
                     [
                         { text: 'Cancel' },
                         { text: 'Go to ASD Screener', onPress: () => router.push('/(tabs)/asd-checklist') }
@@ -424,7 +425,7 @@ export default function DashboardScreen() {
             try {
                 // Fetch latest responses
                 const responses = await milestoneService.getAllMilestoneResponsesForChild(selectedChild.id, false);
-                await reportService.generateComprehensiveReport(
+                await reportService.generateDevelopmentalReport(
                     selectedChild,
                     closestAge,
                     responses || [],
@@ -448,6 +449,19 @@ export default function DashboardScreen() {
             } finally {
                 setDownloading(false);
             }
+        }
+    };
+
+    const handleDownloadHealthReport = async () => {
+        if (!selectedChild) return;
+        setDownloadingHealth(true);
+        try {
+            await reportService.generateHealthReport(selectedChild, ageInMonths);
+        } catch (err) {
+            console.error(err);
+            showAlert('Error', 'Failed to generate health report PDF.', [], 'error');
+        } finally {
+            setDownloadingHealth(false);
         }
     };
 
@@ -475,7 +489,7 @@ export default function DashboardScreen() {
                         <MaterialIcons name="menu" size={26} color="#FFFFFF" />
                     </TouchableOpacity>
                     <View style={styles.headerInfo}>
-                        <Text style={[styles.greeting, { color: 'rgba(255, 255, 255, 0.8)' }]}>{getGreeting()},</Text>
+                        <Text style={[styles.greeting, { color: 'rgba(255, 255, 255, 0.8)' }]}>{getGreeting()}</Text>
                         <Text style={[styles.userName, { color: '#FFFFFF' }]}>{user?.displayName || 'Parent'}</Text>
                     </View>
                 </View>
@@ -502,7 +516,16 @@ export default function DashboardScreen() {
                                 )}
                             </View>
                             <View style={styles.childInfo}>
-                                <Text style={[styles.childName, { color: colorScheme.textPrimary }]}>{selectedChild.first_name} {selectedChild.last_name}</Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: Spacing.xs, marginBottom: 2 }}>
+                                    {childTag ? (
+                                        <View style={{ backgroundColor: isDark ? `${colorScheme.primary}30` : `${colorScheme.primary}15`, paddingHorizontal: Spacing.xs, paddingVertical: 2, borderRadius: BorderRadius.sm }}>
+                                            <Text style={{ color: colorScheme.primary, fontSize: 10, fontWeight: 'bold', textTransform: 'uppercase' }}>{childTag}</Text>
+                                        </View>
+                                    ) : null}
+                                    <Text style={[styles.childName, { color: colorScheme.textPrimary, marginBottom: 0, flexShrink: 1 }]} numberOfLines={1}>
+                                        {selectedChild.first_name} {selectedChild.last_name}
+                                    </Text>
+                                </View>
                                 <Text style={[styles.childDetails, { color: colorScheme.textSecondary }]}>{calculateAge(selectedChild.date_of_birth)} old  •  {selectedChild.gender}</Text>
                             </View>
                             <MaterialIcons name="chevron-right" size={24} color={colorScheme.textTertiary} />
@@ -514,11 +537,11 @@ export default function DashboardScreen() {
                             </View>
                             <Text style={[styles.introTitle, { color: colorScheme.textPrimary }]}>
                                 Welcome to{'\n'}
-                                <Text style={{ color: colorScheme.primary }}>Beacon Children's Centre</Text>{'\n'}
+                                <Text style={{ color: colorScheme.primary }}>{"Beacon Children's Centre"}</Text>{'\n'}
                                 Digital Platform
                             </Text>
                             <Text style={[styles.introText, { color: colorScheme.textSecondary }]}>
-                                We are glad you are here. This platform is designed to support your parenting journey every step of the way and make it memorable!{'\n\n'}You can track your child's milestones, growth, vaccinations and get advice on daily care. Glad to walk with you and celebrate every milestone.
+                                {"We are glad you are here. This platform is designed to support your parenting journey every step of the way and make it memorable!\n\nYou can track your child's milestones, growth, vaccinations and get advice on daily care. Glad to walk with you and celebrate every milestone."}
                             </Text>
                             <Text style={[styles.introPreButtonText, { color: colorScheme.textSecondary }]}>Add a child to get started</Text>
                             <TouchableOpacity style={[styles.introAddButton, { backgroundColor: colorScheme.primary }]} onPress={() => router.push('/profile/children/add')} activeOpacity={0.8}>
@@ -566,7 +589,7 @@ export default function DashboardScreen() {
                             <View style={styles.warningTextWrap}>
                                 <Text style={[styles.warningTitle, { color: colorScheme.textPrimary }]}>ASD Screening Due</Text>
                                 <Text style={[styles.warningMsg, { color: colorScheme.textSecondary }]}>
-                                    It's been over a month since {selectedChild.first_name}'s last low-risk screening. It's time for a follow-up assessment.
+                                    {"It's been over a month since "}{selectedChild.first_name}{"'s last low-risk screening. It's time for a follow-up assessment."}
                                 </Text>
                             </View>
                         </View>
@@ -640,51 +663,10 @@ export default function DashboardScreen() {
                     </View>
                 )}
 
-                {/* 📄 PDF Report Generation Card */}
-                {selectedChild && (
-                    <View style={styles.section}>
-                        <View style={[styles.reportCard, { backgroundColor: isDark ? colorScheme.surface : '#F1F5F9', borderColor: colorScheme.border }]}>
-                            <View style={styles.reportHeader}>
-                                <View style={[styles.reportIconContainer, { backgroundColor: `${colorScheme.primary}15` }]}>
-                                    <MaterialIcons name="picture-as-pdf" size={24} color={colorScheme.primary} />
-                                </View>
-                                <View style={styles.reportTextContainer}>
-                                    <Text style={[styles.reportTitle, { color: colorScheme.textPrimary }]}>
-                                        {ageInMonths >= 18 ? 'Comprehensive Report' : 'Milestone Summary Report'}
-                                    </Text>
-                                    <Text style={[styles.reportSubtitle, { color: colorScheme.textSecondary }]}>
-                                        {ageInMonths >= 18 
-                                            ? 'Includes Milestones and ASD Screener results' 
-                                            : 'Includes full milestones tracking history'
-                                        }
-                                    </Text>
-                                </View>
-                            </View>
-                            <TouchableOpacity 
-                                style={[styles.reportDownloadButton, { backgroundColor: colorScheme.primary }]}
-                                onPress={handleDownloadReport}
-                                disabled={downloading}
-                                activeOpacity={0.8}
-                            >
-                                {downloading ? (
-                                    <ActivityIndicator size="small" color="#FFFFFF" />
-                                ) : (
-                                    <>
-                                        <MaterialIcons name="file-download" size={20} color="#FFFFFF" />
-                                        <Text style={styles.reportDownloadButtonText}>
-                                            Download Report
-                                        </Text>
-                                    </>
-                                )}
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                )}
-
                 {/* 📈 Let's Track Progress */}
                 {selectedChild && (
                     <View style={styles.section}>
-                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, textTransform: 'none', letterSpacing: 0, fontSize: Typography.fontSize.md }]}>Let's track progress</Text>
+                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary, textTransform: 'none', letterSpacing: 0, fontSize: Typography.fontSize.md }]}>{"Let's track progress"}</Text>
                         <View style={{ gap: 10 }}>
                             {/* Milestone Tracker (Blue) */}
                             <TouchableOpacity style={[styles.trackerRow, { backgroundColor: colorScheme.surface, borderBottomWidth: 0, borderRadius: 12 }]} onPress={() => navigateTo('/dashboard/milestone-checklist')}>
@@ -696,6 +678,19 @@ export default function DashboardScreen() {
                                 </View>
                                 <Text style={[styles.trackerStatus, { color: colorScheme.primary, fontWeight: 'bold' }]}>
                                     {milestoneProgress != null ? `${milestoneProgress}%` : '-'}
+                                </Text>
+                            </TouchableOpacity>
+
+                            {/* ASD Screener (Purple) */}
+                            <TouchableOpacity style={[styles.trackerRow, { backgroundColor: colorScheme.surface, borderBottomWidth: 0, borderRadius: 12 }]} onPress={() => navigateTo('/(tabs)/asd-checklist')}>
+                                <View style={styles.trackerLeft}>
+                                    <View style={[styles.trackerIcon, { backgroundColor: '#7E57C220' }]}>
+                                        <MaterialIcons name="psychology" size={20} color="#7E57C2" />
+                                    </View>
+                                    <Text style={[styles.trackerName, { color: colorScheme.textPrimary }]}>ASD Screener</Text>
+                                </View>
+                                <Text style={[styles.trackerStatus, { color: latestAsdScreening ? (latestAsdScreening.risk_level === 'Low' ? '#10B981' : latestAsdScreening.risk_level === 'Moderate' ? '#F59E0B' : '#EF4444') : colorScheme.textSecondary, fontWeight: latestAsdScreening ? 'bold' : 'normal' }]}>
+                                    {latestAsdScreening ? `${latestAsdScreening.risk_level} Risk` : 'take test'}
                                 </Text>
                             </TouchableOpacity>
 
@@ -763,6 +758,84 @@ export default function DashboardScreen() {
                                     {trackerStats.feedingToday > 0 ? `${trackerStats.feedingToday} logs today` : 'No logs yet'}
                                 </Text>
                             </TouchableOpacity>
+                        </View>
+                    </View>
+                )}
+
+                {/* 📄 PDF Report Generation Cards */}
+                {selectedChild && (
+                    <View style={styles.section}>
+                        <View style={{ gap: 12 }}>
+                            {/* Developmental Report */}
+                            <View style={[styles.reportCard, { backgroundColor: isDark ? colorScheme.surface : '#F1F5F9', borderColor: colorScheme.border }]}>
+                                <View style={styles.reportHeader}>
+                                    <View style={[styles.reportIconContainer, { backgroundColor: `${colorScheme.primary}15` }]}>
+                                        <MaterialIcons name="picture-as-pdf" size={24} color={colorScheme.primary} />
+                                    </View>
+                                    <View style={styles.reportTextContainer}>
+                                        <Text style={[styles.reportTitle, { color: colorScheme.textPrimary }]}>
+                                            {ageInMonths >= 18 ? 'Developmental Report' : 'Milestone Summary Report'}
+                                        </Text>
+                                        <Text style={[styles.reportSubtitle, { color: colorScheme.textSecondary }]}>
+                                            {ageInMonths >= 18 
+                                                ? 'Includes Milestones and ASD Screener' 
+                                                : 'Includes full milestones tracking history'
+                                            }
+                                        </Text>
+                                    </View>
+                                </View>
+                                <TouchableOpacity 
+                                    style={[styles.reportDownloadButton, { backgroundColor: colorScheme.primary }]}
+                                    onPress={handleDownloadDevelopmentalReport}
+                                    disabled={downloading}
+                                    activeOpacity={0.8}
+                                >
+                                    {downloading ? (
+                                        <ActivityIndicator size="small" color="#FFFFFF" />
+                                    ) : (
+                                        <>
+                                            <MaterialIcons name="file-download" size={20} color="#FFFFFF" />
+                                            <Text style={styles.reportDownloadButtonText}>
+                                                Download Report
+                                            </Text>
+                                        </>
+                                    )}
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* Health Report */}
+                            <View style={[styles.reportCard, { backgroundColor: isDark ? colorScheme.surface : '#F1F5F9', borderColor: colorScheme.border }]}>
+                                <View style={styles.reportHeader}>
+                                    <View style={[styles.reportIconContainer, { backgroundColor: `${colorScheme.success}15` }]}>
+                                        <MaterialIcons name="favorite" size={24} color={colorScheme.success || '#10B981'} />
+                                    </View>
+                                    <View style={styles.reportTextContainer}>
+                                        <Text style={[styles.reportTitle, { color: colorScheme.textPrimary }]}>
+                                            Health Report
+                                        </Text>
+                                        <Text style={[styles.reportSubtitle, { color: colorScheme.textSecondary }]}>
+                                            Includes Growth, Immunizations, Sleep & Nutrition
+                                        </Text>
+                                    </View>
+                                </View>
+                                <TouchableOpacity 
+                                    style={[styles.reportDownloadButton, { backgroundColor: colorScheme.success || '#10B981' }]}
+                                    onPress={handleDownloadHealthReport}
+                                    disabled={downloadingHealth}
+                                    activeOpacity={0.8}
+                                >
+                                    {downloadingHealth ? (
+                                        <ActivityIndicator size="small" color="#FFFFFF" />
+                                    ) : (
+                                        <>
+                                            <MaterialIcons name="file-download" size={20} color="#FFFFFF" />
+                                            <Text style={styles.reportDownloadButtonText}>
+                                                Download Report
+                                            </Text>
+                                        </>
+                                    )}
+                                </TouchableOpacity>
+                            </View>
                         </View>
                     </View>
                 )}
@@ -959,6 +1032,8 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: '#FFFFFF',
+        borderWidth: 2,
+        borderColor: '#2196F3',
         shadowColor: '#5C6BC0',
         shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 0.45,

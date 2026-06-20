@@ -6,7 +6,8 @@ import {
     TouchableOpacity,
     FlatList,
     ActivityIndicator,
-    Image
+    Image,
+    ScrollView
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -160,10 +161,8 @@ export default function ChildrenListScreen() {
                         {calculateAge(item.date_of_birth)} • {item.gender}
                     </Text>
                 </View>
-                {selectingId === item.id ? (
+                {selectingId === item.id && (
                     <ActivityIndicator color={colorScheme.primary} size="small" />
-                ) : selectedChild?.id === item.id && (
-                    <MaterialIcons name="check-circle" size={24} color={colorScheme.primary} />
                 )}
             </TouchableOpacity>
 

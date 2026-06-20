@@ -58,6 +58,19 @@ interface AsdScreening {
     responses: Record<number, boolean>;
 }
 
+const getTrendDescription = (currentScore: number, previousScore: number, prevDateStr: string) => {
+    const scoreDiff = currentScore - previousScore;
+    const dateFormatted = new Date(prevDateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    
+    if (scoreDiff > 0) {
+        return `Your child's score increased by ${scoreDiff} points compared to the previous assessment on ${dateFormatted} (from ${previousScore}/13 to ${currentScore}/13). This indicates an increase in developmental/behavioral risk flags.`;
+    } else if (scoreDiff < 0) {
+        return `Your child's score decreased by ${Math.abs(scoreDiff)} points compared to the previous assessment on ${dateFormatted} (from ${previousScore}/13 to ${currentScore}/13). This indicates improvement (fewer risk flags identified).`;
+    } else {
+        return `Your child's score remained the same (${currentScore}/13) as the previous assessment on ${dateFormatted}. The developmental risk profile is stable.`;
+    }
+};
+
 export default function AsdChecklistScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
@@ -107,7 +120,7 @@ export default function AsdChecklistScreen() {
         try {
             if (type === 'milestone') {
                 if (milestoneResponses.length === 0) {
-                    Alert.alert("No Milestone Records", "Please complete some milestone checks first to generate a report.");
+                    Alert.alert("Requirements Not Met", "Please complete some milestone checks first to generate a report.");
                     return;
                 }
                 await reportService.generateMilestoneReport(selectedChild, closestMilestoneAge, milestoneResponses);
@@ -116,12 +129,12 @@ export default function AsdChecklistScreen() {
             } else if (type === 'comprehensive') {
                 if (milestoneResponses.length === 0) {
                     Alert.alert(
-                        "Milestone Report Incomplete",
-                        "Milestone checklist responses are required to generate the comprehensive report. Please complete some milestones first."
+                        "Requirements Not Met",
+                        "Milestone checklist responses are required to generate the developmental report. Please complete some milestones first."
                     );
                     return;
                 }
-                await reportService.generateComprehensiveReport(selectedChild, closestMilestoneAge, milestoneResponses, screeningItem);
+                await reportService.generateDevelopmentalReport(selectedChild, closestMilestoneAge, milestoneResponses, screeningItem);
             }
         } catch (err) {
             console.error('Failed to generate report PDF:', err);
@@ -136,7 +149,7 @@ export default function AsdChecklistScreen() {
     const nextAvailableDate = lastScreening
         ? new Date(new Date(lastScreening.created_at).getTime() + 30 * 24 * 60 * 60 * 1000)
         : null;
-    const isLocked = nextAvailableDate && nextAvailableDate > new Date() && step !== 'result';
+    const isLocked = false;
     const daysToGo = nextAvailableDate ? Math.ceil((nextAvailableDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 0;
 
     const handleStart = () => {
@@ -300,6 +313,15 @@ export default function AsdChecklistScreen() {
 
         const currentRiskColor = riskColors[selectedHistory.risk_level] || '#9CA3AF';
 
+        const historyIndex = asdScreenings ? (asdScreenings as AsdScreening[]).findIndex(s => s.id === selectedHistory.id) : -1;
+        const screeningBeforeThis = (historyIndex !== -1 && asdScreenings && asdScreenings.length > historyIndex + 1)
+            ? (asdScreenings as AsdScreening[])[historyIndex + 1]
+            : null;
+
+        const historyTrendText = screeningBeforeThis
+            ? getTrendDescription(selectedHistory.score, screeningBeforeThis.score, screeningBeforeThis.created_at)
+            : "This was your child's first recorded ASD screening. No prior history exists for trend analysis.";
+
         return (
             <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: Spacing.xxl }} showsVerticalScrollIndicator={false}>
                 <View style={styles.detailHeader}>
@@ -332,6 +354,26 @@ export default function AsdChecklistScreen() {
                         <Text style={[styles.infoText, { color: colorScheme.textSecondary, marginBottom: Spacing.xs }]}>
                             Screened on {new Date(selectedHistory.created_at).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}
                         </Text>
+                        
+                        <View style={{ 
+                            backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#F8FAFC', 
+                            borderColor: colorScheme.border, 
+                            borderWidth: 1, 
+                            borderRadius: BorderRadius.md, 
+                            padding: Spacing.md, 
+                            marginTop: Spacing.md,
+                            flexDirection: 'row',
+                            gap: Spacing.sm,
+                            alignItems: 'flex-start'
+                        }}>
+                            <MaterialIcons name="trending-up" size={20} color={VIBRANT.violet[0]} style={{ marginTop: 2 }} />
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ fontWeight: 'bold', color: colorScheme.textPrimary, fontSize: 13, marginBottom: 2 }}>Trend Analysis</Text>
+                                <Text style={{ fontSize: 11, color: colorScheme.textSecondary, lineHeight: 15 }}>
+                                    {historyTrendText}
+                                </Text>
+                            </View>
+                        </View>
                     </View>
                 </View>
 
@@ -415,18 +457,6 @@ export default function AsdChecklistScreen() {
                         </Text>
                         
                         <View style={{ gap: Spacing.sm }}>
-                            {/* Download ASD Report */}
-                            <TouchableOpacity
-                                style={[styles.reportOptionBtn, { backgroundColor: colorScheme.surface, borderColor: colorScheme.border }]}
-                                onPress={() => handleDownloadReport('asd', selectedHistory)}
-                                disabled={downloadingReport !== null}
-                            >
-                                <MaterialIcons name="picture-as-pdf" size={22} color="#EF4444" />
-                                <Text style={[styles.reportOptionText, { color: colorScheme.textPrimary }]}>
-                                    {downloadingReport === 'asd' ? 'Generating...' : 'Download ASD Report'}
-                                </Text>
-                            </TouchableOpacity>
-
                             {/* Download Milestone Report */}
                             <TouchableOpacity
                                 style={[
@@ -446,7 +476,7 @@ export default function AsdChecklistScreen() {
                                 </Text>
                             </TouchableOpacity>
 
-                            {/* Download Comprehensive Report */}
+                            {/* Download Developmental Report */}
                             <TouchableOpacity
                                 style={[
                                     styles.reportOptionBtn, 
@@ -461,13 +491,13 @@ export default function AsdChecklistScreen() {
                             >
                                 <MaterialIcons name="picture-as-pdf" size={22} color="#8B5CF6" />
                                 <Text style={[styles.reportOptionText, { color: colorScheme.textPrimary }]}>
-                                    {downloadingReport === 'comprehensive' ? 'Generating...' : 'Download Comprehensive Report'}
+                                    {downloadingReport === 'comprehensive' ? 'Generating...' : 'Download Developmental Report'}
                                 </Text>
                             </TouchableOpacity>
                             
                             {milestoneResponses.length === 0 && (
                                 <Text style={{ fontSize: 11, color: '#EF4444', fontStyle: 'italic', marginTop: 4 }}>
-                                    * Milestone checklist must be completed to download Milestone and Comprehensive reports.
+                                    * Milestone checklist must be completed to download Milestone and Developmental reports.
                                 </Text>
                             )}
                         </View>
@@ -504,12 +534,53 @@ export default function AsdChecklistScreen() {
             </View>
 
             <View style={[styles.card, { backgroundColor: colorScheme.surface }]}>
-                <View style={[styles.infoBox, { backgroundColor: isDark ? `${VIBRANT.violet[0]}10` : VIBRANT.lavender, borderColor: VIBRANT.lavenderDark, borderWidth: 1 }]}>
+                <View style={[styles.infoBox, { backgroundColor: isDark ? `${VIBRANT.violet[0]}10` : VIBRANT.lavender, borderColor: VIBRANT.lavenderDark, borderWidth: 1, marginBottom: Spacing.md }]}>
                     <MaterialIcons name="info" size={20} color={VIBRANT.violet[0]} style={{ marginBottom: Spacing.xs }} />
                     <Text style={[styles.infoText, { color: colorScheme.textSecondary }]}>
                         This screening tool helps identify possible developmental concerns. It does not provide a diagnosis.
                     </Text>
                 </View>
+
+                {lastScreening && (
+                    <View style={{ 
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#F8FAFC', 
+                        borderColor: colorScheme.border, 
+                        borderWidth: 1, 
+                        borderRadius: BorderRadius.md, 
+                        padding: Spacing.md, 
+                        marginBottom: Spacing.md,
+                        flexDirection: 'row',
+                        gap: Spacing.sm,
+                        alignItems: 'flex-start'
+                    }}>
+                        <MaterialIcons name="insights" size={20} color={VIBRANT.violet[0]} style={{ marginTop: 2 }} />
+                        <View style={{ flex: 1 }}>
+                            <Text style={{ fontWeight: 'bold', color: colorScheme.textPrimary, fontSize: 13, marginBottom: 2 }}>Latest Screening Trend</Text>
+                            <Text style={{ fontSize: 11, color: colorScheme.textSecondary, lineHeight: 15 }}>
+                                Last screening: <Text style={{ fontWeight: '600' }}>{lastScreening.score}/13</Text> ({lastScreening.risk_level} Risk) on {new Date(lastScreening.created_at).toLocaleDateString()}.
+                                {'\n'}
+                                {asdScreenings && asdScreenings.length > 1 ? (
+                                    <>
+                                        Previous assessment: <Text style={{ fontWeight: '600' }}>{(asdScreenings as AsdScreening[])[1].score}/13</Text> on {new Date((asdScreenings as AsdScreening[])[1].created_at).toLocaleDateString()}.{' '}
+                                        {lastScreening.score - (asdScreenings as AsdScreening[])[1].score > 0 ? (
+                                            <Text style={{ color: '#EF4444', fontWeight: '500' }}>
+                                                Score increased by {lastScreening.score - (asdScreenings as AsdScreening[])[1].score} point(s) (higher risk).
+                                            </Text>
+                                        ) : lastScreening.score - (asdScreenings as AsdScreening[])[1].score < 0 ? (
+                                            <Text style={{ color: '#10B981', fontWeight: '500' }}>
+                                                Score decreased by {Math.abs(lastScreening.score - (asdScreenings as AsdScreening[])[1].score)} point(s) (improvement).
+                                            </Text>
+                                        ) : (
+                                            "No change in score."
+                                        )}
+                                    </>
+                                ) : (
+                                    "This was the first screening for this child. Future screenings will compare trends."
+                                )}
+                            </Text>
+                        </View>
+                    </View>
+                )}
 
                 {isLocked ? (
                     <View style={[styles.lockedCard, { backgroundColor: colorScheme.background, borderColor: colorScheme.border }]}>
@@ -562,18 +633,6 @@ export default function AsdChecklistScreen() {
                             Reports & Downloads
                         </Text>
                         <View style={{ gap: Spacing.sm, width: '100%' }}>
-                            {/* Download ASD Report */}
-                            <TouchableOpacity
-                                style={[styles.reportOptionBtn, { backgroundColor: colorScheme.surface, borderColor: colorScheme.border }]}
-                                onPress={() => handleDownloadReport('asd', lastScreening)}
-                                disabled={downloadingReport !== null}
-                            >
-                                <MaterialIcons name="picture-as-pdf" size={22} color="#EF4444" />
-                                <Text style={[styles.reportOptionText, { color: colorScheme.textPrimary }]}>
-                                    {downloadingReport === 'asd' ? 'Generating...' : 'Download ASD Report'}
-                                </Text>
-                            </TouchableOpacity>
-
                             {/* Download Milestone Report */}
                             <TouchableOpacity
                                 style={[
@@ -593,7 +652,7 @@ export default function AsdChecklistScreen() {
                                 </Text>
                             </TouchableOpacity>
 
-                            {/* Download Comprehensive Report */}
+                            {/* Download Developmental Report */}
                             <TouchableOpacity
                                 style={[
                                     styles.reportOptionBtn, 
@@ -608,13 +667,13 @@ export default function AsdChecklistScreen() {
                             >
                                 <MaterialIcons name="picture-as-pdf" size={22} color="#8B5CF6" />
                                 <Text style={[styles.reportOptionText, { color: colorScheme.textPrimary }]}>
-                                    {downloadingReport === 'comprehensive' ? 'Generating...' : 'Download Comprehensive Report'}
+                                    {downloadingReport === 'comprehensive' ? 'Generating...' : 'Download Developmental Report'}
                                 </Text>
                             </TouchableOpacity>
                             
                             {milestoneResponses.length === 0 && (
                                 <Text style={{ fontSize: 11, color: '#EF4444', fontStyle: 'italic', marginTop: 4, textAlign: 'center' }}>
-                                    * Milestone checklist must be completed to download Milestone and Comprehensive reports.
+                                    * Milestone checklist must be completed to download Milestone and Developmental reports.
                                 </Text>
                             )}
                         </View>
@@ -751,6 +810,11 @@ export default function AsdChecklistScreen() {
     const renderResult = () => {
         if (!result) return null;
 
+        const previousScreening = asdScreenings && asdScreenings.length > 1 ? asdScreenings[1] : null;
+        const trendText = previousScreening 
+            ? getTrendDescription(result.score, previousScreening.score, previousScreening.created_at)
+            : "This is your child's first recorded ASD screening. Future screenings will display a trend comparison here.";
+
         const riskGradients: Record<string, string[]> = {
             'Low': VIBRANT.emerald,
             'Moderate': VIBRANT.amber,
@@ -815,6 +879,27 @@ export default function AsdChecklistScreen() {
                                     </TouchableOpacity>
                                 </View>
                             )}
+                        </View>
+
+                        <View style={{ 
+                            backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : '#F8FAFC', 
+                            borderColor: colorScheme.border, 
+                            borderWidth: 1, 
+                            borderRadius: BorderRadius.md, 
+                            padding: Spacing.md, 
+                            marginTop: Spacing.md,
+                            marginBottom: Spacing.md,
+                            flexDirection: 'row',
+                            gap: Spacing.sm,
+                            alignItems: 'flex-start'
+                        }}>
+                            <MaterialIcons name="trending-up" size={20} color={VIBRANT.violet[0]} style={{ marginTop: 2 }} />
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ fontWeight: 'bold', color: colorScheme.textPrimary, fontSize: 13, marginBottom: 2 }}>Trend Analysis</Text>
+                                <Text style={{ fontSize: 11, color: colorScheme.textSecondary, lineHeight: 15 }}>
+                                    {trendText}
+                                </Text>
+                            </View>
                         </View>
 
                         <Text style={[styles.disclaimerTextJustified, { color: colorScheme.textTertiary }]}>

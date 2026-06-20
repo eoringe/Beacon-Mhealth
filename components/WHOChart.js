@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
-import Svg, { G, Line, Circle, Path, Text as SvgText, Rect, Polygon } from 'react-native-svg';
+import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import Svg, { G, Line, Circle, Path, Text as SvgText, Rect } from 'react-native-svg';
 import { WHO_STANDARDS } from '@/constants/whoGrowthStandards';
-import { Spacing, Typography } from '@/constants/theme';
+import { Spacing } from '@/constants/theme';
 
 export function WHOChart({ childData, heightData = [], weightData = [], headData = [], gender, type, color, unit, isDark }) {
     const screenWidth = Dimensions.get('window').width - (Spacing.lg * 2);
     const chartHeight = 350;
-    const padding = { top: 20, bottom: 50, left: 50, right: 20 };
+    const padding = { top: 20, bottom: 50, left: 50, right: 30 };
     const width = screenWidth - padding.left - padding.right;
     const height = chartHeight - padding.top - padding.bottom;
 
@@ -19,34 +19,21 @@ export function WHOChart({ childData, heightData = [], weightData = [], headData
     const standardData = WHO_STANDARDS[genderKey][typeKey] || [];
 
     // Axis Ranges
-    const xMin = 0;
     const xMax = 60; // 5 years in months
-    
+
+    // Extrapolate Z-scores -3 and +3
+    const z3Values = standardData.map(d => d.p97 + (d.p97 - d.p85));
+    const z_3Values = standardData.map(d => d.p3 - (d.p15 - d.p3));
+
     // Auto-calculate Y range based on standard data
-    const allValues = standardData.flatMap(d => [d.p3, d.p97]);
-    const yMin = Math.floor(Math.min(...allValues) * 0.9);
-    const yMax = Math.ceil(Math.max(...allValues) * 1.1);
+    const yMin = Math.floor(Math.min(...z_3Values) * 0.95);
+    const yMax = Math.ceil(Math.max(...z3Values) * 1.05);
 
     // Scaling helpers
     const scaleX = (x) => (x / xMax) * width;
     const scaleY = (y) => height - ((y - yMin) / (yMax - yMin)) * height;
 
-    // Helper to get scaler and values for any type
-    const getScalersForType = (t) => {
-        const tKey = t === 'head' ? 'head_circumference' : t;
-        const std = WHO_STANDARDS[genderKey][tKey] || [];
-        const vals = std.flatMap(d => [d.p3, d.p97]);
-        const min = Math.floor(Math.min(...vals) * 0.9);
-        const max = Math.ceil(Math.max(...vals) * 1.1);
-        return {
-            scale: (val) => height - ((val - min) / (max - min)) * height,
-            unit: t === 'weight' ? 'kg' : 'cm'
-        };
-    };
 
-    const heightScaler = getScalersForType('height');
-    const weightScaler = getScalersForType('weight');
-    const headScaler = getScalersForType('head');
 
     // Helper to build Path string (Natural/Smooth)
     const buildPath = (points, scaler = scaleY) => {
@@ -54,20 +41,14 @@ export function WHOChart({ childData, heightData = [], weightData = [], headData
         return points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${scaleX(p.x)} ${scaler(p.y)}`).join(" ");
     };
 
-    // Helper to build Shaded Area string
-    const buildAreaPath = (topPoints, bottomPoints) => {
-        if (!topPoints.length || !bottomPoints.length) return "";
-        const top = topPoints.map(p => `${scaleX(p.x)},${scaleY(p.y)}`).join(" ");
-        const bottom = [...bottomPoints].reverse().map(p => `${scaleX(p.x)},${scaleY(p.y)}`).join(" ");
-        return `M ${top} L ${bottom} Z`;
-    };
-
     // Prepare curves
-    const p3 = standardData.map(d => ({ x: d.month, y: d.p3 }));
-    const p15 = standardData.map(d => ({ x: d.month, y: d.p15 }));
-    const p50 = standardData.map(d => ({ x: d.month, y: d.p50 }));
-    const p85 = standardData.map(d => ({ x: d.month, y: d.p85 }));
-    const p97 = standardData.map(d => ({ x: d.month, y: d.p97 }));
+    const z3 = standardData.map(d => ({ x: d.month, y: d.p97 + (d.p97 - d.p85) }));
+    const z2 = standardData.map(d => ({ x: d.month, y: d.p97 }));
+    const z1 = standardData.map(d => ({ x: d.month, y: d.p85 }));
+    const z0 = standardData.map(d => ({ x: d.month, y: d.p50 }));
+    const z_1 = standardData.map(d => ({ x: d.month, y: d.p15 }));
+    const z_2 = standardData.map(d => ({ x: d.month, y: d.p3 }));
+    const z_3 = standardData.map(d => ({ x: d.month, y: d.p3 - (d.p15 - d.p3) }));
 
     const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)';
     const textColor = isDark ? '#9AA0A6' : '#666666';
@@ -77,9 +58,7 @@ export function WHOChart({ childData, heightData = [], weightData = [], headData
     const weightColor = '#4CAF50'; // Green
     const headColor = '#9C27B0'; // Purple
 
-    const medianColor = '#4CAF50'; // Green
-    const innerBand = isDark ? 'rgba(255, 193, 7, 0.15)' : 'rgba(255, 193, 7, 0.1)'; // Amber
-    const outerBand = isDark ? 'rgba(255, 82, 82, 0.1)' : 'rgba(255, 82, 82, 0.05)'; // Soft Red/Pink
+
 
     return (
         <View style={styles.container}>
@@ -103,63 +82,80 @@ export function WHOChart({ childData, heightData = [], weightData = [], headData
                         </G>
                     ))}
 
-                    {/* WHO Percentile Bands */}
-                    <Path d={buildAreaPath(p97, p3)} fill={outerBand} />
-                    <Path d={buildAreaPath(p85, p15)} fill={innerBand} />
-                    <Path d={buildPath(p50)} fill="none" stroke={medianColor} strokeWidth={1} strokeDasharray="5,5" />
+                    {/* WHO Z-score Standard Lines */}
+                    <Path d={buildPath(z3)} fill="none" stroke={isDark ? '#555' : '#777'} strokeWidth={1.2} />
+                    <Path d={buildPath(z2)} fill="none" stroke="#EF4444" strokeWidth={1.2} />
+                    <Path d={buildPath(z1)} fill="none" stroke="#F59E0B" strokeWidth={1.2} />
+                    <Path d={buildPath(z0)} fill="none" stroke="#10B981" strokeWidth={1.8} />
+                    <Path d={buildPath(z_1)} fill="none" stroke="#F59E0B" strokeWidth={1.2} />
+                    <Path d={buildPath(z_2)} fill="none" stroke="#EF4444" strokeWidth={1.2} />
+                    <Path d={buildPath(z_3)} fill="none" stroke={isDark ? '#555' : '#777'} strokeWidth={1.2} />
+
+                    {/* Labels at the end of the curves (on the right) */}
+                    {z3.length > 0 && (
+                        <G>
+                            <SvgText x={width + 5} y={scaleY(z3[z3.length - 1].y) + 3} fontSize="9" fontWeight="bold" fill={isDark ? '#FFF' : '#333'}>3</SvgText>
+                            <SvgText x={width + 5} y={scaleY(z2[z2.length - 1].y) + 3} fontSize="9" fontWeight="bold" fill="#EF4444">2</SvgText>
+                            <SvgText x={width + 5} y={scaleY(z1[z1.length - 1].y) + 3} fontSize="9" fontWeight="bold" fill="#F59E0B">1</SvgText>
+                            <SvgText x={width + 5} y={scaleY(z0[z0.length - 1].y) + 3} fontSize="10" fontWeight="bold" fill="#10B981">0</SvgText>
+                            <SvgText x={width + 5} y={scaleY(z_1[z_1.length - 1].y) + 3} fontSize="9" fontWeight="bold" fill="#F59E0B">-1</SvgText>
+                            <SvgText x={width + 5} y={scaleY(z_2[z_2.length - 1].y) + 3} fontSize="9" fontWeight="bold" fill="#EF4444">-2</SvgText>
+                            <SvgText x={width + 5} y={scaleY(z_3[z_3.length - 1].y) + 3} fontSize="9" fontWeight="bold" fill={isDark ? '#FFF' : '#333'}>-3</SvgText>
+                        </G>
+                    )}
 
                     {/* Combined Child Data (All 3 lines) */}
-                    {heightData && heightData.length > 0 && (
+                    {type === 'height' && heightData && heightData.length > 0 && (
                         <G>
-                            <Path d={buildPath(heightData, heightScaler.scale)} fill="none" stroke={heightColor} strokeWidth={type === 'height' ? 3.5 : 2} strokeLinecap="round" strokeLinejoin="round" opacity={type === 'height' ? 1 : 0.6} />
+                            <Path d={buildPath(heightData, scaleY)} fill="none" stroke={heightColor} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" />
                             {heightData.map((p, i) => (
                                 <Circle 
                                     key={`h-${i}`} 
                                     cx={scaleX(p.x)} 
-                                    cy={heightScaler.scale(p.y)} 
-                                    r={type === 'height' ? 5 : 3.5} 
+                                    cy={scaleY(p.y)} 
+                                    r={5} 
                                     fill={heightColor} 
                                     stroke={isDark ? '#121212' : '#FFF'} 
                                     strokeWidth={1.5}
-                                    onPress={() => setTooltip({ ...p, metricType: 'height', displayY: p.y, displayScaler: heightScaler.scale })}
+                                    onPress={() => setTooltip({ ...p, metricType: 'height', displayY: p.y, displayScaler: scaleY })}
                                 />
                             ))}
                         </G>
                     )}
 
                     {/* Child Weight Data */}
-                    {weightData && weightData.length > 0 && (
+                    {type === 'weight' && weightData && weightData.length > 0 && (
                         <G>
-                            <Path d={buildPath(weightData, weightScaler.scale)} fill="none" stroke={weightColor} strokeWidth={type === 'weight' ? 3.5 : 2} strokeLinecap="round" strokeLinejoin="round" opacity={type === 'weight' ? 1 : 0.6} />
+                            <Path d={buildPath(weightData, scaleY)} fill="none" stroke={weightColor} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" />
                             {weightData.map((p, i) => (
                                 <Circle 
                                     key={`w-${i}`} 
                                     cx={scaleX(p.x)} 
-                                    cy={weightScaler.scale(p.y)} 
-                                    r={type === 'weight' ? 5 : 3.5} 
+                                    cy={scaleY(p.y)} 
+                                    r={5} 
                                     fill={weightColor} 
                                     stroke={isDark ? '#121212' : '#FFF'} 
                                     strokeWidth={1.5}
-                                    onPress={() => setTooltip({ ...p, metricType: 'weight', displayY: p.y, displayScaler: weightScaler.scale })}
+                                    onPress={() => setTooltip({ ...p, metricType: 'weight', displayY: p.y, displayScaler: scaleY })}
                                 />
                             ))}
                         </G>
                     )}
 
                     {/* Child Head Circ. Data */}
-                    {headData && headData.length > 0 && (
+                    {type === 'head' && headData && headData.length > 0 && (
                         <G>
-                            <Path d={buildPath(headData, headScaler.scale)} fill="none" stroke={headColor} strokeWidth={type === 'head' ? 3.5 : 2} strokeLinecap="round" strokeLinejoin="round" opacity={type === 'head' ? 1 : 0.6} />
+                            <Path d={buildPath(headData, scaleY)} fill="none" stroke={headColor} strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" />
                             {headData.map((p, i) => (
                                 <Circle 
                                     key={`hc-${i}`} 
                                     cx={scaleX(p.x)} 
-                                    cy={headScaler.scale(p.y)} 
-                                    r={type === 'head' ? 5 : 3.5} 
+                                    cy={scaleY(p.y)} 
+                                    r={5} 
                                     fill={headColor} 
                                     stroke={isDark ? '#121212' : '#FFF'} 
                                     strokeWidth={1.5}
-                                    onPress={() => setTooltip({ ...p, metricType: 'head', displayY: p.y, displayScaler: headScaler.scale })}
+                                    onPress={() => setTooltip({ ...p, metricType: 'head', displayY: p.y, displayScaler: scaleY })}
                                 />
                             ))}
                         </G>
@@ -231,31 +227,41 @@ export function WHOChart({ childData, heightData = [], weightData = [], headData
             {/* Legend */}
             <View style={[styles.legendContainer, { backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }]}>
                 <View style={styles.legendRow}>
-                    <View style={styles.legendItem}>
-                        <View style={[styles.legendIndicator, { backgroundColor: heightColor, height: 3, borderRadius: 2 }]} />
-                        <Text style={[styles.legendText, { color: textColor }]}>Height (cm)</Text>
-                    </View>
-                    <View style={styles.legendItem}>
-                        <View style={[styles.legendIndicator, { backgroundColor: weightColor, height: 3, borderRadius: 2 }]} />
-                        <Text style={[styles.legendText, { color: textColor }]}>Weight (kg)</Text>
-                    </View>
-                    <View style={styles.legendItem}>
-                        <View style={[styles.legendIndicator, { backgroundColor: headColor, height: 3, borderRadius: 2 }]} />
-                        <Text style={[styles.legendText, { color: textColor }]}>Head Circ (cm)</Text>
-                    </View>
+                    {type === 'height' && (
+                        <View style={styles.legendItem}>
+                            <View style={[styles.legendIndicator, { backgroundColor: heightColor, height: 3, borderRadius: 2 }]} />
+                            <Text style={[styles.legendText, { color: textColor }]}>Height (cm)</Text>
+                        </View>
+                    )}
+                    {type === 'weight' && (
+                        <View style={styles.legendItem}>
+                            <View style={[styles.legendIndicator, { backgroundColor: weightColor, height: 3, borderRadius: 2 }]} />
+                            <Text style={[styles.legendText, { color: textColor }]}>Weight (kg)</Text>
+                        </View>
+                    )}
+                    {type === 'head' && (
+                        <View style={styles.legendItem}>
+                            <View style={[styles.legendIndicator, { backgroundColor: headColor, height: 3, borderRadius: 2 }]} />
+                            <Text style={[styles.legendText, { color: textColor }]}>Head Circ (cm)</Text>
+                        </View>
+                    )}
                 </View>
                 <View style={styles.legendRow}>
                     <View style={styles.legendItem}>
-                        <View style={[styles.legendIndicator, { borderBottomWidth: 1.5, borderColor: medianColor, borderStyle: 'dashed', backgroundColor: 'transparent' }]} />
-                        <Text style={[styles.legendText, { color: textColor }]}>WHO Median (50th)</Text>
+                        <View style={[styles.legendIndicator, { backgroundColor: '#10B981', height: 3, borderRadius: 2 }]} />
+                        <Text style={[styles.legendText, { color: textColor }]}>Median (0)</Text>
                     </View>
                     <View style={styles.legendItem}>
-                        <View style={[styles.legendIndicator, { backgroundColor: innerBand, opacity: 1, borderWidth: 1, borderColor: 'rgba(255, 193, 7, 0.3)' }]} />
-                        <Text style={[styles.legendText, { color: textColor }]}>Normal (15th-85th)</Text>
+                        <View style={[styles.legendIndicator, { backgroundColor: '#F59E0B', height: 3, borderRadius: 2 }]} />
+                        <Text style={[styles.legendText, { color: textColor }]}>±1 Z-score</Text>
                     </View>
                     <View style={styles.legendItem}>
-                        <View style={[styles.legendIndicator, { backgroundColor: outerBand, opacity: 1, borderWidth: 1, borderColor: 'rgba(255, 82, 82, 0.3)' }]} />
-                        <Text style={[styles.legendText, { color: textColor }]}>Edge (3rd-97th)</Text>
+                        <View style={[styles.legendIndicator, { backgroundColor: '#EF4444', height: 3, borderRadius: 2 }]} />
+                        <Text style={[styles.legendText, { color: textColor }]}>±2 Z-score</Text>
+                    </View>
+                    <View style={styles.legendItem}>
+                        <View style={[styles.legendIndicator, { backgroundColor: isDark ? '#FFF' : '#333', height: 3, borderRadius: 2 }]} />
+                        <Text style={[styles.legendText, { color: textColor }]}>±3 Z-score</Text>
                     </View>
                 </View>
             </View>

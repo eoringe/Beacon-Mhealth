@@ -478,7 +478,13 @@ export default function MilestoneCategory() {
             </Text>
             <TouchableOpacity
               style={[styles.nextCategoryButton, { backgroundColor: colorScheme.success }]}
-              onPress={() => router.push('/dashboard/milestone-checklist')}
+              onPress={() => {
+                if (actualChildAge >= 18) {
+                  router.push('/(tabs)/asd-checklist');
+                } else {
+                  router.push('/dashboard/milestone-checklist');
+                }
+              }}
             >
               <Text style={styles.nextCategoryButtonText}>Finish Checklist</Text>
               <MaterialIcons name="check-circle" size={20} color="#FFFFFF" />

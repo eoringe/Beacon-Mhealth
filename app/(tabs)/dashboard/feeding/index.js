@@ -172,6 +172,9 @@ export default function FeedingTrackerScreen() {
         todayLogs.filter(l => l.type === 'solid' && l.foodCategory).map(l => l.foodCategory)
     );
     const solidDiversityCount = uniqueSolidCategoriesToday.size;
+    const hasSuboptimalFrequency = todayLogs.some(l => l.frequency === '1hr' || l.frequency === '2hr');
+    const hasSolids = solidCount > 0;
+    const isOptimal = hasSolids ? (solidDiversityCount >= 4 && !hasSuboptimalFrequency) : true;
 
     const formatTime = (isoString) => {
         const d = new Date(isoString);
@@ -332,7 +335,7 @@ export default function FeedingTrackerScreen() {
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }}>
                         <MaterialIcons name="restaurant" size={16} color={solidDiversityCount >= 4 ? '#10B981' : '#F59E0B'} />
                         <Text style={{ fontSize: 12, fontWeight: 'bold', color: '#37474F' }}>
-                            WHO Nutrition Goal: >= 4 food groups/day
+                            WHO Nutrition Goal: {'>='} 4 food groups/day
                         </Text>
                     </View>
                     <Text style={{ fontSize: 12, color: '#455A64', marginTop: 2 }}>
@@ -343,20 +346,20 @@ export default function FeedingTrackerScreen() {
                 {/* Add Entry Button */}
                 <View style={{ paddingHorizontal: Spacing.lg, marginBottom: Spacing.md }}>
                     <TouchableOpacity
-                        style={[styles.addEntryBtnLarge, { backgroundColor: colorScheme.primary }]}
+                        style={[styles.addEntryBtnLarge, { backgroundColor: '#FBBF24' }]}
                         onPress={() => {
                             resetForm();
                             setShowAddModal(true);
                         }}
                     >
-                        <MaterialIcons name="add" size={20} color="#FFFFFF" />
-                        <Text style={styles.addEntryBtnLargeText}>Add Feeding Entry</Text>
+                        <MaterialIcons name="add" size={20} color="#1F2937" />
+                        <Text style={[styles.addEntryBtnLargeText, { color: '#1F2937' }]}>Add Feeding Entry Here</Text>
                     </TouchableOpacity>
                 </View>
 
                 {/* Today's Summary */}
                 <View style={[styles.summaryCard, { backgroundColor: colorScheme.primary }]}>
-                    <Text style={styles.summaryTitle}>Today's Summary</Text>
+                    <Text style={styles.summaryTitle}>Today{"'"}s Summary</Text>
                     <View style={styles.summaryRow}>
                         <View style={styles.summaryItem}>
                             <Text style={styles.summaryValue}>{breastCount}</Text>
@@ -423,7 +426,7 @@ export default function FeedingTrackerScreen() {
                                                 </Text>
                                                 <Text style={[styles.logDetail, { color: colorScheme.textSecondary }]}>
                                                     {entry.type === 'breast' && `${entry.side} side • ${entry.duration} min`}
-                                                    {entry.type === 'bottle' && `${entry.volume} ml`}
+                                                    {entry.type === 'bottle' && 'encourage liquids after every meal'}
                                                     {entry.type === 'solid' && (() => {
                                                         const cat = FOOD_CATEGORIES.find(c => c.id === entry.foodCategory);
                                                         return `${cat?.icon || ''} ${cat?.label || entry.foodCategory}${entry.foodName ? `: ${entry.foodName}` : ''}`;
@@ -459,6 +462,88 @@ export default function FeedingTrackerScreen() {
                         ))
                     )}
                 </View>
+
+                {/* Feeding Interpretation Card */}
+                {selectedChild && (
+                    <View style={styles.interpretationSection}>
+                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
+                            Interpretation
+                        </Text>
+                        <View style={[
+                            styles.interpretationCard,
+                            {
+                                backgroundColor: todayLogs.length === 0
+                                    ? '#F1F5F9'
+                                    : !hasSolids
+                                        ? '#ECFDF5'
+                                        : isOptimal
+                                            ? '#ECFDF5'
+                                            : '#FEF2F2',
+                                borderColor: todayLogs.length === 0
+                                    ? '#E2E8F0'
+                                    : !hasSolids
+                                        ? '#10B98125'
+                                        : isOptimal
+                                            ? '#10B98125'
+                                            : '#EF444425',
+                            }
+                        ]}>
+                            <View style={styles.interpretationHeader}>
+                                <MaterialIcons 
+                                    name={
+                                        todayLogs.length === 0
+                                            ? "info"
+                                            : !hasSolids
+                                                ? "check-circle"
+                                                : isOptimal
+                                                    ? "check-circle"
+                                                    : "warning"
+                                    } 
+                                    size={18} 
+                                    color={
+                                        todayLogs.length === 0
+                                            ? "#6B7280"
+                                            : !hasSolids
+                                                ? "#10B981"
+                                                : isOptimal
+                                                    ? "#10B981"
+                                                    : "#EF4444"
+                                    } 
+                                />
+                                <Text style={[styles.interpretationStatus, { 
+                                    color: todayLogs.length === 0
+                                        ? "#6B7280"
+                                        : !hasSolids
+                                            ? "#10B981"
+                                            : isOptimal
+                                                ? "#10B981"
+                                                : "#EF4444"
+                                }]}>
+                                    Interpretation: {
+                                        todayLogs.length === 0
+                                            ? "No Data"
+                                            : !hasSolids
+                                                ? "Encourage liquids after every meal"
+                                                : isOptimal
+                                                    ? "Optimal Diversity"
+                                                    : "Suboptimal"
+                                    }
+                                </Text>
+                            </View>
+                            <Text style={[styles.interpretationDesc, { color: colorScheme.textSecondary }]}>
+                                {todayLogs.length === 0
+                                    ? "Please log feeding entries for today to see the interpretation."
+                                    : !hasSolids
+                                        ? "Ensure your child is hydrated by offering liquids after every meal."
+                                        : isOptimal
+                                            ? "Your child's diet has optimal diversity today."
+                                            : hasSuboptimalFrequency
+                                                ? "Your child's feeding frequency is less than 3-hourly, which is suboptimal."
+                                                : "Your child's diet has suboptimal diversity today. Try to include at least 4 different food groups."}
+                            </Text>
+                        </View>
+                    </View>
+                )}
             </ScrollView>
 
             {/* Add Feeding Modal */}
@@ -1017,5 +1102,30 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: Typography.fontSize.md,
         fontWeight: Typography.fontWeight.semibold,
+    },
+    interpretationSection: {
+        paddingHorizontal: Spacing.lg,
+        marginBottom: Spacing.lg,
+        marginTop: Spacing.md,
+    },
+    interpretationCard: {
+        padding: Spacing.md,
+        borderRadius: BorderRadius.md,
+        borderWidth: 1,
+        gap: Spacing.xs,
+    },
+    interpretationHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.xs,
+        marginBottom: 4,
+    },
+    interpretationStatus: {
+        fontSize: Typography.fontSize.sm,
+        fontWeight: 'bold',
+    },
+    interpretationDesc: {
+        fontSize: 12,
+        lineHeight: 16,
     },
 });

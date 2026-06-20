@@ -75,7 +75,7 @@ export default function TeethingChartScreen() {
                 'warning'
             );
         } else {
-            // Mark as erupted
+            // Mark as erupted immediately with current date
             const updated = {
                 ...eruptedTeeth,
                 [tooth.id]: { date: new Date().toISOString() }
@@ -90,6 +90,23 @@ export default function TeethingChartScreen() {
     const lowerRight = PRIMARY_TEETH.filter(t => t.position === 'lower' && t.side === 'right').sort((a, b) => b.order - a.order);
     const lowerLeft = PRIMARY_TEETH.filter(t => t.position === 'lower' && t.side === 'left').sort((a, b) => a.order - b.order);
     const eruptedCount = Object.keys(eruptedTeeth).length;
+    const currentAge = selectedChild?.date_of_birth
+        ? Math.floor((new Date().getTime() - new Date(selectedChild.date_of_birth).getTime()) / (1000 * 60 * 60 * 24 * 30.44))
+        : null;
+
+    const hasDelay = PRIMARY_TEETH.some(t => {
+        const isErupted = !!eruptedTeeth[t.id];
+        const parts = t.eruptionMonths.split('-');
+        const max = parseInt(parts[1] || parts[0], 10);
+        return !isErupted && currentAge && currentAge > max;
+    });
+
+    const teethingMilestones = PRIMARY_TEETH.filter(t => {
+        const isErupted = !!eruptedTeeth[t.id];
+        const max = parseInt(t.eruptionMonths.split('-')[1] || t.eruptionMonths.split('-')[0], 10);
+        const isDelayed = !isErupted && currentAge && currentAge > max;
+        return isErupted || isDelayed;
+    });
 
     const getToothColor = (toothId) => {
         if (eruptedTeeth[toothId]) return '#1E3A8A';
@@ -137,11 +154,8 @@ export default function TeethingChartScreen() {
         if (childAgeAtEruption === null || childAgeAtEruption === undefined) return null;
         const parts = eruptionMonthsStr.split('-');
         const min = parseInt(parts[0], 10);
-        const max = parseInt(parts[1], 10);
         if (childAgeAtEruption < min) {
             return { text: 'Early', color: '#10B981', label: 'Erupted early' };
-        } else if (childAgeAtEruption > max) {
-            return { text: 'Delayed', color: '#F59E0B', label: 'Erupted later than typical' };
         } else {
             return { text: 'Typical', color: '#3B82F6', label: 'Erupted on time' };
         }
@@ -163,7 +177,7 @@ export default function TeethingChartScreen() {
                         <Text style={{ fontWeight: 'bold', color: '#37474F', fontSize: 13 }}>Why track teething?</Text>
                     </View>
                     <Text style={{ color: '#455A64', fontSize: 12, lineHeight: 16 }}>
-                        Tracking when teeth come in helps you make sure your child's mouth is developing well. It also explains why they might be fussy or drooling more.
+                        Tracking when teeth come in helps you make sure your child&apos;s mouth is developing well. It also explains why they might be fussy or drooling more.
                     </Text>
                 </View>
 
@@ -227,44 +241,101 @@ export default function TeethingChartScreen() {
                 </View>
 
                 {/* Erupted Teeth Timeline */}
-                {eruptedCount > 0 && (
+                {teethingMilestones.length > 0 && (
                     <View style={styles.timelineSection}>
                         <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
                             Teething Timeline & Milestones
                         </Text>
                         <View style={[styles.timelineCard, { backgroundColor: colorScheme.surface }]}>
-                            {PRIMARY_TEETH.filter(t => eruptedTeeth[t.id]).map((tooth) => {
-                                const log = eruptedTeeth[tooth.id];
-                                const eruptionDate = new Date(log.date);
-                                const childAgeAtEruption = selectedChild?.date_of_birth
-                                    ? Math.floor((eruptionDate.getTime() - new Date(selectedChild.date_of_birth).getTime()) / (1000 * 60 * 60 * 24 * 30.44))
-                                    : null;
-                                const status = getTeethingStatus(childAgeAtEruption, tooth.eruptionMonths);
-                                
-                                return (
-                                    <View key={tooth.id} style={styles.timelineItem}>
-                                        <View style={styles.timelineDot} />
-                                        <View style={{ flex: 1 }}>
-                                            <Text style={[styles.timelineToothName, { color: colorScheme.textPrimary }]}>
-                                                {tooth.name}
-                                            </Text>
-                                            <Text style={{ fontSize: 11, color: colorScheme.textSecondary }}>
-                                                Erupted: {eruptionDate.toLocaleDateString()} (at {childAgeAtEruption ?? '?'} months)
-                                            </Text>
-                                            <Text style={{ fontSize: 11, color: colorScheme.textTertiary }}>
-                                                Typical window: {tooth.eruptionMonths} months
-                                            </Text>
-                                        </View>
-                                        {status && (
-                                            <View style={{ backgroundColor: `${status.color}20`, paddingHorizontal: Spacing.sm, paddingVertical: 2, borderRadius: BorderRadius.sm }}>
-                                                <Text style={{ color: status.color, fontSize: 10, fontWeight: 'bold' }}>
-                                                    {status.text}
+                            {teethingMilestones.map((tooth) => {
+                                const isErupted = !!eruptedTeeth[tooth.id];
+                                if (isErupted) {
+                                    const log = eruptedTeeth[tooth.id];
+                                    const eruptionDate = new Date(log.date);
+                                    const childAgeAtEruption = selectedChild?.date_of_birth
+                                        ? Math.floor((eruptionDate.getTime() - new Date(selectedChild.date_of_birth).getTime()) / (1000 * 60 * 60 * 24 * 30.44))
+                                        : null;
+                                    const status = getTeethingStatus(childAgeAtEruption, tooth.eruptionMonths);
+                                    
+                                    return (
+                                        <View key={tooth.id} style={styles.timelineItem}>
+                                            <View style={styles.timelineDot} />
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={[styles.timelineToothName, { color: colorScheme.textPrimary }]}>
+                                                    {tooth.name}
+                                                </Text>
+                                                <Text style={{ fontSize: 11, color: colorScheme.textSecondary }}>
+                                                    Erupted at {childAgeAtEruption ?? '?'} months old
+                                                </Text>
+                                                <Text style={{ fontSize: 11, color: colorScheme.textTertiary }}>
+                                                    Typical window: {tooth.eruptionMonths} months
                                                 </Text>
                                             </View>
-                                        )}
-                                    </View>
-                                );
+                                            {status && (
+                                                <View style={{ backgroundColor: `${status.color}20`, paddingHorizontal: Spacing.sm, paddingVertical: 2, borderRadius: BorderRadius.sm }}>
+                                                    <Text style={{ color: status.color, fontSize: 10, fontWeight: 'bold' }}>
+                                                        {status.text}
+                                                    </Text>
+                                                </View>
+                                            )}
+                                        </View>
+                                    );
+                                } else {
+                                    return (
+                                        <View key={tooth.id} style={styles.timelineItem}>
+                                            <View style={[styles.timelineDot, { backgroundColor: '#EF4444' }]} />
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={[styles.timelineToothName, { color: colorScheme.textPrimary }]}>
+                                                    {tooth.name} (Not Erupted)
+                                                </Text>
+                                                <Text style={{ fontSize: 11, color: '#EF4444', fontWeight: '500' }}>
+                                                    Delayed
+                                                </Text>
+                                                <Text style={{ fontSize: 11, color: colorScheme.textTertiary }}>
+                                                    Typical window: {tooth.eruptionMonths} months
+                                                </Text>
+                                            </View>
+                                            <View style={{ backgroundColor: '#FEF2F2', paddingHorizontal: Spacing.sm, paddingVertical: 2, borderRadius: BorderRadius.sm, borderColor: '#EF4444', borderWidth: 1 }}>
+                                                <Text style={{ color: '#EF4444', fontSize: 10, fontWeight: 'bold' }}>
+                                                    Delayed
+                                                </Text>
+                                            </View>
+                                        </View>
+                                    );
+                                }
                             })}
+                        </View>
+                    </View>
+                )}
+
+                {/* Teething Interpretation Card */}
+                {currentAge !== null && (
+                    <View style={styles.interpretationSection}>
+                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
+                            Interpretation
+                        </Text>
+                        <View style={[
+                            styles.interpretationCard,
+                            {
+                                backgroundColor: hasDelay ? '#FEF2F2' : '#ECFDF5',
+                                borderColor: hasDelay ? '#EF444425' : '#10B98125',
+                            }
+                        ]}>
+                            <View style={styles.interpretationHeader}>
+                                <MaterialIcons 
+                                    name={hasDelay ? "warning" : "check-circle"} 
+                                    size={18} 
+                                    color={hasDelay ? "#EF4444" : "#10B981"} 
+                                />
+                                <Text style={[styles.interpretationStatus, { color: hasDelay ? "#EF4444" : "#10B981" }]}>
+                                    Interpretation: {hasDelay ? "Teething Delay" : "Normal Teething"}
+                                </Text>
+                            </View>
+                            <Text style={[styles.interpretationDesc, { color: colorScheme.textSecondary }]}>
+                                {hasDelay 
+                                    ? "There is a delay in the eruption of some teeth. Please consult your doctor for guidance."
+                                    : "Your child's teeth are erupting within the normal range. Keep tracking to monitor their growth."}
+                            </Text>
                         </View>
                     </View>
                 )}
@@ -462,5 +533,29 @@ const styles = StyleSheet.create({
     timelineToothName: {
         fontSize: Typography.fontSize.sm,
         fontWeight: Typography.fontWeight.semibold,
+    },
+    interpretationSection: {
+        paddingHorizontal: Spacing.lg,
+        marginBottom: Spacing.lg,
+    },
+    interpretationCard: {
+        padding: Spacing.md,
+        borderRadius: BorderRadius.md,
+        borderWidth: 1,
+        gap: Spacing.xs,
+    },
+    interpretationHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.xs,
+        marginBottom: 4,
+    },
+    interpretationStatus: {
+        fontSize: Typography.fontSize.sm,
+        fontWeight: 'bold',
+    },
+    interpretationDesc: {
+        fontSize: 12,
+        lineHeight: 16,
     },
 });

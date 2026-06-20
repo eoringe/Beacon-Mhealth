@@ -130,47 +130,13 @@ export default function MilestoneChecklist() {
   const handleDownloadPDF = async () => {
     if (!selectedChild) return;
     
-    // Constraints check
-    if (isOver18Months) {
-      // Must finish ASD screener to download the report
-      const hasAsd = asdScreenings && asdScreenings.length > 0;
-      if (!hasAsd) {
-        showAlert(
-          'Requirements Not Met',
-          'Children over 18 months must complete both the Milestones Checklist and the ASD Screener to download the Comprehensive Report.',
-          [
-            { text: 'Cancel' },
-            { text: 'Go to ASD Screener', onPress: () => router.push('/(tabs)/asd-checklist') }
-          ],
-          'info'
-        );
-        return;
-      }
-      
-      // If completed ASD, generate comprehensive report
-      setDownloading(true);
-      try {
-        await reportService.generateComprehensiveReport(
-          selectedChild,
-          selectedAge,
-          allResponses,
-          asdScreenings[0]
-        );
-      } catch (err) {
-        showAlert('Error', 'Failed to generate comprehensive report PDF.', [], 'error');
-      } finally {
-        setDownloading(false);
-      }
-    } else {
-      // Under 18 months - can download milestone summary alone
-      setDownloading(true);
-      try {
-        await reportService.generateMilestoneReport(selectedChild, selectedAge, allResponses);
-      } catch (err) {
-        showAlert('Error', 'Failed to generate milestone summary PDF.', [], 'error');
-      } finally {
-        setDownloading(false);
-      }
+    setDownloading(true);
+    try {
+      await reportService.generateMilestoneReport(selectedChild, selectedAge, allResponses);
+    } catch (err) {
+      showAlert('Error', 'Failed to generate milestone summary PDF.', [], 'error');
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -196,6 +162,31 @@ export default function MilestoneChecklist() {
           </View>
         ) : (
           <>
+            {/* Category Cards */}
+            {MILESTONE_CATEGORIES.map((category) => {
+              const catStat = stats.categoryStats[category.id] || { achieved: 0, total: 0, answered: 0 };
+              const milestones = getMilestonesForAge(selectedAge)?.[category.id] || [];
+              
+              return (
+                <TouchableOpacity
+                  key={category.id}
+                  style={[styles.categoryCard, { backgroundColor: colorScheme.surface }]}
+                  onPress={() => router.push(`/dashboard/milestone-checklist/${category.id}?age=${selectedAge}`)}
+                >
+                  <View style={[styles.categoryIcon, { backgroundColor: `${category.color}15` }]}>
+                    <MaterialIcons name={category.icon} size={28} color={category.color} />
+                  </View>
+                  <View style={styles.categoryInfo}>
+                    <Text style={[styles.categoryTitle, { color: colorScheme.textPrimary }]}>{category.title}</Text>
+                    <Text style={[styles.milestoneCount, { color: colorScheme.textSecondary }]}>
+                      {catStat.achieved} / {catStat.total} Achieved ({catStat.answered} checked)
+                    </Text>
+                  </View>
+                  <MaterialIcons name="chevron-right" size={24} color={colorScheme.textTertiary} />
+                </TouchableOpacity>
+              );
+            })}
+
             {/* Achievement Summary Card */}
             <View style={[styles.summaryCard, { backgroundColor: isDark ? colorScheme.surface : '#F5F3FF', borderColor: colorScheme.border }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.xs }}>
@@ -223,7 +214,7 @@ export default function MilestoneChecklist() {
                     <>
                       <MaterialIcons name="download" size={18} color="#FFF" />
                       <Text style={styles.actionButtonText}>
-                        {isOver18Months ? 'Comprehensive Report' : 'Download Summary PDF'}
+                        Milestone Report
                       </Text>
                     </>
                   )}
@@ -258,31 +249,6 @@ export default function MilestoneChecklist() {
                 </View>
               )}
             </View>
-
-            {/* Category Cards */}
-            {MILESTONE_CATEGORIES.map((category) => {
-              const catStat = stats.categoryStats[category.id] || { achieved: 0, total: 0, answered: 0 };
-              const milestones = getMilestonesForAge(selectedAge)?.[category.id] || [];
-              
-              return (
-                <TouchableOpacity
-                  key={category.id}
-                  style={[styles.categoryCard, { backgroundColor: colorScheme.surface }]}
-                  onPress={() => router.push(`/dashboard/milestone-checklist/${category.id}?age=${selectedAge}`)}
-                >
-                  <View style={[styles.categoryIcon, { backgroundColor: `${category.color}15` }]}>
-                    <MaterialIcons name={category.icon} size={28} color={category.color} />
-                  </View>
-                  <View style={styles.categoryInfo}>
-                    <Text style={[styles.categoryTitle, { color: colorScheme.textPrimary }]}>{category.title}</Text>
-                    <Text style={[styles.milestoneCount, { color: colorScheme.textSecondary }]}>
-                      {catStat.achieved} / {catStat.total} Achieved ({catStat.answered} checked)
-                    </Text>
-                  </View>
-                  <MaterialIcons name="chevron-right" size={24} color={colorScheme.textTertiary} />
-                </TouchableOpacity>
-              );
-            })}
           </>
         )}
 

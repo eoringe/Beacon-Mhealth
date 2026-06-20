@@ -54,7 +54,7 @@ export default function VaccinationsScreen() {
     const [completedVaccines, setCompletedVaccines] = useState([]);
     const [skippedVaccines, setSkippedVaccines] = useState([]);
     const [showScheduleModal, setShowScheduleModal] = useState(false);
-    
+
     const [activeTab, setActiveTab] = useState('moh');
     const [additionalVaccines, setAdditionalVaccines] = useState({});
     const [showDatePicker, setShowDatePicker] = useState(false);
@@ -71,7 +71,7 @@ export default function VaccinationsScreen() {
             const completedKey = `${STORAGE_KEY}_${selectedChild.id}`;
             const skippedKey = `${SKIPPED_STORAGE_KEY}_${selectedChild.id}`;
             const addKey = `${ADDITIONAL_VACCINES_KEY}_${selectedChild.id}`;
-            
+
             const [completedStored, skippedStored, addStored] = await Promise.all([
                 AsyncStorage.getItem(completedKey),
                 AsyncStorage.getItem(skippedKey),
@@ -266,6 +266,8 @@ export default function VaccinationsScreen() {
     // Combine vaccines with status for display
     const allVaccines = useMemo(() => {
         const vaccines = [];
+        const notDueYetVaccines = [];
+
         const completedMap = completedVaccines.reduce((acc, v) => {
             acc[v.id] = { date: v.givenDate, status: 'completed' };
             return acc;
@@ -282,7 +284,12 @@ export default function VaccinationsScreen() {
             vaccines.push({ ...v, status: 'due' });
         });
         vaccinationStatus.upcomingVaccines.forEach(v => {
-            vaccines.push({ ...v, status: 'upcoming' });
+            const isTooFar = v.ageWeeks > (vaccinationStatus.ageInWeeks + 4.33);
+            if (isTooFar) {
+                notDueYetVaccines.push({ ...v, status: 'not_due_yet' });
+            } else {
+                vaccines.push({ ...v, status: 'upcoming' });
+            }
         });
         vaccinationStatus.completedVaccines.forEach(v => {
             const skipData = skippedMap[v.id];
@@ -292,6 +299,9 @@ export default function VaccinationsScreen() {
                 vaccines.push({ ...v, status: 'completed', givenDate: completedMap[v.id]?.date });
             }
         });
+
+        // Put "not due yet" vaccines at the very bottom of the list
+        vaccines.push(...notDueYetVaccines);
 
         return vaccines;
     }, [vaccinationStatus, completedVaccines, skippedVaccines]);
@@ -312,6 +322,7 @@ export default function VaccinationsScreen() {
         if (status === 'completed') return colorScheme.vaccineCompleted;
         if (status === 'skipped') return colorScheme.textTertiary;
         if (status === 'upcoming') return colorScheme.vaccineUpcoming;
+        if (status === 'not_due_yet') return colorScheme.textTertiary;
         if (status === 'overdue') return '#FF9800'; // Amber, no red
         if (status === 'due') return '#FF9800';
         return colorScheme.textTertiary;
@@ -321,6 +332,7 @@ export default function VaccinationsScreen() {
         if (status === 'completed') return 'Received';
         if (status === 'skipped') return 'Skipped';
         if (status === 'due' || status === 'overdue') return 'Confirm Administration';
+        if (status === 'not_due_yet') return 'Not due yet';
         return status.charAt(0).toUpperCase() + status.slice(1);
     };
 
@@ -331,6 +343,7 @@ export default function VaccinationsScreen() {
         upcoming: vaccinationStatus.upcomingVaccines.length,
         missedCount: vaccinationStatus.overdueVaccines.length,
         unconfirmedCount: vaccinationStatus.dueVaccines.length,
+        notDueCount: allVaccines.filter(v => v.status === 'not_due_yet').length,
     };
 
     const childName = selectedChild?.first_name || selectedChild?.fullname || 'Your child';
@@ -418,36 +431,56 @@ export default function VaccinationsScreen() {
                     <View style={styles.summaryRow}>
                         {/* 1. Missed Vaccines */}
                         <View style={styles.summaryItem}>
-                            <Text style={[styles.summaryValue, { color: '#F44336' }]}>
-                                {stats.missedCount}
-                            </Text>
-                            <Text style={[styles.summaryLabel, { color: colorScheme.textSecondary }]}>
+                            <View style={{ height: 30, justifyContent: 'center', alignItems: 'center' }}>
+                                <Text style={[styles.summaryValue, { color: '#F44336', marginBottom: 0 }]} allowFontScaling={false}>
+                                    {stats.missedCount}
+                                </Text>
+                            </View>
+                            <Text style={[styles.summaryLabel, { color: colorScheme.textSecondary, marginTop: 4 }]} allowFontScaling={false}>
                                 Missed
                             </Text>
                         </View>
                         <View style={[styles.summaryDivider, { backgroundColor: colorScheme.border }]} />
-                        
+
                         {/* 2. Unconfirmed */}
                         <View style={styles.summaryItem}>
-                            <Text style={[styles.summaryValue, { color: '#FF9800' }]}>
-                                {stats.unconfirmedCount}
-                            </Text>
-                            <Text style={[styles.summaryLabel, { color: colorScheme.textSecondary }]}>
+                            <View style={{ height: 30, justifyContent: 'center', alignItems: 'center' }}>
+                                <Text style={[styles.summaryValue, { color: '#FF9800', marginBottom: 0 }]} allowFontScaling={false}>
+                                    {stats.unconfirmedCount}
+                                </Text>
+                            </View>
+                            <Text style={[styles.summaryLabel, { color: colorScheme.textSecondary, marginTop: 4 }]} allowFontScaling={false}>
                                 Unconfirmed
                             </Text>
                         </View>
                         <View style={[styles.summaryDivider, { backgroundColor: colorScheme.border }]} />
-                        
+
+                        {/* 2b. Not Due */}
+                        <View style={styles.summaryItem}>
+                            <View style={{ height: 30, justifyContent: 'center', alignItems: 'center' }}>
+                                <Text style={[styles.summaryValue, { color: colorScheme.textSecondary, marginBottom: 0 }]} allowFontScaling={false}>
+                                    {stats.notDueCount}
+                                </Text>
+                            </View>
+                            <Text style={[styles.summaryLabel, { color: colorScheme.textSecondary, marginTop: 4 }]} allowFontScaling={false}>
+                                Not Due
+                            </Text>
+                        </View>
+                        <View style={[styles.summaryDivider, { backgroundColor: colorScheme.border }]} />
+
                         {/* 3. Overall Status */}
                         <View style={styles.summaryItem}>
-                            <Text style={[styles.summaryValue, { 
-                                fontSize: 13, 
-                                color: stats.missedCount > 0 ? '#F44336' : stats.unconfirmedCount > 0 ? '#FF9800' : '#4CAF50',
-                                fontWeight: 'bold'
-                            }]}>
-                                {stats.missedCount > 0 ? 'Missed' : stats.unconfirmedCount > 0 ? 'Pending' : 'Up-to-date'}
-                            </Text>
-                            <Text style={[styles.summaryLabel, { color: colorScheme.textSecondary }]}>
+                            <View style={{ height: 30, justifyContent: 'center', alignItems: 'center' }}>
+                                <Text style={{
+                                    fontSize: 12,
+                                    color: stats.missedCount > 0 ? '#F44336' : stats.unconfirmedCount > 0 ? '#FF9800' : '#4CAF50',
+                                    fontWeight: 'bold',
+                                    textAlign: 'center'
+                                }} allowFontScaling={false} numberOfLines={1} adjustsFontSizeToFit>
+                                    {stats.missedCount > 0 ? 'Missed' : stats.unconfirmedCount > 0 ? 'Pending' : 'Up-to-date'}
+                                </Text>
+                            </View>
+                            <Text style={[styles.summaryLabel, { color: colorScheme.textSecondary, marginTop: 4 }]} allowFontScaling={false}>
                                 Status
                             </Text>
                         </View>
@@ -455,10 +488,10 @@ export default function VaccinationsScreen() {
                 </View>
 
                 {/* User Instruction Banner */}
-                <View style={{ backgroundColor: '#FFF9C4', borderColor: '#FBC02D', borderWidth: 1, marginHorizontal: Spacing.lg, marginBottom: Spacing.md, padding: Spacing.md, borderRadius: BorderRadius.md, flexDirection: 'row', gap: Spacing.xs, alignItems: 'center' }}>
-                    <MaterialIcons name="info" size={18} color="#F57F17" />
-                    <Text style={{ color: '#F57F17', fontSize: 11, flex: 1, fontWeight: '500', lineHeight: 15 }}>
-                        Instruction: Review missed or upcoming vaccines below. You can confirm administration or mark high-risk vaccines as skipped.
+                <View style={{ backgroundColor: '#FFF9C4', borderColor: '#FBC02D', borderWidth: 1, marginHorizontal: Spacing.lg, marginBottom: Spacing.md, padding: Spacing.md, borderRadius: BorderRadius.md, flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start' }}>
+                    <MaterialIcons name="info" size={20} color="#F57F17" style={{ marginTop: 1 }} />
+                    <Text style={{ color: '#F57F17', fontSize: 11, flex: 1, fontWeight: '500', lineHeight: 16 }}>
+                        {"Review the vaccine schedule below. Confirm administration of the regular or additional vaccines.\n\nPlease note that some vaccines may only be applicable to specific settings. This can be skipped if not applicable."}
                     </Text>
                 </View>
 
@@ -485,12 +518,23 @@ export default function VaccinationsScreen() {
                 {activeTab === 'moh' ? (
                     <>
                         {/* Filters */}
-                        <View style={styles.filtersContainer}>
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={{
+                                flexDirection: 'row',
+                                gap: Spacing.sm,
+                                paddingHorizontal: Spacing.lg,
+                                paddingBottom: 4
+                            }}
+                            style={{ marginBottom: Spacing.md }}
+                        >
                             {[
                                 { key: 'all', label: 'All' },
                                 { key: 'action', label: 'Pending Review' },
                                 { key: 'completed', label: 'Received' },
                                 { key: 'upcoming', label: 'Upcoming' },
+                                { key: 'not_due_yet', label: 'Not Due' },
                             ].map(filter => (
                                 <TouchableOpacity
                                     key={filter.key}
@@ -514,7 +558,7 @@ export default function VaccinationsScreen() {
                                     </Text>
                                 </TouchableOpacity>
                             ))}
-                        </View>
+                        </ScrollView>
 
                         {/* Vaccination List */}
                         <View style={styles.vaccineList}>
@@ -551,7 +595,7 @@ export default function VaccinationsScreen() {
                                                         color={colorScheme.textTertiary}
                                                     />
                                                 </View>
-                                                
+
                                                 <Text style={[styles.vaccineFullName, { color: colorScheme.textSecondary }]}>
                                                     {vaccine.fullName}
                                                 </Text>
@@ -633,7 +677,7 @@ export default function VaccinationsScreen() {
                                                                 <MaterialIcons name="check" size={18} color="#FFFFFF" />
                                                                 <Text style={styles.markButtonText}>Confirm Administration</Text>
                                                             </TouchableOpacity>
-                                                            
+
                                                             {vaccine.highRiskCountiesOnly && (
                                                                 <TouchableOpacity
                                                                     style={[styles.markButton, { backgroundColor: colorScheme.background, borderWidth: 1, borderColor: colorScheme.border }]}
@@ -670,7 +714,7 @@ export default function VaccinationsScreen() {
                             return (
                                 <View key={vaccine.id} style={[styles.vaccineCard, { backgroundColor: colorScheme.surface }]}>
                                     <View style={styles.vaccineHeader}>
-                                        <TouchableOpacity 
+                                        <TouchableOpacity
                                             style={[styles.vaccineIcon, { backgroundColor: isCompleted ? `${colorScheme.vaccineCompleted}15` : `${colorScheme.textTertiary}15` }]}
                                             onPress={() => handleToggleAdditional(vaccine.id)}
                                         >
@@ -690,9 +734,9 @@ export default function VaccinationsScreen() {
                                             <Text style={[styles.scheduleAge, { color: colorScheme.textTertiary, marginTop: 2 }]}>
                                                 {vaccine.note}
                                             </Text>
-                                            
+
                                             {isCompleted && (
-                                                <TouchableOpacity 
+                                                <TouchableOpacity
                                                     style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: Spacing.sm, backgroundColor: `${colorScheme.primary}15`, paddingHorizontal: Spacing.sm, paddingVertical: 4, borderRadius: BorderRadius.sm, alignSelf: 'flex-start' }}
                                                     onPress={() => {
                                                         setActiveVaccineId(vaccine.id);

@@ -71,8 +71,20 @@ export default function SleepTrackerScreen() {
         try {
             const key = `${STORAGE_KEY}_${childId}`;
             const stored = await AsyncStorage.getItem(key);
-            if (stored) setLogs(JSON.parse(stored));
-            else setLogs([]);
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                // Keep only logs from the last 7 days to keep storage size small
+                const cutoff = new Date();
+                cutoff.setDate(cutoff.getDate() - 7);
+                cutoff.setHours(0, 0, 0, 0);
+                const pruned = parsed.filter(l => new Date(l.timestamp) >= cutoff);
+                setLogs(pruned);
+                if (pruned.length !== parsed.length) {
+                    await AsyncStorage.setItem(key, JSON.stringify(pruned));
+                }
+            } else {
+                setLogs([]);
+            }
         } catch (e) {
             console.error('Error loading sleep logs:', e);
         }
@@ -81,7 +93,12 @@ export default function SleepTrackerScreen() {
     const saveLogs = async (newLogs) => {
         try {
             const key = `${STORAGE_KEY}_${childId}`;
-            await AsyncStorage.setItem(key, JSON.stringify(newLogs));
+            // Keep only logs from the last 7 days to keep storage size small
+            const cutoff = new Date();
+            cutoff.setDate(cutoff.getDate() - 7);
+            cutoff.setHours(0, 0, 0, 0);
+            const pruned = newLogs.filter(l => new Date(l.timestamp) >= cutoff);
+            await AsyncStorage.setItem(key, JSON.stringify(pruned));
         } catch (e) {
             console.error('Error saving sleep logs:', e);
         }
@@ -154,6 +171,8 @@ export default function SleepTrackerScreen() {
     const recommended = RECOMMENDED_SLEEP.find(r => childAgeMonths <= r.maxMonths) || RECOMMENDED_SLEEP[RECOMMENDED_SLEEP.length - 1];
     const progressPercent = Math.min(100, Math.round((todayTotalMinutes / (recommended.minHours * 60)) * 100));
     const interpretation = getSleepInterpretation(todayTotalMinutes, recommended);
+    const todayHoursDecimal = todayTotalMinutes / 60;
+    const isOptimal = todayTotalMinutes > 0 && todayHoursDecimal >= recommended.minHours && todayHoursDecimal <= recommended.maxHours;
 
     const formatTime = (isoString) => {
         const d = new Date(isoString);
@@ -194,10 +213,22 @@ export default function SleepTrackerScreen() {
 
     const getGroupedLogs = () => {
         const groups = {};
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const threeDaysAgo = new Date(today);
+        threeDaysAgo.setDate(today.getDate() - 2); // Today, Yesterday, and the day before (3 days)
+        
         logs.forEach(log => {
-            const date = new Date(log.timestamp).toDateString();
-            if (!groups[date]) groups[date] = [];
-            groups[date].push(log);
+            const logDate = new Date(log.timestamp);
+            const logDay = new Date(logDate);
+            logDay.setHours(0, 0, 0, 0);
+            
+            if (logDay >= threeDaysAgo) {
+                const dateKey = logDate.toDateString();
+                if (!groups[dateKey]) groups[dateKey] = [];
+                groups[dateKey].push(log);
+            }
         });
         return Object.entries(groups).sort((a, b) => new Date(b[0]) - new Date(a[0]));
     };
@@ -245,14 +276,14 @@ export default function SleepTrackerScreen() {
                 {/* Add Entry Button */}
                 <View style={{ paddingHorizontal: Spacing.lg, marginBottom: Spacing.md }}>
                     <TouchableOpacity
-                        style={[styles.addEntryBtnLarge, { backgroundColor: colorScheme.primary }]}
+                        style={[styles.addEntryBtnLarge, { backgroundColor: '#FF9800' }]}
                         onPress={() => {
                             setLogDate(new Date());
                             setShowAddModal(true);
                         }}
                     >
                         <MaterialIcons name="add" size={20} color="#FFFFFF" />
-                        <Text style={styles.addEntryBtnLargeText}>Add Sleep Entry</Text>
+                        <Text style={styles.addEntryBtnLargeText}>Add Sleep Entry Here</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -351,6 +382,38 @@ export default function SleepTrackerScreen() {
                         ))
                     )}
                 </View>
+
+                {/* Sleep Interpretation Card */}
+                {selectedChild && (
+                    <View style={styles.interpretationSection}>
+                        <Text style={[styles.sectionTitle, { color: colorScheme.textPrimary }]}>
+                            Interpretation
+                        </Text>
+                        <View style={[
+                            styles.interpretationCard,
+                            {
+                                backgroundColor: isOptimal ? '#ECFDF5' : '#FEF2F2',
+                                borderColor: isOptimal ? '#10B98125' : '#EF444425',
+                            }
+                        ]}>
+                            <View style={styles.interpretationHeader}>
+                                <MaterialIcons 
+                                    name={isOptimal ? "check-circle" : "warning"} 
+                                    size={18} 
+                                    color={isOptimal ? "#10B981" : "#EF4444"} 
+                                />
+                                <Text style={[styles.interpretationStatus, { color: isOptimal ? "#10B981" : "#EF4444" }]}>
+                                    Interpretation: {isOptimal ? "Optimal Sleep" : "Suboptimal Sleep"}
+                                </Text>
+                            </View>
+                            <Text style={[styles.interpretationDesc, { color: colorScheme.textSecondary }]}>
+                                {isOptimal 
+                                    ? "Your child has optimal sleep."
+                                    : "Your child has suboptimal sleep."}
+                            </Text>
+                        </View>
+                    </View>
+                )}
             </ScrollView>
 
             {/* Add Sleep Modal */}
@@ -711,5 +774,30 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: Typography.fontSize.sm,
         fontWeight: 'bold',
+    },
+    interpretationSection: {
+        paddingHorizontal: Spacing.lg,
+        marginBottom: Spacing.lg,
+        marginTop: Spacing.md,
+    },
+    interpretationCard: {
+        padding: Spacing.md,
+        borderRadius: BorderRadius.md,
+        borderWidth: 1,
+        gap: Spacing.xs,
+    },
+    interpretationHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.xs,
+        marginBottom: 4,
+    },
+    interpretationStatus: {
+        fontSize: Typography.fontSize.sm,
+        fontWeight: 'bold',
+    },
+    interpretationDesc: {
+        fontSize: 12,
+        lineHeight: 16,
     },
 });

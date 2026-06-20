@@ -21,6 +21,7 @@ import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import { WHOChart } from '@/components/WHOChart';
 import growthService from '@/services/growthService';
 import { childService } from '@/services/childService';
+import { getGrowthInterpretation } from '@/utils/growthHelpers';
 
 export default function GrowthChartScreen() {
     const insets = useSafeAreaInsets();
@@ -83,15 +84,24 @@ export default function GrowthChartScreen() {
     const processData = (type) => {
         if (!child || !measurements.length) return [];
 
-        return measurements
+        const mapped = measurements
             .filter(m => m[type] !== null && m[type] !== undefined)
             .map(m => ({
                 x: calculateAgeInMonths(child.date_of_birth, m.recorded_date),
                 y: parseFloat(m[type]),
                 date: m.recorded_date,
                 id: m.id
-            }))
-            .sort((a, b) => a.x - b.x);
+            }));
+
+        // Sort by date ascending so that the latest recorded date naturally overwrites previous ones for the same month
+        mapped.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        const uniqueByMonth = {};
+        for (const item of mapped) {
+            uniqueByMonth[item.x] = item;
+        }
+
+        return Object.values(uniqueByMonth).sort((a, b) => a.x - b.x);
     };
 
     const heightData = processData('height');
@@ -124,6 +134,15 @@ export default function GrowthChartScreen() {
 
     const currentData = getCurrentData();
     const latestMeasurement = currentData.length > 0 ? currentData[currentData.length - 1] : null;
+    const genderLabel = (child?.gender || selectedChild?.gender)?.toLowerCase() === 'female' || (child?.gender || selectedChild?.gender)?.toLowerCase() === 'girl' ? 'Girls' : 'Boys';
+    const interpretation = latestMeasurement
+        ? getGrowthInterpretation(
+            child?.gender || selectedChild?.gender,
+            selectedTab,
+            latestMeasurement.x,
+            latestMeasurement.y
+          )
+        : null;
 
     if (loading) {
         return <LoadingScreen text="Loading growth data..." />;
@@ -163,11 +182,11 @@ export default function GrowthChartScreen() {
                 {/* Add Entry Button */}
                 <View style={{ paddingHorizontal: Spacing.lg, marginBottom: Spacing.md }}>
                     <TouchableOpacity
-                        style={[styles.addEntryBtnLarge, { backgroundColor: colorScheme.primary }]}
+                        style={[styles.addEntryBtnLarge, { backgroundColor: '#FBBF24' }]}
                         onPress={() => router.push({ pathname: '/dashboard/growth-chart/add-measurement', params: { childId: activeChildId } })}
                     >
-                        <MaterialIcons name="add" size={20} color="#FFFFFF" />
-                        <Text style={styles.addEntryBtnLargeText}>Add Growth Entry</Text>
+                        <MaterialIcons name="add" size={20} color="#1F2937" />
+                        <Text style={[styles.addEntryBtnLargeText, { color: '#1F2937' }]}>Add Growth Entry Here</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -233,7 +252,7 @@ export default function GrowthChartScreen() {
                 {/* Chart */}
                 <View style={[styles.chartCard, { backgroundColor: colorScheme.surface }]}>
                     <Text style={[styles.chartTitle, { color: colorScheme.textPrimary }]}>
-                        {getCurrentLabel()} Over Time
+                        {getCurrentLabel()} Over Time ({genderLabel})
                     </Text>
 
                     <View style={styles.chartContainer}>
@@ -250,8 +269,29 @@ export default function GrowthChartScreen() {
                         />
                     </View>
                     <Text style={[styles.chartStatus, { color: colorScheme.textTertiary }]}>
-                        Plotted against WHO global growth standards
+                        Plotted against WHO global growth standards for {genderLabel}
                     </Text>
+
+                    {/* Chart Interpretation Card */}
+                    {interpretation && (
+                        <View style={[
+                            styles.interpretationCard,
+                            {
+                                backgroundColor: interpretation.lightBg,
+                                borderColor: interpretation.color + '25',
+                            }
+                        ]}>
+                            <View style={styles.interpretationHeader}>
+                                <MaterialIcons name="analytics" size={18} color={interpretation.color} />
+                                <Text style={[styles.interpretationStatus, { color: interpretation.color }]}>
+                                    Interpretation: {interpretation.status}
+                                </Text>
+                            </View>
+                            <Text style={[styles.interpretationDesc, { color: colorScheme.textSecondary }]}>
+                                {interpretation.description}
+                            </Text>
+                        </View>
+                    )}
                 </View>
 
                 {/* Measurement History */}
@@ -481,5 +521,25 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: Typography.fontSize.sm,
         fontWeight: 'bold',
+    },
+    interpretationCard: {
+        marginTop: Spacing.md,
+        padding: Spacing.md,
+        borderRadius: BorderRadius.md,
+        borderWidth: 1,
+        gap: Spacing.xs,
+    },
+    interpretationHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: Spacing.xs,
+    },
+    interpretationStatus: {
+        fontSize: Typography.fontSize.sm,
+        fontWeight: 'bold',
+    },
+    interpretationDesc: {
+        fontSize: 12,
+        lineHeight: 16,
     },
 });

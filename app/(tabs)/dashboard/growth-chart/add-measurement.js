@@ -20,6 +20,7 @@ import { SafeHeader } from '@/components/SafeHeader';
 import { Spacing, Typography, BorderRadius, Shadow } from '@/constants/theme';
 import growthService from '@/services/growthService';
 import { useAlert } from '@/contexts/AlertContext';
+import { getGrowthRange } from '@/utils/growthHelpers';
 
 export default function AddMeasurementScreen() {
     const insets = useSafeAreaInsets();
@@ -40,6 +41,14 @@ export default function AddMeasurementScreen() {
         headCircumference: '',
     });
 
+    const calculateAgeInMonths = (birthDate, recordDate) => {
+        if (!birthDate || !recordDate) return 0;
+        const dob = new Date(birthDate);
+        const record = new Date(recordDate);
+        const months = (record.getFullYear() - dob.getFullYear()) * 12 + (record.getMonth() - dob.getMonth());
+        return Math.max(0, months);
+    };
+
     const handleSave = async () => {
         if (contextLoading) {
             showAlert('Wait', 'Loading child data, please try again in a moment.', [], 'info');
@@ -59,6 +68,37 @@ export default function AddMeasurementScreen() {
         if (!measurementData.weight && !measurementData.height && !measurementData.headCircumference) {
             showAlert('Error', 'Please enter at least one measurement (Weight, Height, or Head Circumference)', [], 'error');
             return;
+        }
+
+        // Validate values against standard ranges
+        const ageMonths = calculateAgeInMonths(selectedChild?.date_of_birth, measurementData.date);
+        const gender = selectedChild?.gender || 'boy';
+
+        if (measurementData.height) {
+            const val = parseFloat(measurementData.height);
+            const range = getGrowthRange(gender, 'height', ageMonths);
+            if (range && (val < range.min || val > range.max)) {
+                showAlert('Invalid Height', `Height for a ${ageMonths} months old child must be between ${range.min} cm and ${range.max} cm.`, [], 'error');
+                return;
+            }
+        }
+
+        if (measurementData.weight) {
+            const val = parseFloat(measurementData.weight);
+            const range = getGrowthRange(gender, 'weight', ageMonths);
+            if (range && (val < range.min || val > range.max)) {
+                showAlert('Invalid Weight', `Weight for a ${ageMonths} months old child must be between ${range.min} kg and ${range.max} kg.`, [], 'error');
+                return;
+            }
+        }
+
+        if (measurementData.headCircumference) {
+            const val = parseFloat(measurementData.headCircumference);
+            const range = getGrowthRange(gender, 'headCircumference', ageMonths);
+            if (range && (val < range.min || val > range.max)) {
+                showAlert('Invalid Head Circumference', `Head Circumference for a ${ageMonths} months old child must be between ${range.min} cm and ${range.max} cm.`, [], 'error');
+                return;
+            }
         }
 
         setLoading(true);
@@ -117,7 +157,7 @@ export default function AddMeasurementScreen() {
                     <View style={[styles.infoCard, { backgroundColor: `${colorScheme.primary}15` }]}>
                         <MaterialIcons name="info-outline" size={20} color={colorScheme.primary} />
                         <Text style={[styles.infoText, { color: colorScheme.textSecondary }]}>
-                            Record your child's growth measurements to track their development over time.
+                            Record your child&apos;s growth measurements to track their development over time.
                         </Text>
                     </View>
 

@@ -505,6 +505,28 @@ class SyncService {
                             }
                         }
 
+                        // 3b. Rename any AsyncStorage keys for child trackers (completed, skipped, and additional vaccines, sleep/feeding logs, and teething data)
+                        const asyncStorageKeys = [
+                            { oldKey: `completed_vaccines_${tempId}`, newKey: `completed_vaccines_${realId}` },
+                            { oldKey: `skipped_vaccines_${tempId}`, newKey: `skipped_vaccines_${realId}` },
+                            { oldKey: `additional_vaccines_${tempId}`, newKey: `additional_vaccines_${realId}` },
+                            { oldKey: `sleep_logs_${tempId}`, newKey: `sleep_logs_${realId}` },
+                            { oldKey: `feeding_logs_${tempId}`, newKey: `feeding_logs_${realId}` },
+                            { oldKey: `teething_data_${tempId}`, newKey: `teething_data_${realId}` }
+                        ];
+                        for (const { oldKey, newKey } of asyncStorageKeys) {
+                            try {
+                                const val = await AsyncStorage.getItem(oldKey);
+                                if (val) {
+                                    await AsyncStorage.setItem(newKey, val);
+                                    await AsyncStorage.removeItem(oldKey);
+                                    console.log(`[SyncService] Renamed AsyncStorage key from ${oldKey} to ${newKey}`);
+                                }
+                            } catch (err) {
+                                console.error(`[SyncService] Error renaming AsyncStorage key from ${oldKey} to ${newKey}:`, err);
+                            }
+                        }
+
                         // 4. Notify all subscribers (e.g. ChildContext)
                         this.notify('CHILD_ID_RESOLVED', { tempId, realId });
                     }
