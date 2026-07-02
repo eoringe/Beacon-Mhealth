@@ -2,3 +2,17 @@ android/
 ios/
 node_modules/
 .expo/
+backend/
+beacon-ai-service/
+dist/
+*.traineddata
+*.md
+git_diff.txt
+prev_app.json
+check_appointments.js
+check_schema.js
+reproduce_issue.js
+generate_google_token.js
+scripts/
+.git/
+.vscode/
