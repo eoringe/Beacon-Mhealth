@@ -1,4 +1,4 @@
-# 🏥 Beacon HUB — Digital Pediatric & Neurodevelopmental Health Platform
+# 🏥 Beacon HUB — Digital Paediatric & Neurodevelopmental Health Platform
 
 [![Platform: React Native / Expo](https://img.shields.io/badge/Platform-React%20Native%20%7C%20Expo-000?style=for-the-badge&logo=expo)](https://expo.dev)
 [![Backend: Node.js / Express](https://img.shields.io/badge/Backend-Node.js%20%7C%20Express-339933?style=for-the-badge&logo=node.js)](https://nodejs.org)
