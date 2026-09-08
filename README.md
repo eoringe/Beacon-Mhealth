@@ -41,7 +41,7 @@ In resource-constrained and developing settings, developmental delays, autism sp
 
 **Beacon HUB** bridges these systemic gaps by providing:
 1. **Longitudinal Developmental Tracking & Screening:** Clinically structured milestone evaluations and standardized Autism Spectrum Disorder (ASD / M-CHAT aligned) digital assessments.
-2. **24/7 AI-Powered Pediatric Assistant:** Real-time caregiver education on therapies, assessments, clinic navigation, and general developmental concerns.
+2. **24/7 AI-Powered Paediatric Assistant:** Real-time caregiver education on therapies, assessments, clinic navigation, and general developmental concerns.
 3. **EHR Continuity & Onboarding:** Seamless switching between new child registration and existing hospital client record verification.
 4. **Frictionless Teleconsultations & Mobile Money:** Integrated virtual specialist consultations powered by **Safaricom M-Pesa STK Push**, democratizing access to scarce clinicians regardless of distance.
 
