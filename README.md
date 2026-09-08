@@ -5,15 +5,14 @@
 [![Database: PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL-4169E1?style=for-the-badge&logo=postgresql)](https://www.postgresql.org)
 [![Payments: Safaricom M--Pesa](https://img.shields.io/badge/Payments-M--Pesa%20Daraja-00B140?style=for-the-badge)](https://developer.safaricom.co.ke)
 [![AI Assistant: Beacon AI](https://img.shields.io/badge/AI%20Assistant-Pediatric%20Knowledge-FF6F00?style=for-the-badge)](https://beaconchildrencentre.com)
-[![UNICEF Review](https://img.shields.io/badge/Target%20Audience-UNICEF%20%7C%20Global%20Health%20Partners-00ADEF?style=for-the-badge&logo=unicef)](https://www.unicef.org)
+[![Beacon Children's Centre](https://img.shields.io/badge/Center-Beacon%20Children's%20Centre-00ADEF?style=for-the-badge)](https://beaconchildrencentre.com)
 
 ---
 
 ## 📑 Table of Contents
 
 - [Executive Summary](#-executive-summary)
-- [Project Vision & UNICEF Strategic Alignment](#-project-vision--unicef-strategic-alignment)
-- [System Architecture](#-system-architecture)
+- [Project Vision & Strategic Impact](#-project-vision--strategic-impact)
 - [Core Features & Clinical Workflows](#-core-features--clinical-workflows)
   - [1. Comprehensive Child Onboarding & Record Linking (`AddChild`)](#1-comprehensive-child-onboarding--record-linking)
   - [2. Age-Calibrated Developmental Milestones Checker (`MilestoneChecker`)](#2-age-calibrated-developmental-milestones-checker)
@@ -48,70 +47,17 @@ In resource-constrained and developing settings, developmental delays, autism sp
 
 ---
 
-## 🎯 Project Vision & UNICEF Strategic Alignment
+## 🎯 Project Vision & Strategic Impact
 
-Beacon HUB is purpose-built to accelerate **UNICEF's Strategic Plan for Health & Early Childhood Development (ECD)** and contribute directly to the United Nations Sustainable Development Goals (**SDG 3**):
+Beacon HUB is purpose-built to advance early childhood development (ECD) and pediatric neurodevelopmental care, contributing directly to the United Nations Sustainable Development Goals (**SDG 3**):
 
-| UNICEF Global ECD & Health Priority | Beacon HUB Implementation & Direct Impact |
+| Strategic Health & ECD Priority | Beacon HUB Implementation & Direct Impact |
 | :--- | :--- |
 | **Every Child Survives & Thrives (SDG 3.2)** | Individualized digital vaccination timelines adhering to KEPI protocols; nutritional feeding monitors to safeguard infant health. |
 | **Early Identification of Disabilities & Delays** | Validated Milestones Checker and ASD early screening tools enabling timely clinical triage during peak neural plasticity (ages 0–5). |
 | **Universal Health Coverage & Specialist Equity (SDG 3.8)** | Remote teleconsultation connecting underserved families to specialized Occupational Therapists, Speech Therapists, and Developmental Pediatricians. |
 | **Equitable Financing via Mobile Money** | Integration with Safaricom M-Pesa, the dominant digital financial service in East Africa, enabling accessible, transparent, pay-as-you-go teleconsultation fees. |
 | **Digital Health Innovation & System Strengthening** | Centralized, interoperable Electronic Health Records (EHR) preventing duplicate files and providing caregivers with lifetime access to clinical records. |
-
----
-
-## 🏛 System Architecture
-
-Beacon HUB is built upon a resilient, decoupled client-server architecture optimized for real-world network conditions in sub-Saharan Africa (low-bandwidth resilience, offline state persistence, and high security).
-
-```mermaid
-graph TD
-    subgraph Client Layer ["📱 Mobile Client (iOS & Android)"]
-        A["Beacon HUB App (Expo SDK 52 / React Native)"]
-        A --> B1["Firebase Authentication State"]
-        A --> B2["Offline Local Storage & Cache"]
-        A --> B3["Feature Modules: Milestones, ASD, Telehealth, MCH"]
-        A --> B4["Beacon AI Interactive Chat Client"]
-    end
-
-    subgraph Gateway ["🌐 API & Gateway Layer"]
-        C["Express / Node.js API Gateway (Railway Deployment)"]
-        B1 -.->|JWT Bearer Token| C
-        B3 -->|RESTful Endpoints| C
-        B4 -->|AI Prompt & Stream Handler| C
-    end
-
-    subgraph Core Services ["⚙️ Backend Microservices & Controllers"]
-        D1["Patient & Child Profile Controller"]
-        D2["Milestone & ASD Assessment Engine"]
-        D3["Specialist Scheduling & Telehealth Engine"]
-        D4["Safaricom Daraja M-Pesa Payment Engine"]
-        D5["Medical Records & Media Storage Service"]
-        D6["Beacon AI Knowledge Base & RAG Engine"]
-    end
-
-    subgraph Data & Integrations ["💾 Persistent Data & Third-Party APIs"]
-        E1[("PostgreSQL Database / Supabase")]
-        E2["Firebase Auth & Cloud Messaging (FCM)"]
-        E3["Safaricom Daraja API (Lipa Na M-Pesa Online STK Push)"]
-        E4["Cloud Document & Medical File Storage"]
-    end
-
-    C --> D1
-    C --> D2
-    C --> D3
-    C --> D4
-    C --> D5
-    C --> D6
-
-    D1 & D2 & D3 & D5 --> E1
-    D4 -->|STK Push Trigger / Instant Callback| E3
-    D6 -.->|Pediatric Knowledge Base| E1
-    C -.->|Token Verification| E2
-    D5 --> E4
-```
 
 ---
 
@@ -153,15 +99,15 @@ graph TD
 
 ```mermaid
 flowchart TD
-    Start(["Caregiver completes Milestone Checker"]) --> AgeCheck{Child Age >= 18 Mo?}
-    AgeCheck -->|Yes| LaunchASD["Launch ASD Screener (M-CHAT Aligned)"]
-    AgeCheck -->|No| FollowMilestone["Continue Standard Pediatric Milestones"]
+    Start(["Caregiver completes Milestone Checker"]) --> AgeCheck{"Child Age >= 18 Mo?"}
+    AgeCheck -->|"Yes"| LaunchASD["Launch ASD Screener (M-CHAT Aligned)"]
+    AgeCheck -->|"No"| FollowMilestone["Continue Standard Pediatric Milestones"]
     LaunchASD --> Answer["Caregiver Answers Behavioral Questions"]
     Answer --> ComputeScore["Automated Clinical Algorithm Scoring"]
-    ComputeScore --> Risk{Stratified Risk Level}
-    Risk -->|Low (0-2)| LowTier["Low Risk: Educational ECD Guidance"]
-    Risk -->|Moderate (3-7)| MedTier["Moderate Risk: Triage & Secondary Screening"]
-    Risk -->|High (8+)| HighTier["High Risk: Immediate Priority Specialist Referral"]
+    ComputeScore --> Risk{"Stratified Risk Level"}
+    Risk -->|"Low Risk (0-2)"| LowTier["Low Risk: Educational ECD Guidance"]
+    Risk -->|"Moderate Risk (3-7)"| MedTier["Moderate Risk: Triage & Secondary Screening"]
+    Risk -->|"High Risk (8+)"| HighTier["High Risk: Immediate Priority Specialist Referral"]
     MedTier --> Consult["One-Touch Doctor Booking"]
     HighTier --> Consult
 ```
@@ -407,5 +353,5 @@ npm run dev
 
 <p align="center">
   <b>Beacon HUB</b> — Dedicated to ensuring every child reaches their full developmental potential.<br>
-  <i>Built for Beacon Children's Centre • Prepared for UNICEF Stakeholder Review</i>
+  <i>Built for Beacon Children's Centre • Advancing Pediatric Digital Healthcare</i>
 </p>
