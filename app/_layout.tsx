@@ -5,6 +5,7 @@ import { Stack, useSegments, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState, useRef } from 'react';
+import * as Updates from 'expo-updates';
 import { Platform, AppState, View, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import 'react-native-reanimated';
@@ -13,7 +14,7 @@ import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { ChildProvider } from '@/contexts/ChildContext';
 import { NotificationProvider } from '@/contexts/NotificationContext';
-import { AlertProvider } from '@/contexts/AlertContext';
+import { AlertProvider, useAlert } from '@/contexts/AlertContext';
 import { Colors } from '@/constants/theme';
 import syncService from '@/services/syncService';
 
@@ -51,8 +52,43 @@ export default function RootLayout() {
 function NavigationWrapper() {
   const { isDark, colorScheme } = useTheme();
   const { user, loading, authLoading, initializing } = useAuth();
+  const { showAlert } = useAlert();
   const segments = useSegments();
   const router = useRouter();
+
+  // Check for OTA updates on app open (production builds only)
+  useEffect(() => {
+    async function checkForOTAUpdate() {
+      try {
+        const update = await Updates.checkForUpdateAsync();
+        if (update.isAvailable) {
+          console.log('OTA update available, downloading...');
+          await Updates.fetchUpdateAsync();
+          console.log('OTA update downloaded, prompting user...');
+          showAlert(
+            'Update Available',
+            'A new version of the app is ready. Restart now to get the latest improvements and fixes.',
+            [
+              { text: 'Later', style: 'cancel' },
+              {
+                text: 'Restart Now',
+                onPress: async () => {
+                  await Updates.reloadAsync();
+                },
+              },
+            ],
+            'info'
+          );
+        }
+      } catch (e) {
+        console.log('OTA update check failed (expected in dev):', e);
+      }
+    }
+
+    if (!__DEV__) {
+      checkForOTAUpdate();
+    }
+  }, []);
 
   useEffect(() => {
     // Start background sync listener on app mount
@@ -118,7 +154,7 @@ function NavigationWrapper() {
           <Stack.Screen name="index" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
           <Stack.Screen name="(tabs)" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
           <Stack.Screen name="auth" options={{ contentStyle: { backgroundColor: colorScheme.background } }} />
-          <Stack.Screen name="beacon-ai" options={{ contentStyle: { backgroundColor: colorScheme.background }, animation: 'slide_from_bottom' }} />
+          <Stack.Screen name="beacon-ai/index" options={{ contentStyle: { backgroundColor: colorScheme.background }, animation: 'slide_from_bottom' }} />
           <Stack.Screen name="+not-found" />
         </Stack>
       </View>
