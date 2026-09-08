@@ -1,19 +1,11 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import Constants from 'expo-constants';
-import { Platform } from 'react-native';
 import cacheService from './cacheService';
-import { API_URL } from './authService';
+import authService, { API_URL } from './authService';
 import syncService from './syncService';
 
 class GrowthService {
-    // Get auth token
+    // Get auth token (delegates to authService for auto-refresh)
     async getToken() {
-        try {
-            return await AsyncStorage.getItem('authToken');
-        } catch (error) {
-            console.error('Error getting token:', error);
-            return null;
-        }
+        return authService.getToken();
     }
 
     // Add a new growth measurement using offline-first caching and sync queue

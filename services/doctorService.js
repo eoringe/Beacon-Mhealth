@@ -1,15 +1,10 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_URL } from './authService';
+import authService, { API_URL } from './authService';
 
 /**
- * Get auth token from storage
+ * Get auth token from storage (with auto-refresh)
  */
 const getAuthToken = async () => {
-    try {
-        return await AsyncStorage.getItem('authToken');
-    } catch {
-        return null;
-    }
+    return authService.getToken();
 };
 
 /**
